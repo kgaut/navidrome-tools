@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(lando list *)",
+      "Bash(curl -sS -I http://navidrome-tools.lndo.site/)",
+      "Bash(curl -sS http://navidrome-tools.lndo.site/)"
+    ]
+  }
+}
