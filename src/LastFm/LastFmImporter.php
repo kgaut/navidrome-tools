@@ -20,6 +20,10 @@ class LastFmImporter
 
     /**
      * @param callable(int $fetched, int $inserted, int $duplicates, int $unmatched): void $progress
+     * @param callable(LastFmScrobble $scrobble, string $status, ?string $mediaFileId): void $onScrobble
+     *        Called once per processed scrobble, with status one of
+     *        'inserted' | 'duplicate' | 'unmatched'. Used by callers that
+     *        want to persist a per-track audit row.
      */
     public function import(
         string $apiKey,
@@ -30,6 +34,7 @@ class LastFmImporter
         bool $dryRun = false,
         ?callable $progress = null,
         ?int $maxScrobbles = null,
+        ?callable $onScrobble = null,
     ): ImportReport {
         $report = new ImportReport();
         $userId = $this->navidrome->resolveUserId();
@@ -61,13 +66,20 @@ class LastFmImporter
                     'artist' => $scrobble->artist,
                     'title' => $scrobble->title,
                 ]);
+                $status = 'unmatched';
             } elseif ($this->navidrome->scrobbleExistsNear($userId, $mediaFileId, $scrobble->playedAt, $toleranceSeconds)) {
                 $report->duplicates++;
+                $status = 'duplicate';
             } else {
                 if (!$dryRun) {
                     $this->navidrome->insertScrobble($userId, $mediaFileId, $scrobble->playedAt);
                 }
                 $report->inserted++;
+                $status = 'inserted';
+            }
+
+            if ($onScrobble !== null) {
+                $onScrobble($scrobble, $status, $mediaFileId);
             }
 
             if ($progress !== null && $report->fetched % 50 === 0) {

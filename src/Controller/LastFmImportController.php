@@ -2,13 +2,16 @@
 
 namespace App\Controller;
 
+use App\Entity\LastFmImportTrack;
 use App\Entity\RunHistory;
 use App\Form\LastFmImportType;
 use App\LastFm\ImportReport;
 use App\LastFm\LastFmImporter;
+use App\LastFm\LastFmScrobble;
 use App\Lidarr\LidarrConfig;
 use App\Navidrome\NavidromeRepository;
 use App\Service\RunHistoryRecorder;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -21,6 +24,7 @@ class LastFmImportController extends AbstractController
         private readonly LidarrConfig $lidarrConfig,
         private readonly NavidromeRepository $navidrome,
         private readonly RunHistoryRecorder $recorder,
+        private readonly EntityManagerInterface $em,
         private readonly string $navidromeUrl,
     ) {
     }
@@ -57,11 +61,12 @@ class LastFmImportController extends AbstractController
                     ? \DateTimeImmutable::createFromInterface($data['date_max'])
                     : null;
                 try {
+                    $em = $this->em;
                     $report = $this->recorder->record(
                         type: RunHistory::TYPE_LASTFM_IMPORT,
                         reference: $user,
                         label: 'Last.fm import — ' . $user . ($isDry ? ' [dry-run]' : ''),
-                        action: fn () => $this->importer->import(
+                        action: fn (RunHistory $entry) => $this->importer->import(
                             apiKey: $apiKey,
                             lastFmUser: $user,
                             dateMin: $dateMin,
@@ -69,6 +74,20 @@ class LastFmImportController extends AbstractController
                             toleranceSeconds: max(0, (int) ($data['tolerance'] ?? 60)),
                             dryRun: $isDry,
                             maxScrobbles: $data['max_scrobbles'] !== null ? max(1, (int) $data['max_scrobbles']) : null,
+                            onScrobble: function (LastFmScrobble $s, string $status, ?string $mfid) use ($entry, $em): void {
+                                $em->persist(new LastFmImportTrack(
+                                    runHistory: $entry,
+                                    artist: $s->artist,
+                                    title: $s->title,
+                                    album: $s->album,
+                                    mbid: $s->mbid,
+                                    playedAt: $s->playedAt,
+                                    status: $status,
+                                    matchedMediaFileId: $mfid,
+                                ));
+                                // RunHistoryRecorder::record flushes once at the end, which
+                                // covers the persisted tracks too — no per-scrobble flush.
+                            },
                         ),
                         extractMetrics: static fn (ImportReport $r) => [
                             'fetched' => $r->fetched,

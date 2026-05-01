@@ -81,4 +81,38 @@ class LastFmImporterTest extends TestCase
         $count = $conn->fetchOne('SELECT COUNT(*) FROM scrobbles WHERE user_id = ?', ['user-1']);
         $this->assertSame(0, (int) $count, 'No row should have been written in dry-run mode');
     }
+
+    public function testOnScrobbleCallbackFiresWithStatusAndMediaFileId(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: true);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', 'Hit', 'Artist');
+        $existing = new \DateTimeImmutable('2024-05-01 10:00:00');
+        NavidromeFixtureFactory::insertScrobble($conn, 'user-1', 'mf-1', $existing->format('Y-m-d H:i:s'));
+
+        $client = new FakeLastFmClient([
+            // Will match mf-1 within ±60s of pre-existing → duplicate.
+            new LastFmScrobble('Artist', 'Hit', '', null, $existing->modify('+10 seconds')),
+            // Different time → inserted.
+            new LastFmScrobble('Artist', 'Hit', '', null, new \DateTimeImmutable('2024-06-01 10:00:00')),
+            // Won't match.
+            new LastFmScrobble('Nope', 'Nada', '', null, new \DateTimeImmutable('2024-07-01 10:00:00')),
+        ]);
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $events = [];
+        (new LastFmImporter($client, $repo))->import(
+            'k',
+            'u',
+            dryRun: true,
+            onScrobble: function (LastFmScrobble $s, string $status, ?string $mfid) use (&$events): void {
+                $events[] = [$s->title, $status, $mfid];
+            },
+        );
+
+        $this->assertSame([
+            ['Hit', 'duplicate', 'mf-1'],
+            ['Hit', 'inserted', 'mf-1'],
+            ['Nada', 'unmatched', null],
+        ], $events);
+    }
 }

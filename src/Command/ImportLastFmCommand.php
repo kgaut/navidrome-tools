@@ -2,10 +2,13 @@
 
 namespace App\Command;
 
+use App\Entity\LastFmImportTrack;
 use App\Entity\RunHistory;
 use App\LastFm\ImportReport;
 use App\LastFm\LastFmImporter;
+use App\LastFm\LastFmScrobble;
 use App\Service\RunHistoryRecorder;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -23,6 +26,7 @@ class ImportLastFmCommand extends Command
     public function __construct(
         private readonly LastFmImporter $importer,
         private readonly RunHistoryRecorder $recorder,
+        private readonly EntityManagerInterface $em,
     ) {
         parent::__construct();
     }
@@ -115,11 +119,12 @@ class ImportLastFmCommand extends Command
         try {
             $maxScrobbles = $input->getOption('max-scrobbles');
             $maxScrobblesInt = $maxScrobbles !== null ? max(1, (int) $maxScrobbles) : null;
+            $em = $this->em;
             $report = $this->recorder->record(
                 type: RunHistory::TYPE_LASTFM_IMPORT,
                 reference: $user,
                 label: 'Last.fm import — ' . $user . ($dryRun ? ' [dry-run]' : ''),
-                action: fn () => $this->importer->import(
+                action: fn (RunHistory $entry) => $this->importer->import(
                     apiKey: $apiKey,
                     lastFmUser: $user,
                     dateMin: $dateMin,
@@ -136,6 +141,18 @@ class ImportLastFmCommand extends Command
                         ));
                     },
                     maxScrobbles: $maxScrobblesInt,
+                    onScrobble: function (LastFmScrobble $s, string $status, ?string $mfid) use ($entry, $em): void {
+                        $em->persist(new LastFmImportTrack(
+                            runHistory: $entry,
+                            artist: $s->artist,
+                            title: $s->title,
+                            album: $s->album,
+                            mbid: $s->mbid,
+                            playedAt: $s->playedAt,
+                            status: $status,
+                            matchedMediaFileId: $mfid,
+                        ));
+                    },
                 ),
                 extractMetrics: static fn (ImportReport $r) => [
                     'fetched' => $r->fetched,

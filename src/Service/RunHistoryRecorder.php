@@ -15,9 +15,15 @@ class RunHistoryRecorder
      * Wraps an action and records its outcome (success/error) into run_history.
      * Re-throws on error so the caller can surface it to the user.
      *
+     * The action callable receives the freshly persisted RunHistory entry
+     * (already flushed, so its id is set) — this lets the action attach
+     * child entities to the run via foreign key. Existing arrow-fn callers
+     * that don't declare the parameter ignore it (PHP silently discards
+     * extra positional args).
+     *
      * @template T
      *
-     * @param callable(): T                $action
+     * @param callable(RunHistory): T            $action
      * @param ?callable(T): array<string, mixed> $extractMetrics
      *
      * @return T
@@ -36,7 +42,7 @@ class RunHistoryRecorder
         $startedMicrotime = microtime(true);
 
         try {
-            $result = $action();
+            $result = $action($entry);
         } catch (\Throwable $e) {
             $entry->setStatus(RunHistory::STATUS_ERROR);
             $entry->setMessage($e->getMessage());

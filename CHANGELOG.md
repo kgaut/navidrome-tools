@@ -44,6 +44,28 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
   morceau. Cache dans `navidrome_history` (migration
   `Version20260501400000`), refresh atomique. Nouveau helper
   `NavidromeRepository::getRecentScrobbles(int $limit)`.
+- Audit **par-track** des imports Last.fm : chaque scrobble traité
+  par un import (CLI ou UI) est désormais persisté dans la nouvelle
+  table `lastfm_import_track` (migration `Version20260501500000`)
+  avec son statut (`inserted` / `duplicate` / `unmatched`), l'id du
+  media_file matché si applicable, le mbid Last.fm, et un FK CASCADE
+  vers `run_history`. La page de détail d'un run (`/history/{id}`)
+  affiche pour les `lastfm-import` un tableau filtrable par statut
+  + recherche full-text sur artiste/titre. Filtre par défaut sur
+  les non matchés s'il y en a, sinon tous (page jamais surprenante­
+  ment vide). Limité à 500 lignes par vue avec un message si
+  tronqué.
+
+### Changed
+- `RunHistoryRecorder::record()` passe maintenant la `RunHistory`
+  fraîchement persistée à l'action callback en premier argument —
+  permet aux callers d'attacher des entités enfants au run via FK
+  pendant l'exécution. Les arrow-fns existantes ignorent
+  l'argument supplémentaire (PHP discard les args en trop).
+- `LastFmImporter::import()` accepte un nouveau callback optionnel
+  `onScrobble(scrobble, status, mediaFileId|null)` appelé une fois
+  par scrobble traité, utilisé par les callers qui veulent un audit
+  détaillé.
 
 ### Changed
 - Page historique des runs : la colonne Métriques masque maintenant

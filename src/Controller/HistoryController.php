@@ -2,7 +2,9 @@
 
 namespace App\Controller;
 
+use App\Entity\LastFmImportTrack;
 use App\Entity\RunHistory;
+use App\Repository\LastFmImportTrackRepository;
 use App\Repository\RunHistoryRepository;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
@@ -12,6 +14,7 @@ use Symfony\Component\Routing\Attribute\Route;
 class HistoryController extends AbstractController
 {
     private const PER_PAGE = 50;
+    private const DETAIL_TRACK_LIMIT = 500;
 
     #[Route('/history', name: 'app_history', methods: ['GET'])]
     public function index(Request $request, RunHistoryRepository $repository): Response
@@ -46,10 +49,54 @@ class HistoryController extends AbstractController
     }
 
     #[Route('/history/{id}', name: 'app_history_detail', methods: ['GET'])]
-    public function detail(RunHistory $entry): Response
+    public function detail(RunHistory $entry, Request $request, LastFmImportTrackRepository $tracksRepo): Response
     {
+        $tracks = [];
+        $statusCounts = [];
+        $statusFilter = null;
+        $qFilter = null;
+        $tracksTruncated = false;
+
+        if ($entry->getType() === RunHistory::TYPE_LASTFM_IMPORT) {
+            $statusCounts = $tracksRepo->countByStatusForRun($entry);
+
+            // Default to "unmatched" only if there are unmatched tracks for this
+            // run; otherwise default to "all" so the page is not surprisingly
+            // empty after a flawless import.
+            $defaultStatus = ($statusCounts[LastFmImportTrack::STATUS_UNMATCHED] ?? 0) > 0
+                ? LastFmImportTrack::STATUS_UNMATCHED
+                : '';
+            $statusFilter = $request->query->has('status')
+                ? (string) $request->query->get('status')
+                : $defaultStatus;
+
+            if (!in_array($statusFilter, ['', LastFmImportTrack::STATUS_INSERTED, LastFmImportTrack::STATUS_DUPLICATE, LastFmImportTrack::STATUS_UNMATCHED], true)) {
+                $statusFilter = '';
+            }
+
+            $qFilter = trim((string) $request->query->get('q', '')) ?: null;
+            $tracks = $tracksRepo->findForRun(
+                $entry,
+                $statusFilter !== '' ? $statusFilter : null,
+                $qFilter,
+                self::DETAIL_TRACK_LIMIT,
+            );
+            $tracksTruncated = count($tracks) >= self::DETAIL_TRACK_LIMIT;
+        }
+
         return $this->render('history/detail.html.twig', [
             'entry' => $entry,
+            'tracks' => $tracks,
+            'tracks_truncated' => $tracksTruncated,
+            'tracks_limit' => self::DETAIL_TRACK_LIMIT,
+            'status_counts' => $statusCounts,
+            'status_filter' => $statusFilter,
+            'q_filter' => $qFilter,
+            'track_statuses' => [
+                LastFmImportTrack::STATUS_INSERTED => 'Insérés',
+                LastFmImportTrack::STATUS_DUPLICATE => 'Doublons',
+                LastFmImportTrack::STATUS_UNMATCHED => 'Non matchés',
+            ],
         ]);
     }
 }
