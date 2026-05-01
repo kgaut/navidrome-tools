@@ -196,8 +196,9 @@ doublons.
 
 Accédez à `/lastfm/import` une fois connecté. Le formulaire propose :
 
-- Identifiant Last.fm + API key (la clé peut aussi venir de
-  l'environnement via `LASTFM_API_KEY`).
+- Identifiant Last.fm + API key. Les deux peuvent venir de
+  l'environnement via `LASTFM_USER` (pré-remplit le champ) et
+  `LASTFM_API_KEY` (utilisée si le champ est laissé vide).
 - Filtres `date_min` / `date_max` optionnels.
 - Tolérance dedup (secondes) — un scrobble n'est pas réinséré s'il en
   existe déjà un sur la même piste à ± cette durée.
@@ -214,7 +215,7 @@ scrobbles décroissant.
 ### Via la commande CLI
 
 ```bash
-php bin/console app:lastfm:import <lastfm-user> --api-key=YOUR_KEY \
+php bin/console app:lastfm:import [<lastfm-user>] [--api-key=YOUR_KEY] \
     [--date-min=YYYY-MM-DD] [--date-max=YYYY-MM-DD] \
     [--tolerance=60] [--dry-run] [--show-unmatched=50|all|0] \
     [--max-scrobbles=N]
@@ -222,7 +223,8 @@ php bin/console app:lastfm:import <lastfm-user> --api-key=YOUR_KEY \
 
 L'API key Last.fm s'obtient gratuitement sur
 <https://www.last.fm/api/account/create>. Elle peut aussi être passée via
-la variable d'environnement `LASTFM_API_KEY`.
+la variable d'environnement `LASTFM_API_KEY`. De même, le username peut
+être omis si `LASTFM_USER` est défini dans l'environnement.
 
 ### Stratégie
 

@@ -28,7 +28,8 @@ class LastFmImportController extends AbstractController
     #[Route('/lastfm/import', name: 'app_lastfm_import', methods: ['GET', 'POST'])]
     public function index(Request $request): Response
     {
-        $form = $this->createForm(LastFmImportType::class);
+        $defaultUser = (string) ($_ENV['LASTFM_USER'] ?? getenv('LASTFM_USER') ?: '');
+        $form = $this->createForm(LastFmImportType::class, $defaultUser !== '' ? ['lastfm_user' => $defaultUser] : null);
         $form->handleRequest($request);
 
         $report = null;

@@ -239,6 +239,7 @@ Le push du tag déclenche `docker-publish` (cf. `.github/workflows/ci.yml`).
 | `LIDARR_QUALITY_PROFILE_ID` / `..._METADATA_PROFILE_ID` | IDs de profils existants            |
 | `LIDARR_MONITOR`               | `all` / `future` / `missing` / `existing` / `first` / `latest` / `none` |
 | `LASTFM_API_KEY`               | Optionnel, fallback du formulaire et de la CLI              |
+| `LASTFM_USER`                  | Optionnel, pré-remplit le champ user / fallback CLI         |
 
 Wirées dans : `.env` (dev), `.env.dist` (template), `phpunit.xml.dist`
 (test), `.lando.yml.dist` (Lando), `docker-compose.example.yml`,

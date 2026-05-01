@@ -41,6 +41,9 @@ services:
         # and the app:lastfm:import CLI when --api-key is not passed.
         # Get one at https://www.last.fm/api/account/create
         LASTFM_API_KEY: ''
+        # Default Last.fm username pre-filled in the import form and used
+        # when the CLI argument is omitted. Leave empty to require it.
+        LASTFM_USER: ''
 
   cron:
     type: php:8.3

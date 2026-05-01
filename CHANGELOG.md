@@ -12,6 +12,10 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
   de release dans `CLAUDE.md` (§5) et lien depuis le `README.md`.
 - Favicon SVG (note de musique, slate-900) en `public/favicon.svg`,
   référencée depuis `base.html.twig`.
+- Variable d'environnement `LASTFM_USER` : pré-remplit le champ
+  « Identifiant Last.fm » du formulaire d'import et sert de fallback
+  quand l'argument `lastfm-user` est omis sur la CLI
+  (`app:lastfm:import`).
 
 <!--
 Sections disponibles pour les futures entrées :

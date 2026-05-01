@@ -23,7 +23,8 @@ class LastFmImportType extends AbstractType
             ->add('lastfm_user', TextType::class, [
                 'label' => 'Identifiant Last.fm',
                 'constraints' => [new Assert\NotBlank()],
-                'help' => 'Le username Last.fm dont l\'historique sera importé (doit être public).',
+                'help' => 'Le username Last.fm dont l\'historique sera importé (doit être public). '
+                    . 'Pré-rempli depuis LASTFM_USER si la variable est définie.',
             ])
             ->add('api_key', PasswordType::class, [
                 'label' => 'API key Last.fm',

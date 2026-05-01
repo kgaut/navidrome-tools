@@ -27,6 +27,7 @@
         <env name="LIDARR_MONITOR" value="all"/>
         <env name="RUN_HISTORY_RETENTION_DAYS" value="90"/>
         <env name="LASTFM_API_KEY" value=""/>
+        <env name="LASTFM_USER" value=""/>
     </php>
 
     <testsuites>

@@ -32,8 +32,9 @@ class ImportLastFmCommand extends Command
         $this
             ->addArgument(
                 'lastfm-user',
-                InputArgument::REQUIRED,
-                'Last.fm username whose scrobbles you want to import.',
+                InputArgument::OPTIONAL,
+                'Last.fm username whose scrobbles you want to import. '
+                . 'Defaults to the LASTFM_USER env var when omitted.',
             )
             ->addOption(
                 'api-key',
@@ -92,7 +93,12 @@ class ImportLastFmCommand extends Command
             return Command::FAILURE;
         }
 
-        $user = (string) $input->getArgument('lastfm-user');
+        $user = (string) ($input->getArgument('lastfm-user') ?? $_ENV['LASTFM_USER'] ?? getenv('LASTFM_USER') ?: '');
+        if ($user === '') {
+            $io->error('Provide a Last.fm username as the first argument or via the LASTFM_USER env var.');
+
+            return Command::FAILURE;
+        }
         $dateMin = $this->parseDate($input->getOption('date-min'));
         $dateMax = $this->parseDate($input->getOption('date-max'));
         $tolerance = max(0, (int) $input->getOption('tolerance'));
