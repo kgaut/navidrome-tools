@@ -4,6 +4,8 @@ namespace App\Controller;
 
 use App\Entity\LastFmImportTrack;
 use App\Entity\RunHistory;
+use App\Lidarr\LidarrClient;
+use App\Lidarr\LidarrConfig;
 use App\Repository\LastFmImportTrackRepository;
 use App\Repository\RunHistoryRepository;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -15,6 +17,12 @@ class HistoryController extends AbstractController
 {
     private const PER_PAGE = 50;
     private const DETAIL_TRACK_LIMIT = 500;
+
+    public function __construct(
+        private readonly LidarrConfig $lidarrConfig,
+        private readonly LidarrClient $lidarrClient,
+    ) {
+    }
 
     #[Route('/history', name: 'app_history', methods: ['GET'])]
     public function index(Request $request, RunHistoryRepository $repository): Response
@@ -56,6 +64,8 @@ class HistoryController extends AbstractController
         $statusFilter = null;
         $qFilter = null;
         $tracksTruncated = false;
+        $unmatchedArtists = [];
+        $lidarrReachable = true;
 
         if ($entry->getType() === RunHistory::TYPE_LASTFM_IMPORT) {
             $statusCounts = $tracksRepo->countByStatusForRun($entry);
@@ -82,6 +92,8 @@ class HistoryController extends AbstractController
                 self::DETAIL_TRACK_LIMIT,
             );
             $tracksTruncated = count($tracks) >= self::DETAIL_TRACK_LIMIT;
+
+            $unmatchedArtists = $this->buildUnmatchedArtists($entry, $lidarrReachable);
         }
 
         return $this->render('history/detail.html.twig', [
@@ -97,6 +109,50 @@ class HistoryController extends AbstractController
                 LastFmImportTrack::STATUS_DUPLICATE => 'Doublons',
                 LastFmImportTrack::STATUS_UNMATCHED => 'Non matchés',
             ],
+            'unmatched_artists' => $unmatchedArtists,
+            'lidarr_configured' => $this->lidarrConfig->isConfigured(),
+            'lidarr_reachable' => $lidarrReachable,
         ]);
+    }
+
+    /**
+     * @return list<array{artist: string, scrobbles: int, lidarr_url: string|null}>
+     */
+    private function buildUnmatchedArtists(RunHistory $entry, bool &$lidarrReachable): array
+    {
+        $metrics = $entry->getMetrics() ?? [];
+        $raw = $metrics['unmatched_artists'] ?? [];
+        if (!is_array($raw) || $raw === []) {
+            return [];
+        }
+
+        $index = null;
+        if ($this->lidarrConfig->isConfigured()) {
+            try {
+                $index = $this->lidarrClient->indexExistingArtists();
+            } catch (\Throwable) {
+                $lidarrReachable = false;
+                $index = null;
+            }
+        }
+
+        $rows = [];
+        foreach ($raw as $row) {
+            if (!is_array($row) || !isset($row['artist'])) {
+                continue;
+            }
+            $artist = (string) $row['artist'];
+            $key = mb_strtolower(trim($artist));
+            $match = $index[$key] ?? null;
+            $rows[] = [
+                'artist' => $artist,
+                'scrobbles' => (int) ($row['scrobbles'] ?? 0),
+                'lidarr_url' => $match !== null && $match['foreignArtistId'] !== ''
+                    ? $this->lidarrConfig->artistDetailUrl($match['foreignArtistId'])
+                    : null,
+            ];
+        }
+
+        return $rows;
     }
 }

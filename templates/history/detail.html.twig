@@ -131,4 +131,92 @@
             {% endif %}
         </div>
     {% endif %}
+
+    {# ---------- Unmatched artists section for Last.fm imports ---------- #}
+    {% if entry.type == 'lastfm-import' and unmatched_artists is not empty %}
+        <div class="bg-white shadow rounded p-6 mt-6 max-w-5xl">
+            <h2 class="text-lg font-semibold mb-1">
+                Artistes non matchés (top {{ unmatched_artists|length }})
+            </h2>
+            <p class="text-xs text-slate-500 mb-4">
+                Agrégés à partir des scrobbles Last.fm de ce run qui n'ont pas
+                trouvé de morceau correspondant dans Navidrome.
+            </p>
+
+            {% if not lidarr_configured %}
+                <div class="mb-4 p-3 rounded bg-amber-50 text-amber-800 text-sm">
+                    Configurer <code>LIDARR_URL</code> et <code>LIDARR_API_KEY</code>
+                    pour activer les actions Lidarr.
+                </div>
+            {% elseif not lidarr_reachable %}
+                <div class="mb-4 p-3 rounded bg-rose-50 text-rose-800 text-sm">
+                    Lidarr injoignable — actions désactivées.
+                </div>
+            {% endif %}
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-slate-100 text-slate-600 text-left text-xs">
+                    <tr>
+                        <th class="px-3 py-2 w-10">#</th>
+                        <th class="px-3 py-2">Artiste</th>
+                        <th class="px-3 py-2">Scrobbles</th>
+                        <th class="px-3 py-2">Statut Lidarr</th>
+                        <th class="px-3 py-2">Action</th>
+                    </tr>
+                    </thead>
+                    <tbody class="divide-y">
+                    {% for row in unmatched_artists %}
+                        <tr>
+                            <td class="px-3 py-1.5 text-slate-400">{{ loop.index }}</td>
+                            <td class="px-3 py-1.5">
+                                <a href="https://www.last.fm/music/{{ row.artist|url_encode }}"
+                                   class="hover:underline" target="_blank" rel="noopener">{{ row.artist }}</a>
+                            </td>
+                            <td class="px-3 py-1.5 text-slate-600">{{ row.scrobbles }}</td>
+                            <td class="px-3 py-1.5">
+                                {% if not lidarr_configured or not lidarr_reachable %}
+                                    <span class="text-xs text-slate-400">—</span>
+                                {% elseif row.lidarr_url %}
+                                    <span class="text-xs px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                                        ✓ déjà dans Lidarr
+                                    </span>
+                                {% else %}
+                                    <span class="text-xs px-2 py-0.5 rounded bg-slate-200 text-slate-700">
+                                        ✗ absent
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td class="px-3 py-1.5">
+                                {% if lidarr_configured and lidarr_reachable and row.lidarr_url %}
+                                    <a href="{{ row.lidarr_url }}" target="_blank" rel="noopener"
+                                       class="text-xs px-2 py-1 rounded bg-sky-600 text-white hover:bg-sky-700">
+                                        Fiche Lidarr
+                                    </a>
+                                {% elseif lidarr_configured and lidarr_reachable %}
+                                    <form method="post" action="{{ path('app_lidarr_add_artist') }}"
+                                          class="inline"
+                                          onsubmit="return confirm('Ajouter « {{ row.artist|e('js') }} » à Lidarr ?');">
+                                        <input type="hidden" name="_token" value="{{ csrf_token('lidarr_add') }}">
+                                        <input type="hidden" name="artist" value="{{ row.artist }}">
+                                        <input type="hidden" name="_redirect_run_id" value="{{ entry.id }}">
+                                        <button type="submit"
+                                                class="text-xs px-2 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700">
+                                            + Lidarr
+                                        </button>
+                                    </form>
+                                {% else %}
+                                    <button type="button" disabled
+                                            class="text-xs px-2 py-1 rounded bg-slate-200 text-slate-400 cursor-not-allowed">
+                                        + Lidarr
+                                    </button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    {% endif %}
 {% endblock %}

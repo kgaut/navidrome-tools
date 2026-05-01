@@ -49,4 +49,31 @@ class ImportReport
     {
         return count($this->unmatchedAggregate);
     }
+
+    /**
+     * Unmatched artists, scrobble counts summed across every unmatched
+     * (artist, title) pair, ordered by scrobble count DESC then artist ASC.
+     *
+     * @return list<array{artist: string, scrobbles: int}>
+     */
+    public function unmatchedArtistsRanking(?int $limit = null): array
+    {
+        /** @var array<string, array{artist: string, scrobbles: int}> $byArtist */
+        $byArtist = [];
+        foreach ($this->unmatchedAggregate as $row) {
+            $key = mb_strtolower(trim($row['artist']));
+            if (!isset($byArtist[$key])) {
+                $byArtist[$key] = ['artist' => $row['artist'], 'scrobbles' => 0];
+            }
+            $byArtist[$key]['scrobbles'] += $row['count'];
+        }
+
+        $rows = array_values($byArtist);
+        usort($rows, static function (array $a, array $b): int {
+            return $b['scrobbles'] <=> $a['scrobbles']
+                ?: strcasecmp($a['artist'], $b['artist']);
+        });
+
+        return $limit === null ? $rows : array_slice($rows, 0, $limit);
+    }
 }

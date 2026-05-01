@@ -57,6 +57,37 @@ class LidarrClient
     }
 
     /**
+     * Index every artist already known to Lidarr by normalised name
+     * (lowercased + trimmed) so callers can resolve "is artist X already
+     * in Lidarr?" in O(1) without one HTTP call per name.
+     *
+     * @return array<string, array{id: int, foreignArtistId: string, artistName: string}>
+     */
+    public function indexExistingArtists(): array
+    {
+        $resp = $this->request('GET', '/api/v1/artist');
+
+        $index = [];
+        foreach ($resp as $r) {
+            if (!is_array($r) || !isset($r['artistName'])) {
+                continue;
+            }
+            $name = (string) $r['artistName'];
+            $key = mb_strtolower(trim($name));
+            if ($key === '') {
+                continue;
+            }
+            $index[$key] = [
+                'id' => (int) ($r['id'] ?? 0),
+                'foreignArtistId' => (string) ($r['foreignArtistId'] ?? ''),
+                'artistName' => $name,
+            ];
+        }
+
+        return $index;
+    }
+
+    /**
      * Add an artist to Lidarr. Pass a hit returned by searchArtist().
      *
      * @param array<string, mixed> $hit
