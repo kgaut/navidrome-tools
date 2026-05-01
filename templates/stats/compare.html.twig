@@ -1,0 +1,133 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Comparer 2 périodes{% endblock %}
+
+{% block body %}
+    <div class="flex items-start justify-between mb-4 flex-wrap gap-3">
+        <h1 class="text-2xl font-semibold">Comparer deux périodes</h1>
+        <a href="{{ path('app_stats') }}" class="text-sm text-slate-500 hover:underline">← Vue d'ensemble</a>
+    </div>
+
+    <form method="get" class="bg-white shadow rounded p-4 mb-6 flex flex-wrap items-end gap-4">
+        <div>
+            <label class="block text-xs uppercase text-slate-500" for="period1">Période 1</label>
+            <select name="period1" id="period1" class="border rounded px-2 py-1 text-sm">
+                {% for k, label in periods %}
+                    <option value="{{ k }}" {{ k == period1 ? 'selected' : '' }}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="text-2xl text-slate-400 pt-5">vs</div>
+        <div>
+            <label class="block text-xs uppercase text-slate-500" for="period2">Période 2</label>
+            <select name="period2" id="period2" class="border rounded px-2 py-1 text-sm">
+                {% for k, label in periods %}
+                    <option value="{{ k }}" {{ k == period2 ? 'selected' : '' }}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="px-3 py-1.5 rounded bg-slate-900 text-white text-sm">Comparer</button>
+    </form>
+
+    {% if error %}
+        <div class="bg-rose-50 border border-rose-300 text-rose-800 rounded p-4 mb-6">{{ error }}</div>
+    {% endif %}
+
+    {% if result %}
+        {# Summary cards #}
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            {% for snap in [result.period1, result.period2] %}
+                <div class="bg-white shadow rounded p-5">
+                    <div class="text-xs uppercase text-slate-500">{{ snap.label }}</div>
+                    <div class="mt-2 flex items-baseline gap-6">
+                        <div>
+                            <div class="text-3xl font-semibold">{{ snap.total_plays|number_format(0, '.', ' ') }}</div>
+                            <div class="text-xs text-slate-500">écoutes</div>
+                        </div>
+                        <div>
+                            <div class="text-3xl font-semibold">{{ snap.distinct_tracks|number_format(0, '.', ' ') }}</div>
+                            <div class="text-xs text-slate-500">morceaux distincts</div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+
+        {# Helper macro for status badge #}
+        {% macro deltaCell(plays1, plays2, delta, status) %}
+            {% set badge = status == 'nouveau' ? 'bg-emerald-100 text-emerald-800'
+                : status == 'disparu' ? 'bg-slate-200 text-slate-700'
+                : status == 'up' ? 'bg-emerald-100 text-emerald-800'
+                : status == 'down' ? 'bg-rose-100 text-rose-800'
+                : 'bg-slate-100 text-slate-600' %}
+            {% set arrow = status == 'up' ? '↑' : status == 'down' ? '↓' : status == 'equal' ? '=' : '' %}
+            {% set text = status == 'nouveau' ? 'NEW'
+                : status == 'disparu' ? 'gone'
+                : (delta > 0 ? '+' ~ delta : delta) %}
+            <span class="text-xs px-2 py-0.5 rounded {{ badge }}">{{ arrow }} {{ text }}</span>
+        {% endmacro %}
+        {% import _self as ui %}
+
+        {# Top artists #}
+        <div class="bg-white shadow rounded overflow-hidden mb-6">
+            <div class="px-4 py-3 border-b bg-slate-50">
+                <h2 class="font-semibold text-sm">Top artistes</h2>
+            </div>
+            <table class="w-full text-sm">
+                <thead class="bg-slate-100 text-slate-600 text-left text-xs">
+                <tr>
+                    <th class="px-3 py-2">#</th>
+                    <th class="px-3 py-2">Artiste</th>
+                    <th class="px-3 py-2 text-right w-24">{{ result.period1.label }}</th>
+                    <th class="px-3 py-2 text-right w-24">{{ result.period2.label }}</th>
+                    <th class="px-3 py-2 w-32">Évolution</th>
+                </tr>
+                </thead>
+                <tbody class="divide-y">
+                {% for row in result.artists %}
+                    <tr>
+                        <td class="px-3 py-1.5 text-slate-400">{{ loop.index }}</td>
+                        <td class="px-3 py-1.5 font-medium">{{ row.artist }}</td>
+                        <td class="px-3 py-1.5 text-right">{{ row.plays1|number_format(0, '.', ' ') }}</td>
+                        <td class="px-3 py-1.5 text-right">{{ row.plays2|number_format(0, '.', ' ') }}</td>
+                        <td class="px-3 py-1.5">{{ ui.deltaCell(row.plays1, row.plays2, row.delta, row.status) }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {# Top tracks #}
+        <div class="bg-white shadow rounded overflow-hidden">
+            <div class="px-4 py-3 border-b bg-slate-50">
+                <h2 class="font-semibold text-sm">Top morceaux</h2>
+            </div>
+            <div class="max-h-[600px] overflow-y-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-slate-100 text-slate-600 text-left text-xs sticky top-0">
+                    <tr>
+                        <th class="px-3 py-2">#</th>
+                        <th class="px-3 py-2">Titre</th>
+                        <th class="px-3 py-2">Artiste</th>
+                        <th class="px-3 py-2 text-right w-24">{{ result.period1.label }}</th>
+                        <th class="px-3 py-2 text-right w-24">{{ result.period2.label }}</th>
+                        <th class="px-3 py-2 w-32">Évolution</th>
+                    </tr>
+                    </thead>
+                    <tbody class="divide-y">
+                    {% for row in result.tracks %}
+                        <tr>
+                            <td class="px-3 py-1.5 text-slate-400">{{ loop.index }}</td>
+                            <td class="px-3 py-1.5">{{ row.title }}</td>
+                            <td class="px-3 py-1.5 text-slate-500">{{ row.artist }}</td>
+                            <td class="px-3 py-1.5 text-right">{{ row.plays1|number_format(0, '.', ' ') }}</td>
+                            <td class="px-3 py-1.5 text-right">{{ row.plays2|number_format(0, '.', ' ') }}</td>
+                            <td class="px-3 py-1.5">{{ ui.deltaCell(row.plays1, row.plays2, row.delta, row.status) }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    {% endif %}
+{% endblock %}
