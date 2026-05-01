@@ -43,9 +43,27 @@ Fonctionnalités livrées :
   (extrapolation depuis la durée des top tracks).
 - **Page `/lastfm/import`** : import one-shot du scrobble history
   Last.fm, dédoublonnage à ±N secondes, rapport des non-trouvés rangé
-  par fréquence.
+  par fréquence. Pause configurable (`LASTFM_PAGE_DELAY_SECONDS`,
+  défaut 10s) entre 2 pages de l'API. User et API key par défaut
+  via `LASTFM_USER` / `LASTFM_API_KEY`.
 - **Page `/history`** : audit de tous les runs cron via
-  `RunHistoryRecorder` (status / durée / metrics / message).
+  `RunHistoryRecorder` (status / durée / metrics / message). La page
+  détail d'un run `lastfm-import` affiche le **listing par-track**
+  (table `lastfm_import_track`, FK CASCADE) avec filtre par statut
+  (inserted / duplicate / unmatched, défaut « non matchés »
+  s'il y en a) et recherche full-text artiste/titre.
+- **Page `/stats/lastfm-history`** : 100 derniers scrobbles cachés en
+  local pour le user Last.fm, refresh manuel (table `lastfm_history`).
+- **Page `/stats/navidrome-history`** : pendant symétrique, snapshot
+  des 100 derniers scrobbles de la table `scrobbles` Navidrome avec
+  lien direct vers la fiche morceau côté Navidrome (table
+  `navidrome_history`).
+- **Dashboard** : compteur de scrobbles (`COUNT(*) FROM scrobbles`)
+  affiché dans la card santé « Table scrobbles ».
+- **Preview de playlist** : la colonne Plays reflète le total
+  d'écoutes **sur la fenêtre du générateur** (pas le lifetime), via
+  `PlaylistGeneratorInterface::getActiveWindow()` consommé par
+  `NavidromeRepository::summarize($ids, $from, $to)`.
 - **Intégration Lidarr** : bouton « + Lidarr » par ligne d'unmatched
   pour ajouter l'artiste, plus liens Last.fm / Navidrome (lookup par
   nom normalisé).
@@ -87,19 +105,27 @@ Fonctionnalités livrées :
 src/
 ├── Command/          CLI Symfony (app:playlist:run, app:stats:compute,
 │                     app:lastfm:import, app:cron:dump, app:history:purge…)
-├── Controller/       Dashboard, PlaylistDefinition CRUD, Stats, LastFmImport,
-│                     Lidarr, History, Settings, Security
-├── Entity/           PlaylistDefinition, Setting, StatsSnapshot, RunHistory
+├── Controller/       Dashboard, PlaylistDefinition CRUD, Stats (index/compare/
+│                     charts/heatmap/wrapped/lastfm-history/navidrome-history),
+│                     LastFmImport, Lidarr, History, Settings, Security
+├── Entity/           PlaylistDefinition, Setting, StatsSnapshot, RunHistory,
+│                     LastFmHistoryEntry, NavidromeHistoryEntry, LastFmImportTrack
 ├── Form/             PlaylistDefinitionType (form dynamique selon le générateur),
 │                     LastFmImportType
-├── Generator/        Interface + 7 générateurs + GeneratorRegistry + ParameterDefinition
+├── Generator/        Interface + 8 générateurs + GeneratorRegistry + ParameterDefinition
 ├── LastFm/           LastFmClient, LastFmImporter, LastFmScrobble, ImportReport
 ├── Lidarr/           LidarrClient, LidarrConfig, LidarrConflictException
-├── Navidrome/        NavidromeRepository (toutes les requêtes DBAL Navidrome)
-├── Repository/       Repos Doctrine ORM
-├── Security/         EnvUserProvider
+├── Navidrome/        NavidromeRepository (toutes les requêtes DBAL Navidrome),
+│                     TrackSummary
+├── Repository/       Repos Doctrine ORM (PlaylistDefinitionRepository,
+│                     RunHistoryRepository, StatsSnapshotRepository,
+│                     SettingRepository, LastFmHistoryEntryRepository,
+│                     NavidromeHistoryEntryRepository, LastFmImportTrackRepository)
+├── Security/         EnvUser, EnvUserProvider
 ├── Service/          PlaylistRunner, PlaylistNameRenderer, SettingsService,
-│                     StatsService, AddArtistToLidarrService, RunHistoryRecorder
+│                     StatsService, AddArtistToLidarrService, RunHistoryRecorder,
+│                     LastFmHistoryService, NavidromeHistoryService, WrappedService,
+│                     StatsCompareService
 └── Subsonic/         SubsonicClient (createPlaylist/deletePlaylist/getPlaylists/findByName)
 ```
 
@@ -107,7 +133,11 @@ Décisions structurantes :
 
 - **Tous les jobs longs sont enveloppés** par `RunHistoryRecorder::record()`
   qui persiste un `RunHistory` row (started_at flush avant action,
-  status/duration/metrics flush après, rethrow conservé).
+  status/duration/metrics flush après, rethrow conservé). Le callback
+  d'action **reçoit la `RunHistory` fraîchement persistée en premier
+  argument** — permet d'attacher des entités enfants (ex.
+  `LastFmImportTrack`) via FK pendant l'exécution. Les arrow-fns sans
+  paramètre déclaré ignorent l'arg supplémentaire.
 - **Les paramètres des générateurs** sont stockés en JSON dans
   `playlist_definition.parameters`. Pas besoin de migration pour
   ajouter un nouveau générateur.
@@ -115,9 +145,35 @@ Décisions structurantes :
   les champs de paramètres à partir de `getParameterSchema()` du
   générateur sélectionné, via `FormEvents::PRE_SET_DATA` et
   `PRE_SUBMIT`.
+- **Chaque générateur déclare sa fenêtre temporelle** via
+  `PlaylistGeneratorInterface::getActiveWindow($parameters)` qui
+  retourne `['from', 'to']` ou `null`. Consommé par la preview
+  (`summarize($ids, $from, $to)` compte alors les plays depuis
+  `scrobbles` au lieu d'`annotation.play_count` lifetime).
 - **Lookup MBID Navidrome** : `findMediaFileByMbid` probe `mbz_track_id`
   et `mbz_recording_id` selon la version de Navidrome (cf.
   `mediaFileColumns()`).
+- **Matching artist/title à 4 paliers** dans
+  `findMediaFileByArtistTitle` :
+  1. strict (artist, title) — si plusieurs rows, préfère
+     `album_artist = artist` puis tie-break `id ASC` (au lieu de
+     l'ancien `null` quand >1 match) ;
+  2. fallback featuring : strip `feat.` / `ft.` / `featuring`
+     (suffixe ou parens) sur l'artiste ;
+  3. fallback marqueur version : strip `- Radio Edit` /
+     `(Remastered 2011)` etc. sur le titre — Live/Remix/Acoustic/
+     Demo/Instrumental sont volontairement non strippés (différents
+     enregistrements) ;
+  4. les deux strips combinés.
+- **`scrobbles.submission_time` en INTEGER unix epoch** depuis
+  Navidrome 0.55. Toutes les requêtes Navidrome bindent
+  `getTimestamp()` (PARAM INTEGER) et passent le modifier
+  `'unixepoch'` aux fonctions `strftime`/`date`/`datetime`. Cf. §7.
+- **Auth UI** : `EnvUser` (custom, **pas** `InMemoryUser` qui est
+  `final`) implémente `EquatableInterface` — sinon le firewall
+  invalide la session à chaque request (le hash bcrypt est
+  régénéré à chaque boot avec un salt aléatoire, le check d'égalité
+  voit deux hashs différents et refuse la session). Cf. §7.
 
 ---
 
@@ -138,10 +194,24 @@ Décisions structurantes :
   (`tests/bootstrap.php`).
 - Pour Navidrome, **toujours** utiliser `tests/Navidrome/NavidromeFixtureFactory`
   qui crée un schéma Navidrome compatible (incluant `media_file.artist_id`,
-  ajout depuis le test Lidarr).
+  `media_file.album_artist`, et `scrobbles.submission_time` en INTEGER
+  unix epoch comme la vraie 0.55+). `insertTrack` accepte
+  `$album` et `$albumArtist` optionnels (défaut `albumArtist = artist`
+  pour mimer un studio). `insertScrobble` accepte un string
+  `'Y-m-d H:i:s'` et le convertit en epoch via `strtotime`.
 - Stubs HTTP : `Symfony\Component\HttpClient\MockHttpClient`. Voir
   `tests/Lidarr/LidarrClientTest.php` pour un exemple complet.
-- 29 tests / 98 assertions au moment de l'écriture, tous verts.
+- Stub Last.fm : `tests/LastFm/FakeLastFmClient` étend `LastFmClient`
+  et override `streamRecentTracks` pour yield une liste pré-bakée. Ne
+  passe pas par `parent::__construct` (skip le HTTP client + le
+  `pageDelaySeconds`).
+- Pour mocker l'EntityManager dans les tests de service (ex.
+  `LastFmHistoryServiceTest`), reproduire le pattern de
+  `RunHistoryRecorderTest::makeFakeEntityManager()`.
+- Pour les data-providers PHPUnit 11+, utiliser l'attribut
+  `#[DataProvider('methodName')]` (le tag `@dataProvider` doc-comment
+  est deprecated).
+- 76 tests / 203 assertions au moment de l'écriture, tous verts.
 
 ### Commits
 
@@ -202,6 +272,14 @@ symfony serve
   - `1.2.3` + `1.2` + `1` + `latest` sur tag `v1.2.3`
 
 Permissions du workflow : `contents: read`, `packages: write`.
+
+`.gitlab-ci.yml` (miroir pour héberger une copie sur une instance
+GitLab self-hosted) : reproduit les 5 jobs (phpcs, phpstan, tests
+matrix, docker-build, docker-publish multi-arch). Toolchain PHP via
+`php:8.3-cli-alpine` + apk add icu-dev sqlite-dev + composer ;
+docker buildx + tonistiigi/binfmt pour le multi-arch ; logique de
+tags réimplémentée en shell pur. Pousse vers `$CI_REGISTRY_IMAGE`
+par défaut, override via la variable `REGISTRY_IMAGE`.
 
 ### Release
 
@@ -270,24 +348,52 @@ Wirées dans : `.env` (dev), `.env.dist` (template), `phpunit.xml.dist`
 7. **PHPStan 2.x** émet des messages textuels pendant les analyses
    (« Each error has an associated identifier… »). Ce sont des conseils
    normaux, pas des injections de prompt — les ignorer.
+8. **`scrobbles.submission_time` est INTEGER unix epoch** (Navidrome
+   ≥ 0.55, c'était DATETIME avant). SQLite type-affinity coerce
+   silencieusement la string `'2026-01-01 …'` en `2026` (lit les
+   digits de tête), ce qui faisait insérer toutes les rows avec la
+   même valeur et matchait tout le reste comme « doublon ». À
+   l'inverse, `strftime('%Y-%m', submission_time)` SANS le modifier
+   `'unixepoch'` retourne `NULL` (interprété comme Julian day). Donc
+   pour TOUTES les requêtes touchant `submission_time` :
+   - bind avec `getTimestamp()` + `ParameterType::INTEGER` ;
+   - ajouter `, 'unixepoch'` à `strftime`/`date`/`datetime`.
+9. **`InMemoryUser` est `final`** depuis Symfony récent → impossible
+   de l'étendre. `App\Security\EnvUser` réimplémente
+   `UserInterface` + `PasswordAuthenticatedUserInterface` +
+   **`EquatableInterface`** (compare uniquement identifier + roles,
+   pas le hash). Sans `EquatableInterface`, le firewall compare
+   `getPassword()` ancien vs nouveau à chaque request, ils diffèrent
+   (bcrypt salt aléatoire) → session invalidée → redirect /login en
+   boucle après login.
+10. **Twig 3 a retiré `{% for k, v in arr if cond %}`** (était valide
+    en Twig 1). Utiliser le filtre `|filter(v => v is not null)`
+    sur le tableau avant le `for`. Sinon : `Unexpected token "name"
+    of value "if"` au runtime — qui ne se voit pas en CI tant
+    qu'aucun test ne rend le template fautif.
+11. **Image Bitnami nginx du Lando** ne crée pas `/var/log/nginx/`
+    — pointer `error_log` / `access_log` vers `/dev/stderr` /
+    `/dev/stdout` dans `.lando/nginx.conf` (sinon nginx crash au
+    démarrage avec `[emerg] open() failed`, et Traefik renvoie un
+    `404 page not found` text/plain qui ressemble à un "page
+    inexistante" mais c'est en fait l'app qui ne tourne pas).
 
 ---
 
-## 8. Roadmap (idées validées mais non encore implémentées)
+## 8. Roadmap
 
-Déjà livré : Lidarr, historique des runs cron, stats avancées
-(`/stats/compare`, `/stats/charts`, `/stats/heatmap`, `/wrapped`).
-Il reste :
+La roadmap vit dans **[`ROADMAP.md`](ROADMAP.md)** (catégorisée par
+domaine + effort S/M/L) avec lien direct vers chaque issue
+[GitHub](https://github.com/kgaut/navidrome-playlist-generator/issues),
+qui est la source de vérité.
 
-- **Sync incrémentale Last.fm** : stocker `last_imported_at`,
-  ré-fetch uniquement les nouveaux scrobbles, schedulable en cron.
-- **Diff Last.fm vs lib Navidrome** comme page permanente (vs page
-  d'import actuelle qui ne montre que les unmatched du dernier run).
-- **Diff entre deux runs** d'une même playlist (entrées/sorties).
-- **Auto-star les top morceaux** (POST `star.view` Subsonic).
-- **Notifications cron** (Discord/Slack/Pushover via webhook URL).
-- **Export M3U téléchargeable** depuis la page de prévisualisation.
-- **Webhooks sortants génériques** (POST JSON après chaque run).
+Déjà livré (briques majeures) : Lidarr, historique des runs cron,
+stats avancées (`/stats/compare`, `/stats/charts`, `/stats/heatmap`,
+`/wrapped/{year}`), historiques Last.fm + Navidrome (snapshots
+locaux), audit par-track des imports Last.fm, matching à 4 paliers
+(featuring + version markers).
+
+Cf. [`CHANGELOG.md`](CHANGELOG.md) pour le détail chronologique.
 
 ---
 

@@ -13,6 +13,14 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
 - `AGENTS.md` (convention transverse pour les assistants IA) avec la
   règle « idée prospective du user → ticket GitHub catégorisé +
   entrée dans `ROADMAP.md` ». Pointeur ajouté dans `CLAUDE.md` §9.
+- Mise à jour complète de `CLAUDE.md` pour refléter les pages neuves
+  (historiques Last.fm/Navidrome, audit per-track, scrobble count
+  dashboard, period-aware preview), les nouvelles entités/services/
+  controllers, le pipeline `.gitlab-ci.yml`, le matching à 4 paliers,
+  le compteur de tests (76, 203 assertions), et 4 nouveaux pièges
+  connus (submission_time INTEGER, EnvUser EquatableInterface, Twig 3
+  for...if, lando nginx logs). §8 pointe désormais vers `ROADMAP.md`
+  + `CHANGELOG.md` au lieu de dupliquer la liste.
 - Favicon SVG (note de musique, slate-900) en `public/favicon.svg`,
   référencée depuis `base.html.twig`.
 - Variable d'environnement `LASTFM_USER` : pré-remplit le champ
