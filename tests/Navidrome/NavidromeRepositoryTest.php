@@ -118,4 +118,41 @@ class NavidromeRepositoryTest extends TestCase
         $this->assertSame('artist-' . md5('Aphex Twin'), $repo->findArtistIdByName('Aphex Twin'));
         $this->assertNull($repo->findArtistIdByName('Unknown Artist'));
     }
+
+    public function testFindMediaFileByArtistTitlePicksOneWhenMultipleMatch(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: false);
+        // Same song shipped on two albums (very common: studio album + best-of).
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-best-of', 'Banlieusards', 'Kery James', album: '92.2012');
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-studio', 'Banlieusards', 'Kery James', album: "À l'ombre du show business");
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $id = $repo->findMediaFileByArtistTitle('Kery James', 'Banlieusards');
+
+        // Both rows have album_artist = artist (fixture default) → tie-break on id ASC.
+        // The point: we no longer return null just because the song exists twice.
+        $this->assertNotNull($id);
+        $this->assertContains($id, ['mf-best-of', 'mf-studio']);
+    }
+
+    public function testFindMediaFileByArtistTitlePrefersAlbumArtistMatch(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: false);
+        // The compilation has album_artist = "Various Artists" → less canonical.
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-compilation', 'Banlieusards', 'Kery James', album: 'Rap Compilation', albumArtist: 'Various Artists');
+        // The studio album has album_artist = artist → canonical, should win.
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-studio', 'Banlieusards', 'Kery James', album: "À l'ombre du show business", albumArtist: 'Kery James');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $this->assertSame('mf-studio', $repo->findMediaFileByArtistTitle('Kery James', 'Banlieusards'));
+    }
+
+    public function testFindMediaFileByArtistTitleReturnsNullOnNoMatch(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: false);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', 'Existing', 'Existing Artist');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $this->assertNull($repo->findMediaFileByArtistTitle('Unknown', 'Track'));
+    }
 }

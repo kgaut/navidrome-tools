@@ -85,12 +85,19 @@ final class NavidromeFixtureFactory
         return $conn;
     }
 
-    public static function insertTrack(Connection $conn, string $id, string $title, string $artist = 'Artist', int $duration = 180): void
-    {
+    public static function insertTrack(
+        Connection $conn,
+        string $id,
+        string $title,
+        string $artist = 'Artist',
+        int $duration = 180,
+        string $album = 'Album',
+        ?string $albumArtist = null,
+    ): void {
         $artistId = 'artist-' . md5($artist);
         $conn->executeStatement(
-            'INSERT INTO media_file (id, title, artist, album, artist_id, duration) VALUES (?, ?, ?, ?, ?, ?)',
-            [$id, $title, $artist, 'Album', $artistId, $duration],
+            'INSERT INTO media_file (id, title, artist, album, artist_id, album_artist, duration) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [$id, $title, $artist, $album, $artistId, $albumArtist ?? $artist, $duration],
         );
     }
 

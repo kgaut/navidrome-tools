@@ -66,6 +66,13 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
   `onScrobble(scrobble, status, mediaFileId|null)` appelé une fois
   par scrobble traité, utilisé par les callers qui veulent un audit
   détaillé.
+- `NavidromeRepository::findMediaFileByArtistTitle()` ne renvoie
+  plus `null` quand la même chanson existe sur plusieurs albums.
+  Pick déterministe : préfère la row où `album_artist = artist`
+  (album studio canonique vs compilation tierce), tie-break par
+  `id` ASC. Conséquence : un import Last.fm matche désormais les
+  morceaux présents dans plusieurs versions au lieu de les laisser
+  unmatched.
 
 ### Changed
 - Page historique des runs : la colonne Métriques masque maintenant

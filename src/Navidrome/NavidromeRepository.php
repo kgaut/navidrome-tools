@@ -935,7 +935,12 @@ class NavidromeRepository
 
     /**
      * Find a media_file by normalised (artist, title) pair. Case- and whitespace-
-     * insensitive. Returns null if no match or ambiguous (>1 match).
+     * insensitive. Returns null when there is no match. When several rows share
+     * the same (artist, title) — e.g. the same song shipped on a studio album
+     * and a compilation — picks one deterministically: prefer the row where
+     * `album_artist = artist` (canonical studio release over a tribute /
+     * various-artists compilation), tie-broken by `id` ASC for stability across
+     * import runs.
      */
     public function findMediaFileByArtistTitle(string $artist, string $title): ?string
     {
@@ -948,14 +953,11 @@ class NavidromeRepository
         $sql = "SELECT id FROM media_file
                 WHERE LOWER(TRIM(artist)) = :a
                   AND LOWER(TRIM(title)) = :t
-                LIMIT 2";
-        $rows = $this->connection()->fetchAllAssociative($sql, ['a' => $artist, 't' => $title]);
+                ORDER BY (LOWER(TRIM(album_artist)) = :a) DESC, id ASC
+                LIMIT 1";
+        $id = $this->connection()->fetchOne($sql, ['a' => $artist, 't' => $title]);
 
-        if (count($rows) !== 1) {
-            return null;
-        }
-
-        return (string) $rows[0]['id'];
+        return is_string($id) && $id !== '' ? $id : null;
     }
 
     /**
