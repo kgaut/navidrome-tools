@@ -300,6 +300,10 @@ Il reste :
   utilisateur ou une variable d'env.
 - Toute feature/fix utilisateur ajoute une entrée sous `## [Unreleased]`
   dans `CHANGELOG.md` (Added / Changed / Fixed / etc. selon le cas).
+- Quand le user **suggère une idée prospective** (pas un bug à fixer
+  immédiatement), suivre le workflow décrit dans
+  [`AGENTS.md`](AGENTS.md) : ouvrir un ticket GitHub catégorisé
+  + ajouter à `ROADMAP.md`.
 - Les nouvelles env vars doivent être déclarées dans **les 5 endroits**
   (`.env`, `.env.dist`, `phpunit.xml.dist`, `.lando.yml.dist`,
   `docker-compose.example.yml`) plus dans `config/services.yaml`.

@@ -10,6 +10,9 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
 ### Added
 - `CHANGELOG.md` au format Keep a Changelog ; documentation du workflow
   de release dans `CLAUDE.md` (§5) et lien depuis le `README.md`.
+- `AGENTS.md` (convention transverse pour les assistants IA) avec la
+  règle « idée prospective du user → ticket GitHub catégorisé +
+  entrée dans `ROADMAP.md` ». Pointeur ajouté dans `CLAUDE.md` §9.
 - Favicon SVG (note de musique, slate-900) en `public/favicon.svg`,
   référencée depuis `base.html.twig`.
 - Variable d'environnement `LASTFM_USER` : pré-remplit le champ
