@@ -37,9 +37,40 @@
         </div>
     </div>
 
+    {# ---------- Filters bar ---------- #}
+    <form method="get" class="bg-white shadow rounded p-3 mb-4 flex flex-wrap items-end gap-3 text-sm">
+        <div class="flex-1 min-w-[200px]">
+            <label class="block text-xs uppercase text-slate-500" for="filter-q">Recherche</label>
+            <input type="search" name="q" id="filter-q" value="{{ filters.q }}"
+                   placeholder="Filtrer par nom…" class="w-full border rounded px-2 py-1">
+        </div>
+        <div>
+            <label class="block text-xs uppercase text-slate-500" for="filter-enabled">Statut</label>
+            <select name="enabled" id="filter-enabled" class="border rounded px-2 py-1">
+                <option value="" {{ filters.enabled is null ? 'selected' : '' }}>— tous —</option>
+                <option value="1" {{ filters.enabled == true ? 'selected' : '' }}>Actives uniquement</option>
+                <option value="0" {{ filters.enabled is same as(false) ? 'selected' : '' }}>Désactivées uniquement</option>
+            </select>
+        </div>
+        <div>
+            <label class="block text-xs uppercase text-slate-500" for="filter-sort">Tri</label>
+            <select name="sort" id="filter-sort" class="border rounded px-2 py-1">
+                <option value="name" {{ filters.sort == 'name' ? 'selected' : '' }}>Par nom</option>
+                <option value="last_run" {{ filters.sort == 'last_run' ? 'selected' : '' }}>Dernier run</option>
+                <option value="schedule" {{ filters.sort == 'schedule' ? 'selected' : '' }}>Planning</option>
+            </select>
+        </div>
+        <button type="submit" class="px-3 py-1.5 rounded bg-slate-900 text-white">Filtrer</button>
+        <a href="{{ path('app_dashboard') }}" class="text-xs text-slate-500 hover:underline">Réinitialiser</a>
+    </form>
+
     {% if rows is empty %}
         <div class="bg-white shadow rounded p-8 text-center text-slate-500">
-            Aucune définition. <a href="{{ path('app_playlist_new') }}" class="text-emerald-700 hover:underline">Créer la première</a>.
+            {% if filters.q or filters.enabled is not null %}
+                Aucune définition pour ces filtres. <a href="{{ path('app_dashboard') }}" class="text-emerald-700 hover:underline">Réinitialiser</a>.
+            {% else %}
+                Aucune définition. <a href="{{ path('app_playlist_new') }}" class="text-emerald-700 hover:underline">Créer la première</a>.
+            {% endif %}
         </div>
     {% else %}
         <div class="bg-white shadow rounded overflow-hidden">
@@ -85,6 +116,11 @@
                                     {{ def.lastRunStatus }}
                                 </span>
                                 — {{ def.lastRunAt|date('Y-m-d H:i') }}
+                                {% if def.lastSubsonicPlaylistId and navidrome_url %}
+                                    — <a href="{{ navidrome_url|trim('/') }}/app/#/playlist/{{ def.lastSubsonicPlaylistId }}/show"
+                                         target="_blank" rel="noopener"
+                                         class="text-sky-700 hover:underline" title="Ouvrir dans Navidrome">↗ Navidrome</a>
+                                {% endif %}
                                 {% if def.lastRunMessage %}
                                     <div class="text-slate-500 truncate max-w-xs" title="{{ def.lastRunMessage }}">
                                         {{ def.lastRunMessage }}
@@ -113,6 +149,12 @@
                             </form>
                             <a href="{{ path('app_playlist_edit', {id: def.id}) }}"
                                class="text-slate-700 hover:underline text-xs mr-2">Éditer</a>
+                            <a href="{{ path('app_playlist_history', {id: def.id}) }}"
+                               class="text-slate-700 hover:underline text-xs mr-2">Historique</a>
+                            <form method="post" action="{{ path('app_playlist_duplicate', {id: def.id}) }}" class="inline">
+                                <input type="hidden" name="_token" value="{{ csrf_token('duplicate' ~ def.id) }}">
+                                <button type="submit" class="text-slate-700 hover:underline text-xs mr-2">Dupliquer</button>
+                            </form>
                             <form method="post" action="{{ path('app_playlist_delete', {id: def.id}) }}" class="inline"
                                   onsubmit="return confirm('Supprimer « {{ def.name }} » ?');">
                                 <input type="hidden" name="_token" value="{{ csrf_token('delete' ~ def.id) }}">

@@ -18,10 +18,64 @@ use Symfony\Component\Routing\Attribute\Route;
 class PlaylistDefinitionController extends AbstractController
 {
     #[Route('/playlist/new', name: 'app_playlist_new', methods: ['GET', 'POST'])]
-    public function new(Request $request, EntityManagerInterface $em): Response
+    public function new(Request $request, EntityManagerInterface $em, GeneratorRegistry $registry): Response
     {
         $def = new PlaylistDefinition();
+
+        // Optional pre-fill from query params (used by "+ Nouvelle playlist"
+        // buttons on stats / wrapped pages).
+        $generatorKey = (string) $request->query->get('generator_key', '');
+        if ($generatorKey !== '' && $registry->has($generatorKey)) {
+            $def->setGeneratorKey($generatorKey);
+        }
+        $params = $request->query->all('parameters');
+        if ($params !== []) {
+            $def->setParameters($params);
+        }
+        $name = trim((string) $request->query->get('name', ''));
+        if ($name !== '') {
+            $def->setName($name);
+        }
+
         return $this->handleForm($request, $em, $def, isNew: true);
+    }
+
+    #[Route('/playlist/{id}/duplicate', name: 'app_playlist_duplicate', methods: ['POST'])]
+    public function duplicate(
+        Request $request,
+        EntityManagerInterface $em,
+        PlaylistDefinitionRepository $repository,
+        PlaylistDefinition $def,
+    ): Response {
+        if (!$this->isCsrfTokenValid('duplicate' . $def->getId(), (string) $request->request->get('_token'))) {
+            throw $this->createAccessDeniedException();
+        }
+
+        $copy = (new PlaylistDefinition())
+            ->setName($repository->buildDuplicateName($def->getName()))
+            ->setGeneratorKey($def->getGeneratorKey())
+            ->setParameters($def->getParameters())
+            ->setLimitOverride($def->getLimitOverride())
+            ->setPlaylistNameTemplate($def->getPlaylistNameTemplate())
+            ->setSchedule($def->getSchedule())
+            ->setReplaceExisting($def->isReplaceExisting())
+            ->setEnabled(false);
+
+        $em->persist($copy);
+        $em->flush();
+
+        $this->addFlash('success', sprintf('Définition dupliquée : « %s ».', $copy->getName()));
+
+        return $this->redirectToRoute('app_playlist_edit', ['id' => $copy->getId()]);
+    }
+
+    #[Route('/playlist/{id}/history', name: 'app_playlist_history', methods: ['GET'])]
+    public function history(PlaylistDefinition $def): Response
+    {
+        return $this->redirectToRoute('app_history', [
+            'type' => 'playlist',
+            'q' => $def->getName(),
+        ]);
     }
 
     #[Route('/playlist/{id}/edit', name: 'app_playlist_edit', methods: ['GET', 'POST'])]
