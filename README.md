@@ -111,6 +111,10 @@ cd navidrome-playlist-generator
 # Copier la base SQLite Navidrome (ou créer un symlink)
 cp /chemin/vers/navidrome.db var/navidrome.db
 
+# Le repo livre .lando.yml.dist : copiez-le en .lando.yml et adaptez-le
+# (mots de passe, URL Navidrome, etc.) — .lando.yml est gitignored.
+cp .lando.yml.dist .lando.yml
+
 lando start          # premier lancement : pull des images + composer install
 lando migrate        # crée la DB locale du tool
 lando seed           # insère les 4 définitions d'exemple
@@ -133,7 +137,7 @@ Commandes utiles :
 
 Le service `cron` lance supercronic en local, identique au mode prod.
 
-Pour activer Xdebug : éditer `.lando.yml` (`xdebug: debug`) puis
+Pour activer Xdebug : éditer votre copie locale `.lando.yml` (`xdebug: debug`) puis
 `lando rebuild -y`.
 
 ## Développement local sans Lando
@@ -304,6 +308,24 @@ Filtres par type/statut + recherche libre + pagination (50/page).
 Une commande `app:history:purge` supprime les entrées plus vieilles que
 `RUN_HISTORY_RETENTION_DAYS` (défaut 90). Elle est ajoutée
 automatiquement au crontab par `app:cron:dump` (1×/jour à 4h30).
+
+## Configuration éditeur
+
+Le repo livre une **config PhpStorm partageable** (PSR-12, inspections
+PHPCS et PHPStan câblées sur `phpcs.xml.dist` et `phpstan.dist.neon`,
+PHP language level 8.3, framework PHPUnit 11) sous `.idea/` :
+
+- `.idea/codeStyles/` — schéma de code projet
+- `.idea/inspectionProfiles/Project_Default.xml` — inspections actives
+- `.idea/php.xml` — version PHP, container Symfony, namespace Twig
+- `.idea/php-test-framework.xml` — PHPUnit version
+
+Ces fichiers sont whitelistés dans `.gitignore` ; le reste de `.idea/`
+(workspace, fichiers per-user) reste ignoré.
+
+Un `.editorconfig` à la racine fournit le minimum universel pour les
+autres éditeurs (VS Code, Vim, Sublime…) : indentation 4 espaces (2
+pour YAML/JSON/XML/HTML/Twig), LF, UTF-8, trim trailing whitespace.
 
 ## Qualité de code et tests
 

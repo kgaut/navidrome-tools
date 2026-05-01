@@ -1,0 +1,24 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="PhpUnused" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="PhpDeprecationInspection" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="PhpMissingFieldTypeInspection" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="PhpMissingReturnTypeInspection" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="PhpMissingParamTypeInspection" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="PhpStrictTypeCheckingInspection" enabled="true" level="WEAK WARNING" enabled_by_default="true" />
+    <inspection_tool class="PhpCSFixerValidationInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="PhpCSValidationInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="CODING_STANDARD" value="Custom" />
+      <option name="CUSTOM_RULESET_PATH" value="$PROJECT_DIR$/phpcs.xml.dist" />
+    </inspection_tool>
+    <inspection_tool class="PhpStanGlobalInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="CONFIGURATION_FILE" value="$PROJECT_DIR$/phpstan.dist.neon" />
+      <option name="LEVEL" value="6" />
+    </inspection_tool>
+    <inspection_tool class="PhpVoidFunctionResultUsedInspection" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="PhpUnusedAliasInspection" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="PhpUnusedLocalVariableInspection" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="PhpUnusedParameterInspection" enabled="true" level="WARNING" enabled_by_default="true" />
+  </profile>
+</component>

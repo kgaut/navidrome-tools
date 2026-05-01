@@ -15,11 +15,19 @@
 ###< phpunit/phpunit ###
 
 ###> editor / OS ###
-.idea/
+# Ignore the whole .idea/ folder by default…
+.idea/*
+# …but keep the shareable PhpStorm config that benefits the whole team.
+!.idea/codeStyles/
+!.idea/inspectionProfiles/
+!.idea/php.xml
+!.idea/php-test-framework.xml
 .vscode/
 .DS_Store
 ###< editor / OS ###
 
 ###> lando ###
+# .lando.yml.dist is committed; copy to .lando.yml locally and tweak as needed.
+.lando.yml
 .lando.local.yml
 ###< lando ###
