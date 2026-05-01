@@ -54,7 +54,7 @@
         </section>
 
         {# ---------- "+ Nouvelle playlist" button ---------- #}
-        {% set yearsAgo = ('now'|date('Y')|number_format(0)) - year %}
+        {% set yearsAgo = 'now'|date('Y') - year %}
         {% if yearsAgo > 0 %}
             <div class="mb-6">
                 <a href="{{ path('app_playlist_new', {generator_key: 'top-years-ago', 'parameters[years]': yearsAgo, name: 'Top ' ~ year}) }}"

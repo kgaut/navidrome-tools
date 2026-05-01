@@ -44,6 +44,13 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
   la table `scrobbles` existe, le compte de plays vient de
   `scrobbles` au lieu de `annotation.play_count`.
 
+### Fixed
+- Page Wrapped : disparition du warning PHP « non-numeric value
+  encountered » qui pétait le rendu du bouton « + Créer une playlist
+  Top YYYY » à `wrapped/show.html.twig:57`. Causé par
+  `number_format(0)` qui injectait un séparateur de milliers dans la
+  string d'année avant la soustraction.
+
 <!--
 Sections disponibles pour les futures entrées :
 ### Added       — nouvelles fonctionnalités
