@@ -3,6 +3,7 @@
 namespace App\Tests\Navidrome;
 
 use App\Navidrome\NavidromeRepository;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class NavidromeRepositoryTest extends TestCase
@@ -154,5 +155,47 @@ class NavidromeRepositoryTest extends TestCase
 
         $repo = new NavidromeRepository($this->dbPath, 'admin');
         $this->assertNull($repo->findMediaFileByArtistTitle('Unknown', 'Track'));
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function featuringVariants(): iterable
+    {
+        yield 'feat. dotted'      => ['Orelsan feat. Thomas Bangalter'];
+        yield 'feat no dot'       => ['Orelsan feat Thomas Bangalter'];
+        yield 'Feat capital'      => ['Orelsan Feat. Thomas Bangalter'];
+        yield 'ft. dotted'        => ['Orelsan ft. Thomas Bangalter'];
+        yield 'ft no dot'         => ['Orelsan ft Thomas Bangalter'];
+        yield 'featuring spelled' => ['Orelsan featuring Thomas Bangalter'];
+        yield 'parens feat'       => ['Orelsan (feat. Thomas Bangalter)'];
+        yield 'parens ft'         => ['Orelsan (ft. Thomas Bangalter)'];
+    }
+
+    #[DataProvider('featuringVariants')]
+    public function testFindMediaFileByArtistTitleStripsFeaturingFallback(string $lastFmArtist): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: false);
+        // Navidrome stores only the lead artist on the track.
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', 'La pluie', 'Orelsan');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $this->assertSame(
+            'mf-1',
+            $repo->findMediaFileByArtistTitle($lastFmArtist, 'La pluie'),
+            sprintf('"%s" should fall back to "Orelsan"', $lastFmArtist),
+        );
+    }
+
+    public function testFindMediaFileByArtistTitleStrictMatchPreferredOverFallback(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: false);
+        // Both rows exist; the strict match must win even though the fallback
+        // would also match the lead-artist row.
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-strict', 'La pluie', 'Orelsan feat. Stromae');
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-lead', 'La pluie', 'Orelsan');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $this->assertSame('mf-strict', $repo->findMediaFileByArtistTitle('Orelsan feat. Stromae', 'La pluie'));
     }
 }

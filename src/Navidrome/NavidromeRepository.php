@@ -941,6 +941,11 @@ class NavidromeRepository
      * `album_artist = artist` (canonical studio release over a tribute /
      * various-artists compilation), tie-broken by `id` ASC for stability across
      * import runs.
+     *
+     * If the strict match fails and the artist string contains a featuring
+     * marker (feat. / ft. / featuring, with or without parens), retries once
+     * with the lead artist only — Last.fm tends to credit "Orelsan feat.
+     * Thomas Bangalter" while Navidrome stores just "Orelsan".
      */
     public function findMediaFileByArtistTitle(string $artist, string $title): ?string
     {
@@ -950,14 +955,46 @@ class NavidromeRepository
             return null;
         }
 
+        $id = $this->lookupExactArtistTitle($artist, $title);
+        if ($id !== null) {
+            return $id;
+        }
+
+        $leadArtist = self::stripFeaturedArtists($artist);
+        if ($leadArtist !== '' && $leadArtist !== $artist) {
+            return $this->lookupExactArtistTitle($leadArtist, $title);
+        }
+
+        return null;
+    }
+
+    private function lookupExactArtistTitle(string $artistNormalized, string $titleNormalized): ?string
+    {
         $sql = "SELECT id FROM media_file
                 WHERE LOWER(TRIM(artist)) = :a
                   AND LOWER(TRIM(title)) = :t
                 ORDER BY (LOWER(TRIM(album_artist)) = :a) DESC, id ASC
                 LIMIT 1";
-        $id = $this->connection()->fetchOne($sql, ['a' => $artist, 't' => $title]);
+        $id = $this->connection()->fetchOne($sql, ['a' => $artistNormalized, 't' => $titleNormalized]);
 
         return is_string($id) && $id !== '' ? $id : null;
+    }
+
+    /**
+     * Drop a trailing or parenthesized featuring suffix from an already
+     * normalized artist string. Recognises `feat`, `feat.`, `ft`, `ft.`,
+     * `featuring` (case-insensitive — but the input is expected lowercased
+     * already by self::normalize). Returns the input unchanged when no
+     * marker is present.
+     */
+    private static function stripFeaturedArtists(string $artistNormalized): string
+    {
+        // 1. Strip parenthesized suffix: "(feat. …)" / "(ft. …)" / "(featuring …)".
+        $stripped = preg_replace('/\s*\((?:feat\.?|ft\.?|featuring)\s+[^)]*\)\s*/u', '', $artistNormalized) ?? $artistNormalized;
+        // 2. Strip trailing form: " feat. …" / " ft. …" / " featuring …" until end.
+        $stripped = preg_replace('/\s+(?:feat\.?|ft\.?|featuring)\s+.*$/u', '', $stripped) ?? $stripped;
+
+        return trim($stripped);
     }
 
     /**

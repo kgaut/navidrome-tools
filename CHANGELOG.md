@@ -73,6 +73,12 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
   `id` ASC. Conséquence : un import Last.fm matche désormais les
   morceaux présents dans plusieurs versions au lieu de les laisser
   unmatched.
+- Fallback featuring sur le matching : quand l'artiste Last.fm
+  est `Orelsan feat. Thomas Bangalter` (ou variante `ft.` /
+  `featuring` / `(feat. …)`) et que le strict-match échoue, retry
+  une fois avec uniquement l'artiste lead (`Orelsan`). Couvre les
+  cas où Navidrome ne crédite que l'artiste principal sur la
+  piste alors que Last.fm cite tous les featuring.
 
 ### Changed
 - Page historique des runs : la colonne Métriques masque maintenant
