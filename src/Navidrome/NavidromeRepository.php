@@ -942,10 +942,13 @@ class NavidromeRepository
      * various-artists compilation), tie-broken by `id` ASC for stability across
      * import runs.
      *
-     * If the strict match fails and the artist string contains a featuring
-     * marker (feat. / ft. / featuring, with or without parens), retries once
-     * with the lead artist only — Last.fm tends to credit "Orelsan feat.
-     * Thomas Bangalter" while Navidrome stores just "Orelsan".
+     * Lookup strategy when the strict match fails:
+     *   1. retry with the lead artist (drop "feat. …" suffix on the artist) ;
+     *   2. retry with the bare title (drop "(Radio Edit)" / "- Remastered 2011"
+     *      and similar version markers from the title) ;
+     *   3. retry with both strips combined.
+     * Last.fm tends to credit "Orelsan feat. Thomas Bangalter" or label tracks
+     * "Bicycle Race - Remastered 2011" while Navidrome stores the bare form.
      */
     public function findMediaFileByArtistTitle(string $artist, string $title): ?string
     {
@@ -961,8 +964,24 @@ class NavidromeRepository
         }
 
         $leadArtist = self::stripFeaturedArtists($artist);
-        if ($leadArtist !== '' && $leadArtist !== $artist) {
-            return $this->lookupExactArtistTitle($leadArtist, $title);
+        $bareTitle = self::stripVersionMarkers($title);
+        $artistChanged = $leadArtist !== '' && $leadArtist !== $artist;
+        $titleChanged = $bareTitle !== '' && $bareTitle !== $title;
+
+        if ($artistChanged) {
+            $id = $this->lookupExactArtistTitle($leadArtist, $title);
+            if ($id !== null) {
+                return $id;
+            }
+        }
+        if ($titleChanged) {
+            $id = $this->lookupExactArtistTitle($artist, $bareTitle);
+            if ($id !== null) {
+                return $id;
+            }
+        }
+        if ($artistChanged && $titleChanged) {
+            return $this->lookupExactArtistTitle($leadArtist, $bareTitle);
         }
 
         return null;
@@ -993,6 +1012,38 @@ class NavidromeRepository
         $stripped = preg_replace('/\s*\((?:feat\.?|ft\.?|featuring)\s+[^)]*\)\s*/u', '', $artistNormalized) ?? $artistNormalized;
         // 2. Strip trailing form: " feat. …" / " ft. …" / " featuring …" until end.
         $stripped = preg_replace('/\s+(?:feat\.?|ft\.?|featuring)\s+.*$/u', '', $stripped) ?? $stripped;
+
+        return trim($stripped);
+    }
+
+    /**
+     * Drop a trailing version-marker suffix from an already normalized title.
+     * Handles the parenthesized form "(Radio Edit)" and the dash-separated
+     * form " - Radio Edit" (also en/em dashes). Markers are limited to those
+     * that denote different *masters / packagings* of the same musical
+     * recording (radio/album/single/extended/mono/stereo edit/version/mix and
+     * remaster with optional year). Live / Remix / Acoustic / Instrumental /
+     * Demo are intentionally NOT stripped — they typically refer to a
+     * different recording.
+     */
+    private static function stripVersionMarkers(string $titleNormalized): string
+    {
+        // Order matters: longer alternatives must come first so "remastered 2011"
+        // is captured by the year-aware pattern instead of just "remastered".
+        $markers = '(?:'
+            . 'remastered \d{4}|remaster \d{4}|\d{4} remastered|\d{4} remaster'
+            . '|radio edit|radio mix|radio version'
+            . '|album version|album mix|album edit'
+            . '|single version|single edit|single mix'
+            . '|extended version|extended mix|extended edit'
+            . '|mono version|stereo version'
+            . '|remastered|remaster'
+            . ')';
+
+        // Parenthesized form: " (Radio Edit)".
+        $stripped = preg_replace('/\s*\(' . $markers . '\)\s*$/u', '', $titleNormalized) ?? $titleNormalized;
+        // Dash-separated form: " - Radio Edit" (ASCII -, en dash, em dash).
+        $stripped = preg_replace('/\s+[\-\x{2013}\x{2014}]\s+' . $markers . '\s*$/u', '', $stripped) ?? $stripped;
 
         return trim($stripped);
     }

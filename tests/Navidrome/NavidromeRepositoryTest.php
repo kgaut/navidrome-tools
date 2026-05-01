@@ -198,4 +198,74 @@ class NavidromeRepositoryTest extends TestCase
         $repo = new NavidromeRepository($this->dbPath, 'admin');
         $this->assertSame('mf-strict', $repo->findMediaFileByArtistTitle('Orelsan feat. Stromae', 'La pluie'));
     }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function versionMarkerVariants(): iterable
+    {
+        yield 'dash + Radio Edit'         => ['Soleil Bleu - Radio Edit'];
+        yield 'parens + Radio Edit'       => ['Soleil Bleu (Radio Edit)'];
+        yield 'dash + Album Version'      => ['Soleil Bleu - Album Version'];
+        yield 'parens + Album Version'    => ['Soleil Bleu (Album Version)'];
+        yield 'dash + Remastered'         => ['Soleil Bleu - Remastered'];
+        yield 'dash + Remastered year'    => ['Soleil Bleu - Remastered 2011'];
+        yield 'dash + year Remaster'      => ['Soleil Bleu - 2011 Remaster'];
+        yield 'parens + Remastered year'  => ['Soleil Bleu (Remastered 2011)'];
+        yield 'dash + Extended Mix'       => ['Soleil Bleu - Extended Mix'];
+        yield 'dash + Mono Version'       => ['Soleil Bleu - Mono Version'];
+        yield 'en dash + Radio Edit'      => ["Soleil Bleu \u{2013} Radio Edit"];
+        yield 'mixed case'                => ['Soleil Bleu - Radio EDIT'];
+    }
+
+    #[DataProvider('versionMarkerVariants')]
+    public function testFindMediaFileByArtistTitleStripsVersionMarker(string $lastFmTitle): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: false);
+        // Navidrome stores the bare title.
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', 'Soleil Bleu', 'Some Artist');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $this->assertSame(
+            'mf-1',
+            $repo->findMediaFileByArtistTitle('Some Artist', $lastFmTitle),
+            sprintf('"%s" should fall back to "Soleil Bleu"', $lastFmTitle),
+        );
+    }
+
+    public function testFindMediaFileByArtistTitleStrictTitlePreferredOverVersionStrip(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: false);
+        // Navidrome HAS the suffixed title — strict-match wins, no strip.
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-edit', 'Soleil Bleu - Radio Edit', 'Some Artist');
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-bare', 'Soleil Bleu', 'Some Artist');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $this->assertSame('mf-edit', $repo->findMediaFileByArtistTitle('Some Artist', 'Soleil Bleu - Radio Edit'));
+    }
+
+    public function testFindMediaFileByArtistTitleVersionStripDoesNotEatLiveOrRemix(): void
+    {
+        // Live / Remix / Acoustic refer to different recordings; we deliberately
+        // do NOT strip them. If Navidrome doesn't have the exact suffixed row,
+        // the import should leave it unmatched (better than matching the wrong
+        // recording).
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: false);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-bare', 'Soleil Bleu', 'Some Artist');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $this->assertNull($repo->findMediaFileByArtistTitle('Some Artist', 'Soleil Bleu - Live'));
+        $this->assertNull($repo->findMediaFileByArtistTitle('Some Artist', 'Soleil Bleu (Acoustic)'));
+        $this->assertNull($repo->findMediaFileByArtistTitle('Some Artist', 'Soleil Bleu - DJ Foo Remix'));
+    }
+
+    public function testFindMediaFileByArtistTitleCombinesFeaturingAndVersionStrip(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: false);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', 'La pluie', 'Orelsan');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        // Both fallbacks must apply: featuring strip + version-marker strip.
+        $this->assertSame('mf-1', $repo->findMediaFileByArtistTitle('Orelsan feat. Stromae', 'La pluie - Radio Edit'));
+    }
 }

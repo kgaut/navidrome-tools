@@ -79,6 +79,16 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
   une fois avec uniquement l'artiste lead (`Orelsan`). Couvre les
   cas où Navidrome ne crédite que l'artiste principal sur la
   piste alors que Last.fm cite tous les featuring.
+- Fallback marqueurs de version sur le titre : `Soleil Bleu -
+  Radio Edit` et `Soleil Bleu (Radio Edit)` retombent sur
+  `Soleil Bleu` quand le strict-match échoue. Couvre Radio /
+  Album / Single / Extended Edit/Mix/Version, Mono/Stereo
+  Version, Remaster(ed) avec ou sans année. Live / Remix /
+  Acoustic / Demo / Instrumental sont volontairement **non**
+  strippés (différents enregistrements). Les deux fallbacks
+  (featuring artiste + version titre) se cumulent : `Orelsan
+  feat. Stromae` / `La pluie - Radio Edit` matche bien
+  `Orelsan` / `La pluie`.
 
 ### Changed
 - Page historique des runs : la colonne Métriques masque maintenant
