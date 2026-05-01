@@ -28,6 +28,12 @@ services:
         APP_AUTH_PASSWORD: changeme
         DATABASE_URL: "sqlite:///%kernel.project_dir%/var/data.db"
         STATS_REFRESH_SCHEDULE: '0 */6 * * *'
+        LIDARR_URL: ''
+        LIDARR_API_KEY: ''
+        LIDARR_ROOT_FOLDER_PATH: /music
+        LIDARR_QUALITY_PROFILE_ID: 1
+        LIDARR_METADATA_PROFILE_ID: 1
+        LIDARR_MONITOR: all
 
   cron:
     type: php:8.3

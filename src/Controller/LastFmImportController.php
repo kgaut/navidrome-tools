@@ -5,6 +5,8 @@ namespace App\Controller;
 use App\Form\LastFmImportType;
 use App\LastFm\ImportReport;
 use App\LastFm\LastFmImporter;
+use App\Lidarr\LidarrConfig;
+use App\Navidrome\NavidromeRepository;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -14,6 +16,9 @@ class LastFmImportController extends AbstractController
 {
     public function __construct(
         private readonly LastFmImporter $importer,
+        private readonly LidarrConfig $lidarrConfig,
+        private readonly NavidromeRepository $navidrome,
+        private readonly string $navidromeUrl,
     ) {
     }
 
@@ -55,11 +60,28 @@ class LastFmImportController extends AbstractController
             }
         }
 
+        $unmatched = [];
+        if ($report instanceof ImportReport) {
+            foreach ($report->unmatchedRanking(100) as $row) {
+                $artist = $row['artist'];
+                $unmatched[] = [
+                    'count' => $row['count'],
+                    'artist' => $artist,
+                    'title' => $row['title'],
+                    'album' => $row['album'],
+                    'lastfm_url' => 'https://www.last.fm/music/' . rawurlencode($artist),
+                    'navidrome_artist_id' => $artist !== '' ? $this->navidrome->findArtistIdByName($artist) : null,
+                ];
+            }
+        }
+
         return $this->render('lastfm/import.html.twig', [
             'form' => $form->createView(),
             'report' => $report,
             'error' => $error,
-            'unmatched' => $report instanceof ImportReport ? $report->unmatchedRanking(100) : [],
+            'unmatched' => $unmatched,
+            'lidarr_configured' => $this->lidarrConfig->isConfigured(),
+            'navidrome_url' => rtrim($this->navidromeUrl, '/'),
         ]);
     }
 }

@@ -423,6 +423,48 @@ class NavidromeRepository
     }
 
     /**
+     * Find an artist id by name. Prefers the dedicated `artist` table when
+     * present (Navidrome >= 0.50), falls back on a DISTINCT lookup over
+     * media_file. Case- and whitespace-insensitive. Returns null when no
+     * match or when more than one artist matches.
+     */
+    public function findArtistIdByName(string $name): ?string
+    {
+        $name = self::normalize($name);
+        if ($name === '') {
+            return null;
+        }
+
+        $tables = $this->connection()->fetchAllAssociative(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='artist'",
+        );
+        if ($tables !== []) {
+            $rows = $this->connection()->fetchAllAssociative(
+                'SELECT id FROM artist WHERE LOWER(TRIM(name)) = :n LIMIT 2',
+                ['n' => $name],
+            );
+            if (count($rows) === 1) {
+                return (string) $rows[0]['id'];
+            }
+            if (count($rows) > 1) {
+                return null;
+            }
+            // 0 row in artist table → fall through to media_file lookup.
+        }
+
+        $rows = $this->connection()->fetchAllAssociative(
+            'SELECT DISTINCT artist_id FROM media_file
+             WHERE LOWER(TRIM(artist)) = :n AND artist_id != "" LIMIT 2',
+            ['n' => $name],
+        );
+        if (count($rows) === 1) {
+            return (string) $rows[0]['artist_id'];
+        }
+
+        return null;
+    }
+
+    /**
      * Find a media_file by MusicBrainz id (mbz_track_id, recording id, or fallback).
      * Returns null if no match.
      */

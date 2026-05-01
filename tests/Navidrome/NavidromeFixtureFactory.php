@@ -40,6 +40,7 @@ final class NavidromeFixtureFactory
                 title VARCHAR(255) DEFAULT '' NOT NULL,
                 album VARCHAR(255) DEFAULT '' NOT NULL,
                 artist VARCHAR(255) DEFAULT '' NOT NULL,
+                artist_id VARCHAR(255) DEFAULT '' NOT NULL,
                 album_artist VARCHAR(255) DEFAULT '' NOT NULL,
                 album_id VARCHAR(255) DEFAULT '' NOT NULL,
                 duration INTEGER DEFAULT 0 NOT NULL,
@@ -84,9 +85,10 @@ final class NavidromeFixtureFactory
 
     public static function insertTrack(Connection $conn, string $id, string $title, string $artist = 'Artist', int $duration = 180): void
     {
+        $artistId = 'artist-' . md5($artist);
         $conn->executeStatement(
-            'INSERT INTO media_file (id, title, artist, album, duration) VALUES (?, ?, ?, ?, ?)',
-            [$id, $title, $artist, 'Album', $duration],
+            'INSERT INTO media_file (id, title, artist, album, artist_id, duration) VALUES (?, ?, ?, ?, ?, ?)',
+            [$id, $title, $artist, 'Album', $artistId, $duration],
         );
     }
 

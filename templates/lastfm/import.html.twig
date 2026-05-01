@@ -97,6 +97,11 @@
         </div>
 
         {% if unmatched is not empty %}
+            {% if not lidarr_configured %}
+                <div class="bg-sky-50 border border-sky-300 text-sky-800 rounded p-3 text-sm mb-3">
+                    💡 Configurez <code>LIDARR_URL</code> et <code>LIDARR_API_KEY</code> pour activer le bouton « + Lidarr » par ligne.
+                </div>
+            {% endif %}
             <div class="bg-white shadow rounded overflow-hidden">
                 <div class="px-4 py-3 border-b bg-slate-50 flex items-center justify-between">
                     <h2 class="font-semibold text-sm">
@@ -114,6 +119,7 @@
                             <th class="px-3 py-2">Artiste</th>
                             <th class="px-3 py-2">Titre</th>
                             <th class="px-3 py-2">Album</th>
+                            <th class="px-3 py-2 w-64">Actions</th>
                         </tr>
                         </thead>
                         <tbody class="divide-y">
@@ -123,6 +129,33 @@
                                 <td class="px-3 py-1.5">{{ row.artist }}</td>
                                 <td class="px-3 py-1.5">{{ row.title }}</td>
                                 <td class="px-3 py-1.5 text-slate-500">{{ row.album }}</td>
+                                <td class="px-3 py-1.5">
+                                    <div class="flex flex-wrap gap-1.5 items-center">
+                                        <a href="{{ row.lastfm_url }}" target="_blank" rel="noopener"
+                                           class="text-xs px-2 py-1 rounded bg-rose-100 text-rose-800 hover:bg-rose-200">
+                                            Last.fm ↗
+                                        </a>
+                                        {% if row.navidrome_artist_id %}
+                                            <a href="{{ navidrome_url }}/app/#/artist/{{ row.navidrome_artist_id }}/show"
+                                               target="_blank" rel="noopener"
+                                               class="text-xs px-2 py-1 rounded bg-sky-100 text-sky-800 hover:bg-sky-200">
+                                                Navidrome ↗
+                                            </a>
+                                        {% endif %}
+                                        {% if lidarr_configured %}
+                                            <form method="post" action="{{ path('app_lidarr_add_artist') }}"
+                                                  class="inline"
+                                                  onsubmit="return confirm('Ajouter « {{ row.artist|e('js') }} » à Lidarr ?');">
+                                                <input type="hidden" name="_token" value="{{ csrf_token('lidarr_add') }}">
+                                                <input type="hidden" name="artist" value="{{ row.artist }}">
+                                                <button type="submit"
+                                                        class="text-xs px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white">
+                                                    + Lidarr
+                                                </button>
+                                            </form>
+                                        {% endif %}
+                                    </div>
+                                </td>
                             </tr>
                         {% endfor %}
                         </tbody>

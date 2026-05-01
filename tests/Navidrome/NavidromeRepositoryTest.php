@@ -103,4 +103,19 @@ class NavidromeRepositoryTest extends TestCase
         $tracks = $repo->summarize(['c', 'a', 'b']);
         $this->assertSame(['Charlie', 'Alpha', 'Beta'], array_map(fn ($t) => $t->title, $tracks));
     }
+
+    public function testFindArtistIdByNameUsesMediaFile(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', 'Track', 'Daft Punk');
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-2', 'Other Track', 'Daft Punk');
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-3', 'Foo', 'Aphex Twin');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+
+        $this->assertSame('artist-' . md5('Daft Punk'), $repo->findArtistIdByName('Daft Punk'));
+        $this->assertSame('artist-' . md5('Daft Punk'), $repo->findArtistIdByName('  daft punk  '));
+        $this->assertSame('artist-' . md5('Aphex Twin'), $repo->findArtistIdByName('Aphex Twin'));
+        $this->assertNull($repo->findArtistIdByName('Unknown Artist'));
+    }
 }

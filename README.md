@@ -237,6 +237,40 @@ lando symfony app:lastfm:import myuser --api-key=XXX \
 lando symfony app:lastfm:import myuser --api-key=XXX --show-unmatched=all
 ```
 
+## Intégration Lidarr (optionnelle)
+
+Sur la page d'import Last.fm, le tableau des morceaux non trouvés
+expose pour chaque ligne :
+
+- **Last.fm ↗** : page artiste publique sur Last.fm.
+- **Navidrome ↗** : si l'artiste existe déjà dans Navidrome (lookup par
+  nom normalisé), lien direct vers sa fiche dans l'app Navidrome.
+- **+ Lidarr** : ajoute l'artiste à Lidarr en un clic. Lidarr déclenchera
+  ensuite la recherche/téléchargement et alimentera la lib que Navidrome
+  scanne. Bouton masqué si Lidarr n'est pas configuré.
+
+### Configuration
+
+Variables d'environnement (laisser `LIDARR_URL` vide pour désactiver
+proprement) :
+
+| Variable                     | Description                                                         |
+|------------------------------|---------------------------------------------------------------------|
+| `LIDARR_URL`                 | Base URL Lidarr (ex. `http://lidarr:8686`).                         |
+| `LIDARR_API_KEY`             | API key (Lidarr → Settings → General).                              |
+| `LIDARR_ROOT_FOLDER_PATH`    | Chemin où Lidarr place les artistes (ex. `/music`).                 |
+| `LIDARR_QUALITY_PROFILE_ID`  | Id d'un Quality Profile existant.                                   |
+| `LIDARR_METADATA_PROFILE_ID` | Id d'un Metadata Profile existant.                                  |
+| `LIDARR_MONITOR`             | `all`/`future`/`missing`/`existing`/`first`/`latest`/`none` (défaut `all`). |
+
+Le service :
+1. Cherche l'artiste sur MusicBrainz via l'endpoint Lidarr
+   `/api/v1/artist/lookup` (l'API key permet d'éviter les rate-limits MB).
+2. Prend le premier hit (Lidarr ordonne par pertinence) et POST
+   `/api/v1/artist` en demandant `searchForMissingAlbums: true`.
+3. Si Lidarr répond que l'artiste existe déjà, l'UI affiche un flash
+   info (« déjà présent ») au lieu d'une erreur.
+
 ## Qualité de code et tests
 
 Le projet utilise PHPUnit, PHPStan et PHP_CodeSniffer (PSR-12). Les
