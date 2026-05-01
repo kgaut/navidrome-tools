@@ -89,6 +89,8 @@ class SubsonicClient
 
     /**
      * @param array<string, scalar> $params
+     *
+     * @return array<string, mixed>
      */
     private function call(string $method, array $params, string $extraQuery = ''): array
     {

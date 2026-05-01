@@ -10,6 +10,14 @@
         <ini name="error_reporting" value="-1"/>
         <server name="APP_ENV" value="test" force="true"/>
         <server name="SHELL_VERBOSITY" value="-1"/>
+        <env name="APP_SECRET" value="test-secret-do-not-use-in-prod-1234567890"/>
+        <env name="APP_AUTH_USER" value="admin"/>
+        <env name="APP_AUTH_PASSWORD" value="changeme"/>
+        <env name="DATABASE_URL" value="sqlite:///%kernel.project_dir%/var/data_test.db"/>
+        <env name="NAVIDROME_DB_PATH" value="%kernel.project_dir%/var/navidrome_test.db"/>
+        <env name="NAVIDROME_URL" value="http://localhost:4533"/>
+        <env name="NAVIDROME_USER" value="admin"/>
+        <env name="NAVIDROME_PASSWORD" value="changeme"/>
     </php>
 
     <testsuites>

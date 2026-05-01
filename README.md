@@ -1,5 +1,7 @@
 # Navidrome Playlist Generator
 
+[![CI](https://github.com/kgaut/navidrome-playlist-generator/actions/workflows/ci.yml/badge.svg)](https://github.com/kgaut/navidrome-playlist-generator/actions/workflows/ci.yml)
+
 Outil web self-hosted (Symfony 7) qui lit la base SQLite de
 [Navidrome](https://www.navidrome.org/) en lecture seule pour calculer
 différents tops de morceaux et créer les playlists correspondantes dans
@@ -128,6 +130,31 @@ cp /chemin/vers/navidrome.db var/navidrome.db
 php bin/console doctrine:migrations:migrate -n
 php bin/console app:fixtures:seed
 symfony serve                        # https://127.0.0.1:8000
+```
+
+## Qualité de code et tests
+
+Le projet utilise PHPUnit, PHPStan et PHP_CodeSniffer (PSR-12). Les
+trois sont exécutés par la CI GitHub Actions sur chaque push / pull
+request, plus un build de l'image Docker en parallèle.
+
+```bash
+composer test       # PHPUnit
+composer phpstan    # Static analysis (level 6 + extensions Symfony/Doctrine/PHPUnit)
+composer phpcs      # PSR-12 coding standard
+composer phpcbf     # Auto-fix many PHPCS errors
+composer ci         # phpcs + phpstan + tests, séquentiellement
+```
+
+Configuration : `phpunit.xml.dist`, `phpstan.dist.neon`, `phpcs.xml.dist`.
+
+Sous Lando :
+
+```bash
+lando composer test
+lando composer phpstan
+lando composer phpcs
+lando composer ci
 ```
 
 ## Ajouter un nouveau type de playlist (plugin)

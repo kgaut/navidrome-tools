@@ -15,11 +15,26 @@ class PlaylistNameRendererTest extends TestCase
         $now = new \DateTimeImmutable('2026-05-01 10:00:00');
 
         $generator = new class implements PlaylistGeneratorInterface {
-            public function getKey(): string { return 'top-last-days'; }
-            public function getLabel(): string { return 'Top des X derniers jours'; }
-            public function getDescription(): string { return ''; }
-            public function getParameterSchema(): array { return []; }
-            public function generate(array $parameters, int $limit): array { return []; }
+            public function getKey(): string
+            {
+                return 'top-last-days';
+            }
+            public function getLabel(): string
+            {
+                return 'Top des X derniers jours';
+            }
+            public function getDescription(): string
+            {
+                return '';
+            }
+            public function getParameterSchema(): array
+            {
+                return [];
+            }
+            public function generate(array $parameters, int $limit): array
+            {
+                return [];
+            }
         };
 
         $def = (new PlaylistDefinition())

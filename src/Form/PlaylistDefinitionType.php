@@ -116,7 +116,7 @@ class PlaylistDefinitionType extends AbstractType
             return;
         }
 
-        $sub = $form->getConfig()->getFormFactory()->createNamedBuilder('_params', null, null, [
+        $sub = $form->getConfig()->getFormFactory()->createNamedBuilder('_params', \Symfony\Component\Form\Extension\Core\Type\FormType::class, null, [
             'auto_initialize' => false,
             'mapped' => false,
             'inherit_data' => false,

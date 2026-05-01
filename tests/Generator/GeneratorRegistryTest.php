@@ -41,13 +41,30 @@ class GeneratorRegistryTest extends TestCase
 
     private function makeGenerator(string $key, string $label): PlaylistGeneratorInterface
     {
-        return new class($key, $label) implements PlaylistGeneratorInterface {
-            public function __construct(private string $k, private string $l) {}
-            public function getKey(): string { return $this->k; }
-            public function getLabel(): string { return $this->l; }
-            public function getDescription(): string { return ''; }
-            public function getParameterSchema(): array { return []; }
-            public function generate(array $parameters, int $limit): array { return []; }
+        return new class ($key, $label) implements PlaylistGeneratorInterface {
+            public function __construct(private string $k, private string $l)
+            {
+            }
+            public function getKey(): string
+            {
+                return $this->k;
+            }
+            public function getLabel(): string
+            {
+                return $this->l;
+            }
+            public function getDescription(): string
+            {
+                return '';
+            }
+            public function getParameterSchema(): array
+            {
+                return [];
+            }
+            public function generate(array $parameters, int $limit): array
+            {
+                return [];
+            }
         };
     }
 }

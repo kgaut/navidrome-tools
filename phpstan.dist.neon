@@ -1,0 +1,14 @@
+parameters:
+    level: 6
+    paths:
+        - src
+        - tests
+    excludePaths:
+        - src/Kernel.php
+    bootstrapFiles:
+        - vendor/autoload.php
+    treatPhpDocTypesAsCertain: false
+    # Common Symfony / Doctrine / PHPUnit rules are pulled in automatically by
+    # phpstan/extension-installer (see require-dev). Container XML analysis is
+    # intentionally NOT enabled here so the CI can run PHPStan without first
+    # warming up the Symfony cache.
