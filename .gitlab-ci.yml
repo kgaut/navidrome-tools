@@ -67,6 +67,8 @@ tests:
 # pushes to main / tags v*.
 # --------------------------------------------------------------------
 docker-build:
+  tags:
+    - docker
   stage: build
   image: docker:24
   services:
@@ -78,6 +80,8 @@ docker-build:
     - docker build -t navidrome-tools:ci .
 
 docker-publish:
+  tags:
+    - docker
   stage: publish
   image: docker:24
   services:
