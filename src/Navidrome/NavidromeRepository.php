@@ -422,6 +422,131 @@ class NavidromeRepository
         return $out;
     }
 
+    /**
+     * Find a media_file by MusicBrainz id (mbz_track_id, recording id, or fallback).
+     * Returns null if no match.
+     */
+    public function findMediaFileByMbid(string $mbid): ?string
+    {
+        if ($mbid === '') {
+            return null;
+        }
+
+        // Navidrome's media_file may have either 'mbz_track_id' or
+        // 'mbz_recording_id' depending on version. We probe both.
+        $columns = $this->mediaFileColumns();
+        $candidates = array_values(array_filter(
+            ['mbz_track_id', 'mbz_recording_id'],
+            static fn (string $c) => in_array($c, $columns, true),
+        ));
+        if ($candidates === []) {
+            return null;
+        }
+
+        $where = implode(' OR ', array_map(static fn (string $c) => "$c = :mbid", $candidates));
+        $sql = sprintf('SELECT id FROM media_file WHERE %s LIMIT 1', $where);
+
+        $id = $this->connection()->fetchOne($sql, ['mbid' => $mbid]);
+
+        return is_string($id) && $id !== '' ? $id : null;
+    }
+
+    /**
+     * Find a media_file by normalised (artist, title) pair. Case- and whitespace-
+     * insensitive. Returns null if no match or ambiguous (>1 match).
+     */
+    public function findMediaFileByArtistTitle(string $artist, string $title): ?string
+    {
+        $artist = self::normalize($artist);
+        $title = self::normalize($title);
+        if ($artist === '' || $title === '') {
+            return null;
+        }
+
+        $sql = "SELECT id FROM media_file
+                WHERE LOWER(TRIM(artist)) = :a
+                  AND LOWER(TRIM(title)) = :t
+                LIMIT 2";
+        $rows = $this->connection()->fetchAllAssociative($sql, ['a' => $artist, 't' => $title]);
+
+        if (count($rows) !== 1) {
+            return null;
+        }
+
+        return (string) $rows[0]['id'];
+    }
+
+    /**
+     * True if a scrobble already exists for (user, media_file) within
+     * ±$toleranceSeconds of $time.
+     */
+    public function scrobbleExistsNear(
+        string $userId,
+        string $mediaFileId,
+        \DateTimeInterface $time,
+        int $toleranceSeconds = 60,
+    ): bool {
+        if (!$this->hasScrobblesTable()) {
+            return false;
+        }
+
+        $immutable = $time instanceof \DateTimeImmutable
+            ? $time
+            : \DateTimeImmutable::createFromInterface($time);
+        $tolerance = new \DateInterval('PT' . max(0, $toleranceSeconds) . 'S');
+        $from = $immutable->sub($tolerance);
+        $to = $immutable->add($tolerance);
+
+        $sql = 'SELECT 1 FROM scrobbles
+                WHERE user_id = :uid AND media_file_id = :mfid
+                  AND submission_time >= :f AND submission_time <= :t
+                LIMIT 1';
+
+        $found = $this->connection()->fetchOne($sql, [
+            'uid' => $userId,
+            'mfid' => $mediaFileId,
+            'f' => $from->format('Y-m-d H:i:s'),
+            't' => $to->format('Y-m-d H:i:s'),
+        ]);
+
+        return $found !== false;
+    }
+
+    /**
+     * Insert a scrobble row. Caller is responsible for dedup. Throws if the
+     * scrobbles table does not exist (Navidrome < 0.55) or if the DB is
+     * mounted read-only.
+     */
+    public function insertScrobble(string $userId, string $mediaFileId, \DateTimeInterface $time): void
+    {
+        if (!$this->hasScrobblesTable()) {
+            throw new \RuntimeException(
+                'The Navidrome scrobbles table does not exist. Upgrade Navidrome to >= 0.55 (late 2025).',
+            );
+        }
+
+        $this->connection()->executeStatement(
+            'INSERT INTO scrobbles (user_id, media_file_id, submission_time) VALUES (?, ?, ?)',
+            [$userId, $mediaFileId, $time->format('Y-m-d H:i:s')],
+        );
+    }
+
+    private static function normalize(string $s): string
+    {
+        return mb_strtolower(trim($s));
+    }
+
+    /**
+     * @return string[]
+     */
+    private function mediaFileColumns(): array
+    {
+        /** @var array<int, array{name: string}> $rows */
+        $rows = $this->connection()->fetchAllAssociative('PRAGMA table_info(media_file)');
+
+        return array_map(static fn (array $r) => (string) $r['name'], $rows);
+    }
+
     private function connection(): Connection
     {
         if ($this->connection !== null) {

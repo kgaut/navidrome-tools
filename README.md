@@ -132,6 +132,77 @@ php bin/console app:fixtures:seed
 symfony serve                        # https://127.0.0.1:8000
 ```
 
+## Import one-shot des scrobbles Last.fm
+
+Une commande CLI permet de récupérer l'historique de scrobbles Last.fm
+d'un utilisateur et de l'insérer dans la table `scrobbles` de Navidrome,
+en évitant les doublons.
+
+```bash
+php bin/console app:lastfm:import <lastfm-user> --api-key=YOUR_KEY \
+    [--from=YYYY-MM-DD] [--to=YYYY-MM-DD] \
+    [--tolerance=60] [--dry-run] [--show-unmatched=50|all|0]
+```
+
+L'API key Last.fm s'obtient gratuitement sur
+<https://www.last.fm/api/account/create>. Elle peut aussi être passée via
+la variable d'environnement `LASTFM_API_KEY`.
+
+### Stratégie
+
+1. **Pagination** : utilise `user.getRecentTracks` de l'API Last.fm,
+   200 scrobbles par page, jusqu'au bout de l'historique (filtré par
+   `--from` / `--to` si fournis).
+2. **Matching** sur la lib Navidrome :
+   - d'abord par MusicBrainz ID si Last.fm le fournit ;
+   - sinon par couple `(artist, title)` normalisé (lowercase + trim).
+3. **Déduplication** : un scrobble n'est pas réinséré s'il existe déjà
+   dans la table `scrobbles` une ligne avec le même `media_file_id` et
+   un `submission_time` à ±`--tolerance` secondes (60 par défaut). Cela
+   absorbe les petits décalages d'horloge entre clients de scrobble.
+4. **Rapport final** : compteurs `fetched / inserted / duplicates /
+   unmatched`, plus un tableau des **morceaux non matchés** agrégés par
+   `(artist, title)`, **triés par nombre de scrobbles décroissant**.
+   Pratique pour identifier en priorité les morceaux à ajouter dans la
+   bibliothèque Navidrome.
+
+### Pré-requis
+
+- **Navidrome ≥ 0.55** (la table `scrobbles` doit exister, sinon la
+  commande échoue avec un message explicite).
+- **Accès en écriture** sur la base SQLite Navidrome. Si vous lancez la
+  commande depuis le conteneur Docker du tool, montez temporairement le
+  fichier en read-write — par exemple :
+  ```bash
+  docker run --rm -it \
+      -v /srv/navidrome/data/navidrome.db:/data/navidrome.db \
+      -e NAVIDROME_DB_PATH=/data/navidrome.db \
+      -e LASTFM_API_KEY=... \
+      -e APP_SECRET=... -e APP_AUTH_USER=admin -e APP_AUTH_PASSWORD=... \
+      -e NAVIDROME_USER=admin -e NAVIDROME_PASSWORD=... \
+      ghcr.io/kgaut/navidrome-playlist-generator:latest \
+      php bin/console app:lastfm:import myuser
+  ```
+  (volume **sans** `:ro`). Idéalement, **arrêter Navidrome** pendant
+  l'import pour éviter les locks SQLite concurrents.
+- Sous Lando : `lando symfony app:lastfm:import myuser --api-key=...`
+  fonctionne directement (la DB Navidrome bind-mountée est en RW par
+  défaut).
+
+### Exemples
+
+```bash
+# Aperçu sans rien écrire :
+lando symfony app:lastfm:import myuser --api-key=XXX --dry-run
+
+# Import de toute l'année 2024 :
+lando symfony app:lastfm:import myuser --api-key=XXX \
+    --from=2024-01-01 --to=2025-01-01
+
+# Voir tous les morceaux non trouvés (utile pour audit complet) :
+lando symfony app:lastfm:import myuser --api-key=XXX --show-unmatched=all
+```
+
 ## Qualité de code et tests
 
 Le projet utilise PHPUnit, PHPStan et PHP_CodeSniffer (PSR-12). Les
