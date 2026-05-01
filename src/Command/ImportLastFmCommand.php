@@ -159,6 +159,7 @@ class ImportLastFmCommand extends Command
                     'inserted' => $r->inserted,
                     'duplicates' => $r->duplicates,
                     'unmatched' => $r->unmatched,
+                    'unmatched_artists' => $r->unmatchedArtistsRanking(100),
                     'dry_run' => $dryRun,
                     'date_min' => $dateMin?->format('Y-m-d'),
                     'date_max' => $dateMax?->format('Y-m-d'),

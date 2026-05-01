@@ -99,6 +99,34 @@ class LidarrClientTest extends TestCase
         $this->assertSame('Daft Punk', $result['artistName']);
     }
 
+    public function testIndexExistingArtistsByNormalisedName(): void
+    {
+        $http = new MockHttpClient([
+            new MockResponse(json_encode([
+                ['id' => 1, 'foreignArtistId' => 'mb-1', 'artistName' => 'Daft Punk'],
+                ['id' => 2, 'foreignArtistId' => 'mb-2', 'artistName' => '  Aphex Twin '],
+                ['id' => 3, 'noName' => true],
+                ['id' => 4, 'foreignArtistId' => 'mb-4', 'artistName' => ''],
+            ]) ?: '', ['response_headers' => ['content-type: application/json']]),
+        ]);
+
+        $index = (new LidarrClient($http, $this->config()))->indexExistingArtists();
+
+        $this->assertCount(2, $index);
+        $this->assertArrayHasKey('daft punk', $index);
+        $this->assertSame('mb-1', $index['daft punk']['foreignArtistId']);
+        $this->assertSame(1, $index['daft punk']['id']);
+        $this->assertSame('Daft Punk', $index['daft punk']['artistName']);
+        $this->assertArrayHasKey('aphex twin', $index);
+        $this->assertSame('mb-2', $index['aphex twin']['foreignArtistId']);
+    }
+
+    public function testArtistDetailUrl(): void
+    {
+        $url = $this->config(url: 'http://lidarr:8686/')->artistDetailUrl('mb-123');
+        $this->assertSame('http://lidarr:8686/artist/mb-123', $url);
+    }
+
     private function config(string $url = 'http://lidarr:8686', string $apiKey = 'k'): LidarrConfig
     {
         return new LidarrConfig(

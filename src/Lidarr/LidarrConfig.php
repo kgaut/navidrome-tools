@@ -18,4 +18,9 @@ final class LidarrConfig
     {
         return $this->url !== '' && $this->apiKey !== '';
     }
+
+    public function artistDetailUrl(string $foreignArtistId): string
+    {
+        return rtrim($this->url, '/') . '/artist/' . $foreignArtistId;
+    }
 }

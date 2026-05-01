@@ -8,6 +8,12 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### Added
+- Section « Artistes non matchés » sur la page `/history/{id}` d'un run
+  `lastfm-import` : top 100 artistes agrégés (scrobbles sommés),
+  persistés dans `metrics.unmatched_artists`. Pour chaque artiste,
+  badge `✓ déjà dans Lidarr` + lien vers la fiche, ou bouton
+  `+ Lidarr` (qui redirige vers la même page de détail après ajout).
+  Encarts dédiés si Lidarr non configuré ou injoignable. Closes #10.
 - `CHANGELOG.md` au format Keep a Changelog ; documentation du workflow
   de release dans `CLAUDE.md` (§5) et lien depuis le `README.md`.
 - `AGENTS.md` (convention transverse pour les assistants IA) avec la

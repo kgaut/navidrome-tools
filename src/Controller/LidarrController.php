@@ -20,17 +20,22 @@ class LidarrController extends AbstractController
     #[Route('/lidarr/add-artist', name: 'app_lidarr_add_artist', methods: ['POST'])]
     public function addArtist(Request $request): Response
     {
+        $redirectRunId = (int) $request->request->get('_redirect_run_id', 0);
+        $back = $redirectRunId > 0
+            ? $this->redirectToRoute('app_history_detail', ['id' => $redirectRunId])
+            : $this->redirectToRoute('app_lastfm_import');
+
         if (!$this->config->isConfigured()) {
             $this->addFlash('error', 'Lidarr n\'est pas configuré (LIDARR_URL / LIDARR_API_KEY).');
 
-            return $this->redirectToRoute('app_lastfm_import');
+            return $back;
         }
 
         $artist = trim((string) $request->request->get('artist', ''));
         if ($artist === '') {
             $this->addFlash('error', 'Nom d\'artiste manquant.');
 
-            return $this->redirectToRoute('app_lastfm_import');
+            return $back;
         }
 
         if (!$this->isCsrfTokenValid('lidarr_add', (string) $request->request->get('_token'))) {
@@ -48,6 +53,6 @@ class LidarrController extends AbstractController
             $this->addFlash('error', sprintf('Lidarr : %s', $e->getMessage()));
         }
 
-        return $this->redirectToRoute('app_lastfm_import');
+        return $back;
     }
 }
