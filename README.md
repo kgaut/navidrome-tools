@@ -105,6 +105,87 @@ Les migrations Doctrine sont jouées automatiquement à chaque démarrage
 (idempotent). Le volume `playlist-data` préserve la configuration entre
 redémarrages.
 
+### Cron externe avec arrêt de Navidrome (optionnel)
+
+Le service `navidrome-tools-cron` livré dans le compose lance déjà
+supercronic et exécute les jobs en parallèle de Navidrome. Si vous
+préférez piloter les jobs depuis le **crontab de l'hôte** (par exemple
+parce qu'au moins un job — typiquement `app:lastfm:import` — a besoin
+que Navidrome soit arrêté pour écrire dans sa SQLite sans risque de
+lock), voici un script complet à appeler depuis le crontab de la
+machine.
+
+> Pré-requis : Navidrome **et** les services `navidrome-tools-*` doivent
+> être déclarés dans le **même** `docker-compose.yml` (« même stack »).
+> Si vous adoptez ce script, **désactivez** le service
+> `navidrome-tools-cron` (sinon ses jobs supercronic et ceux du host
+> cron se marcheront dessus).
+
+`/usr/local/bin/navidrome-tools-cron.sh` :
+
+```bash
+#!/usr/bin/env bash
+#
+# Stoppe Navidrome, lance les commandes cron de navidrome-tools,
+# redémarre Navidrome — quoi qu'il arrive.
+#
+# Exemple de ligne crontab (root) :
+#     0 4 * * * /usr/local/bin/navidrome-tools-cron.sh >> /var/log/navidrome-tools-cron.log 2>&1
+
+set -euo pipefail
+
+# --- Configuration ---
+STACK_DIR="/srv/navidrome"            # dossier contenant docker-compose.yml
+NAVIDROME_SERVICE="navidrome"         # nom du service Navidrome dans la stack
+TOOLS_SERVICE="navidrome-tools-web"   # service tool sur lequel taper les commandes
+COMPOSE=(docker compose)              # mettre (docker-compose) pour l'ancien CLI
+
+cd "$STACK_DIR"
+
+log() { echo "[$(date -Is)] $*"; }
+
+# Toujours relancer Navidrome, même si une commande échoue ou que le
+# script est interrompu.
+restart_navidrome() {
+    log "Redémarrage de ${NAVIDROME_SERVICE}"
+    "${COMPOSE[@]}" up -d "$NAVIDROME_SERVICE"
+}
+trap restart_navidrome EXIT
+
+log "Arrêt de ${NAVIDROME_SERVICE}"
+"${COMPOSE[@]}" stop "$NAVIDROME_SERVICE"
+
+log "Génération des playlists dues"
+"${COMPOSE[@]}" exec -T "$TOOLS_SERVICE" php bin/console app:playlist:run-all
+
+log "Recalcul du cache statistiques"
+"${COMPOSE[@]}" exec -T "$TOOLS_SERVICE" php bin/console app:stats:compute
+
+log "Purge de l'historique des runs"
+"${COMPOSE[@]}" exec -T "$TOOLS_SERVICE" php bin/console app:history:purge
+
+log "Terminé"
+```
+
+Rendez-le exécutable une fois copié :
+
+```bash
+sudo chmod +x /usr/local/bin/navidrome-tools-cron.sh
+```
+
+Notes :
+
+- `trap … EXIT` garantit que Navidrome est relancé même si une commande
+  Symfony plante ou si le script reçoit un `SIGTERM`.
+- `docker compose exec -T` réutilise le conteneur `navidrome-tools-web`
+  déjà démarré (toutes les variables d'environnement requises y sont
+  déjà). Pas besoin d'un `run --rm` qui relancerait l'entrypoint et
+  rejouerait les migrations à chaque tick.
+- Adaptez la liste de commandes selon vos besoins — vous pouvez par
+  exemple ajouter un `app:lastfm:import <user> --api-key=…` une fois
+  par jour, qui profitera de l'arrêt de Navidrome pour écrire en toute
+  sécurité dans `navidrome.db`.
+
 ## Développement local avec Lando (recommandé)
 
 [Lando](https://lando.dev/) fournit l'environnement Symfony complet
