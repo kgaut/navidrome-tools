@@ -24,7 +24,7 @@ variables:
 # --------------------------------------------------------------------
 .php:
   tags:
-    - job-docker
+    - docker
   cache:
     key:
       files:
