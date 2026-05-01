@@ -21,9 +21,10 @@ Fonctionnalités livrées :
   Système de plugins via `App\Generator\PlaylistGeneratorInterface` —
   ajouter un type = créer un fichier dans `src/Generator/`,
   auto-détecté par `_instanceof` (cf. `config/services.yaml`).
-- **7 générateurs livrés** : `top-last-days`, `top-last-month`,
+- **8 générateurs livrés** : `top-last-days`, `top-last-month`,
   `top-last-year`, `top-all-time`, `never-played`, `top-month-yago`,
-  `top-years-ago`.
+  `top-years-ago`, `songs-you-used-to-love` (high play_count + dernier
+  play > N mois).
 - **Page `/stats`** : total plays, distinct tracks, top 10 artistes,
   top 50 morceaux, par période (7d/30d/last-month/last-year/all-time),
   cachée dans `stats_snapshot`, refresh manuel + cron.
@@ -274,8 +275,6 @@ Il reste :
   d'import actuelle qui ne montre que les unmatched du dernier run).
 - **Diff entre deux runs** d'une même playlist (entrées/sorties).
 - **Auto-star les top morceaux** (POST `star.view` Subsonic).
-- **Générateur « Songs you used to love »** : high play_count + pas
-  écouté depuis 6 mois.
 - **Notifications cron** (Discord/Slack/Pushover via webhook URL).
 - **Export M3U téléchargeable** depuis la page de prévisualisation.
 - **Webhooks sortants génériques** (POST JSON après chaque run).

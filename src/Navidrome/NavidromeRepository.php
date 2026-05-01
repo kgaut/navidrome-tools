@@ -660,6 +660,40 @@ class NavidromeRepository
     }
 
     /**
+     * Tracks the user once loved (play_count >= $minPlays) but hasn't
+     * listened to in a while (last play strictly before $cutoff). Sorted
+     * by play_count DESC, then by play_date ASC (oldest forgotten first).
+     *
+     * @return string[] media_file ids
+     */
+    public function getSongsLovedAndForgotten(int $minPlays, \DateTimeInterface $cutoff, int $limit): array
+    {
+        $userId = $this->resolveUserId();
+        $sql = "SELECT a.item_id AS id
+                FROM annotation a
+                JOIN media_file mf ON mf.id = a.item_id
+                WHERE a.item_type = 'media_file'
+                  AND a.user_id = :uid
+                  AND a.play_count >= :min
+                  AND a.play_date IS NOT NULL
+                  AND a.play_date < :cutoff
+                ORDER BY a.play_count DESC, a.play_date ASC
+                LIMIT :lim";
+
+        $rows = $this->connection()->fetchAllAssociative($sql, [
+            'uid' => $userId,
+            'min' => $minPlays,
+            'cutoff' => $cutoff->format('Y-m-d H:i:s'),
+            'lim' => $limit,
+        ], [
+            'min' => \Doctrine\DBAL\ParameterType::INTEGER,
+            'lim' => \Doctrine\DBAL\ParameterType::INTEGER,
+        ]);
+
+        return array_map(static fn (array $r) => (string) $r['id'], $rows);
+    }
+
+    /**
      * Resolve a list of media_file ids to TrackSummary[], preserving order.
      *
      * @param string[] $ids
