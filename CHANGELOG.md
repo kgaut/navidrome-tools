@@ -50,6 +50,15 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
   Top YYYY » à `wrapped/show.html.twig:57`. Causé par
   `number_format(0)` qui injectait un séparateur de milliers dans la
   string d'année avant la soustraction.
+- Page `/stats` (période *All-time*) : le total d'écoutes ne
+  bougeait plus, même après un refresh, parce que les requêtes
+  all-time interrogeaient `annotation.play_count` (qui n'est jamais
+  mis à jour par l'import Last.fm — Navidrome ne propage pas) au lieu
+  de `scrobbles`. Les 4 méthodes du repo (`getTotalPlays`,
+  `getDistinctTracksPlayed`, `getTopArtists`,
+  `getTopTracksWithDetails`) utilisent maintenant `scrobbles` aussi
+  pour all-time quand la table existe ; fallback `annotation` inchangé
+  quand `scrobbles` est absente.
 
 <!--
 Sections disponibles pour les futures entrées :

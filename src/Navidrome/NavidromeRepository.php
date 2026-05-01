@@ -186,25 +186,30 @@ class NavidromeRepository
 
     /**
      * Total number of plays in [from, to). Pass null/null for all-time.
+     *
+     * Always prefers the `scrobbles` table when present (so a Last.fm
+     * import is reflected in the count). Falls back to summing
+     * `annotation.play_count` when scrobbles is missing — note that the
+     * fallback's "windowed" mode is only an approximation: it counts
+     * tracks whose *last* play falls inside the window.
      */
     public function getTotalPlays(?\DateTimeInterface $from, ?\DateTimeInterface $to): int
     {
         $userId = $this->resolveUserId();
 
-        if ($this->hasScrobblesTable() && $from !== null && $to !== null) {
-            $sql = 'SELECT COUNT(*) FROM scrobbles
-                    WHERE user_id = :uid
-                      AND submission_time >= :f AND submission_time < :t';
-            $count = $this->connection()->fetchOne($sql, [
-                'uid' => $userId,
-                'f' => $from->getTimestamp(),
-                't' => $to->getTimestamp(),
-            ], [
-                'f' => \Doctrine\DBAL\ParameterType::INTEGER,
-                't' => \Doctrine\DBAL\ParameterType::INTEGER,
-            ]);
+        if ($this->hasScrobblesTable()) {
+            $sql = 'SELECT COUNT(*) FROM scrobbles WHERE user_id = :uid';
+            $params = ['uid' => $userId];
+            $types = [];
+            if ($from !== null && $to !== null) {
+                $sql .= ' AND submission_time >= :f AND submission_time < :t';
+                $params['f'] = $from->getTimestamp();
+                $params['t'] = $to->getTimestamp();
+                $types['f'] = \Doctrine\DBAL\ParameterType::INTEGER;
+                $types['t'] = \Doctrine\DBAL\ParameterType::INTEGER;
+            }
 
-            return (int) $count;
+            return (int) $this->connection()->fetchOne($sql, $params, $types);
         }
 
         if ($from !== null && $to !== null) {
@@ -228,24 +233,25 @@ class NavidromeRepository
 
     /**
      * Number of distinct media files played at least once in [from, to).
+     * Uses scrobbles when available (always accurate), annotation otherwise.
      */
     public function getDistinctTracksPlayed(?\DateTimeInterface $from, ?\DateTimeInterface $to): int
     {
         $userId = $this->resolveUserId();
 
-        if ($this->hasScrobblesTable() && $from !== null && $to !== null) {
-            $sql = 'SELECT COUNT(DISTINCT media_file_id) FROM scrobbles
-                    WHERE user_id = :uid
-                      AND submission_time >= :f AND submission_time < :t';
+        if ($this->hasScrobblesTable()) {
+            $sql = 'SELECT COUNT(DISTINCT media_file_id) FROM scrobbles WHERE user_id = :uid';
+            $params = ['uid' => $userId];
+            $types = [];
+            if ($from !== null && $to !== null) {
+                $sql .= ' AND submission_time >= :f AND submission_time < :t';
+                $params['f'] = $from->getTimestamp();
+                $params['t'] = $to->getTimestamp();
+                $types['f'] = \Doctrine\DBAL\ParameterType::INTEGER;
+                $types['t'] = \Doctrine\DBAL\ParameterType::INTEGER;
+            }
 
-            return (int) $this->connection()->fetchOne($sql, [
-                'uid' => $userId,
-                'f' => $from->getTimestamp(),
-                't' => $to->getTimestamp(),
-            ], [
-                'f' => \Doctrine\DBAL\ParameterType::INTEGER,
-                't' => \Doctrine\DBAL\ParameterType::INTEGER,
-            ]);
+            return (int) $this->connection()->fetchOne($sql, $params, $types);
         }
 
         if ($from !== null && $to !== null) {
@@ -276,27 +282,24 @@ class NavidromeRepository
     {
         $userId = $this->resolveUserId();
 
-        if ($this->hasScrobblesTable() && $from !== null && $to !== null) {
+        if ($this->hasScrobblesTable()) {
             $sql = 'SELECT mf.artist AS artist, COUNT(*) AS plays
                     FROM scrobbles s
                     JOIN media_file mf ON mf.id = s.media_file_id
                     WHERE s.user_id = :uid
-                      AND s.submission_time >= :f AND s.submission_time < :t
-                      AND mf.artist != ""
-                    GROUP BY mf.artist
-                    ORDER BY plays DESC, artist ASC
-                    LIMIT :lim';
-            $params = [
-                'uid' => $userId,
-                'f' => $from->getTimestamp(),
-                't' => $to->getTimestamp(),
-                'lim' => $limit,
-            ];
-            $rows = $this->connection()->fetchAllAssociative($sql, $params, [
-                'f' => \Doctrine\DBAL\ParameterType::INTEGER,
-                't' => \Doctrine\DBAL\ParameterType::INTEGER,
-                'lim' => \Doctrine\DBAL\ParameterType::INTEGER,
-            ]);
+                      AND mf.artist != ""';
+            $params = ['uid' => $userId, 'lim' => $limit];
+            $types = ['lim' => \Doctrine\DBAL\ParameterType::INTEGER];
+            if ($from !== null && $to !== null) {
+                $sql .= ' AND s.submission_time >= :f AND s.submission_time < :t';
+                $params['f'] = $from->getTimestamp();
+                $params['t'] = $to->getTimestamp();
+                $types['f'] = \Doctrine\DBAL\ParameterType::INTEGER;
+                $types['t'] = \Doctrine\DBAL\ParameterType::INTEGER;
+            }
+            $sql .= ' GROUP BY mf.artist ORDER BY plays DESC, artist ASC LIMIT :lim';
+
+            $rows = $this->connection()->fetchAllAssociative($sql, $params, $types);
 
             return array_map(
                 static fn (array $r) => ['artist' => (string) $r['artist'], 'plays' => (int) $r['plays']],
@@ -351,27 +354,25 @@ class NavidromeRepository
     {
         $userId = $this->resolveUserId();
 
-        if ($this->hasScrobblesTable() && $from !== null && $to !== null) {
+        if ($this->hasScrobblesTable()) {
             $sql = 'SELECT mf.id AS id, mf.title AS title, mf.artist AS artist, mf.album AS album,
                            COUNT(*) AS plays
                     FROM scrobbles s
                     JOIN media_file mf ON mf.id = s.media_file_id
-                    WHERE s.user_id = :uid
-                      AND s.submission_time >= :f AND s.submission_time < :t
-                    GROUP BY mf.id, mf.title, mf.artist, mf.album
-                    ORDER BY plays DESC, title ASC
-                    LIMIT :lim';
-            $params = [
-                'uid' => $userId,
-                'f' => $from->getTimestamp(),
-                't' => $to->getTimestamp(),
-                'lim' => $limit,
-            ];
-            $rows = $this->connection()->fetchAllAssociative($sql, $params, [
-                'f' => \Doctrine\DBAL\ParameterType::INTEGER,
-                't' => \Doctrine\DBAL\ParameterType::INTEGER,
-                'lim' => \Doctrine\DBAL\ParameterType::INTEGER,
-            ]);
+                    WHERE s.user_id = :uid';
+            $params = ['uid' => $userId, 'lim' => $limit];
+            $types = ['lim' => \Doctrine\DBAL\ParameterType::INTEGER];
+            if ($from !== null && $to !== null) {
+                $sql .= ' AND s.submission_time >= :f AND s.submission_time < :t';
+                $params['f'] = $from->getTimestamp();
+                $params['t'] = $to->getTimestamp();
+                $types['f'] = \Doctrine\DBAL\ParameterType::INTEGER;
+                $types['t'] = \Doctrine\DBAL\ParameterType::INTEGER;
+            }
+            $sql .= ' GROUP BY mf.id, mf.title, mf.artist, mf.album
+                      ORDER BY plays DESC, title ASC LIMIT :lim';
+
+            $rows = $this->connection()->fetchAllAssociative($sql, $params, $types);
 
             return array_map(static fn (array $r) => [
                 'id' => (string) $r['id'],

@@ -111,4 +111,45 @@ class NavidromeRepositoryStatsTest extends TestCase
         $artists = $repo->getTopArtists(null, null, 5);
         $this->assertSame([['artist' => 'Past Me', 'plays' => 50]], $artists);
     }
+
+    /**
+     * Regression: when scrobbles is present, all-time stats must aggregate
+     * scrobbles (not annotation.play_count). Otherwise a Last.fm import
+     * that adds rows to scrobbles never updates the all-time totals shown
+     * on /stats.
+     */
+    public function testAllTimePrefersScrobblesOverAnnotation(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: true);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', 'A', 'Artist X');
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-2', 'B', 'Artist Y');
+        // annotation says 5 + 5 = 10 plays; scrobbles tells the truer story
+        NavidromeFixtureFactory::insertAnnotation($conn, 'user-1', 'mf-1', 5, '2024-01-01 00:00:00');
+        NavidromeFixtureFactory::insertAnnotation($conn, 'user-1', 'mf-2', 5, '2024-01-01 00:00:00');
+        for ($i = 0; $i < 12; $i++) {
+            NavidromeFixtureFactory::insertScrobble($conn, 'user-1', 'mf-1', date('Y-m-d H:i:s', strtotime("-{$i} day")));
+        }
+        for ($i = 0; $i < 3; $i++) {
+            NavidromeFixtureFactory::insertScrobble($conn, 'user-1', 'mf-2', date('Y-m-d H:i:s', strtotime("-{$i} day")));
+        }
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $this->assertSame(15, $repo->getTotalPlays(null, null), 'all-time count must come from scrobbles, not annotation');
+        $this->assertSame(2, $repo->getDistinctTracksPlayed(null, null));
+
+        $artists = $repo->getTopArtists(null, null, 5);
+        $this->assertSame(
+            [
+                ['artist' => 'Artist X', 'plays' => 12],
+                ['artist' => 'Artist Y', 'plays' => 3],
+            ],
+            $artists,
+        );
+
+        $tracks = $repo->getTopTracksWithDetails(null, null, 5);
+        $this->assertCount(2, $tracks);
+        $this->assertSame('mf-1', $tracks[0]['id']);
+        $this->assertSame(12, $tracks[0]['plays']);
+        $this->assertSame(3, $tracks[1]['plays']);
+    }
 }
