@@ -375,6 +375,291 @@ class NavidromeRepository
     }
 
     /**
+     * Plays per month over the last $monthsBack months. Optionally filtered
+     * to a single artist. Months without scrobbles are returned with plays=0.
+     *
+     * @return list<array{month: string, plays: int}>
+     */
+    public function getPlaysByMonth(int $monthsBack, ?string $artist = null): array
+    {
+        if (!$this->hasScrobblesTable()) {
+            return [];
+        }
+
+        $userId = $this->resolveUserId();
+        $now = new \DateTimeImmutable();
+        $from = $now->modify('first day of this month')->setTime(0, 0)
+            ->modify(sprintf('-%d months', max(0, $monthsBack - 1)));
+
+        $sql = "SELECT strftime('%Y-%m', s.submission_time) AS month, COUNT(*) AS plays
+                FROM scrobbles s
+                JOIN media_file mf ON mf.id = s.media_file_id
+                WHERE s.user_id = :uid
+                  AND s.submission_time >= :from";
+        $params = ['uid' => $userId, 'from' => $from->format('Y-m-d H:i:s')];
+        if ($artist !== null && $artist !== '') {
+            $sql .= ' AND mf.artist = :artist';
+            $params['artist'] = $artist;
+        }
+        $sql .= ' GROUP BY month ORDER BY month ASC';
+
+        $rows = $this->connection()->fetchAllAssociative($sql, $params);
+        $byMonth = [];
+        foreach ($rows as $r) {
+            $byMonth[(string) $r['month']] = (int) $r['plays'];
+        }
+
+        // Fill missing months with zero plays so the chart has a continuous axis.
+        $out = [];
+        $cursor = $from;
+        for ($i = 0; $i < $monthsBack; $i++) {
+            $key = $cursor->format('Y-m');
+            $out[] = ['month' => $key, 'plays' => $byMonth[$key] ?? 0];
+            $cursor = $cursor->modify('+1 month');
+        }
+
+        return $out;
+    }
+
+    /**
+     * Top $topN artists by total plays over the last $monthsBack months,
+     * with a per-month timeseries for each.
+     *
+     * @return list<array{artist: string, total: int, series: list<array{month: string, plays: int}>}>
+     */
+    public function getTopArtistsTimeline(int $monthsBack, int $topN): array
+    {
+        if (!$this->hasScrobblesTable()) {
+            return [];
+        }
+
+        $userId = $this->resolveUserId();
+        $now = new \DateTimeImmutable();
+        $from = $now->modify('first day of this month')->setTime(0, 0)
+            ->modify(sprintf('-%d months', max(0, $monthsBack - 1)));
+
+        // Top artists in window
+        $topRows = $this->connection()->fetchAllAssociative(
+            "SELECT mf.artist AS artist, COUNT(*) AS plays
+             FROM scrobbles s
+             JOIN media_file mf ON mf.id = s.media_file_id
+             WHERE s.user_id = :uid AND s.submission_time >= :from AND mf.artist != ''
+             GROUP BY mf.artist
+             ORDER BY plays DESC
+             LIMIT :lim",
+            ['uid' => $userId, 'from' => $from->format('Y-m-d H:i:s'), 'lim' => $topN],
+            ['lim' => \Doctrine\DBAL\ParameterType::INTEGER],
+        );
+        if ($topRows === []) {
+            return [];
+        }
+        $topArtists = array_map(static fn (array $r) => (string) $r['artist'], $topRows);
+
+        // Per-(artist, month) plays in a single query
+        $placeholders = implode(',', array_fill(0, count($topArtists), '?'));
+        $sql = sprintf(
+            "SELECT mf.artist AS artist, strftime('%%Y-%%m', s.submission_time) AS month, COUNT(*) AS plays
+             FROM scrobbles s
+             JOIN media_file mf ON mf.id = s.media_file_id
+             WHERE s.user_id = ? AND s.submission_time >= ? AND mf.artist IN (%s)
+             GROUP BY mf.artist, month",
+            $placeholders,
+        );
+        $byArtistMonth = [];
+        foreach (
+            $this->connection()->fetchAllAssociative(
+                $sql,
+                array_merge([$userId, $from->format('Y-m-d H:i:s')], $topArtists),
+            ) as $r
+        ) {
+            $byArtistMonth[(string) $r['artist']][(string) $r['month']] = (int) $r['plays'];
+        }
+
+        $months = [];
+        $cursor = $from;
+        for ($i = 0; $i < $monthsBack; $i++) {
+            $months[] = $cursor->format('Y-m');
+            $cursor = $cursor->modify('+1 month');
+        }
+
+        $out = [];
+        foreach ($topRows as $top) {
+            $artist = (string) $top['artist'];
+            $series = [];
+            foreach ($months as $m) {
+                $series[] = ['month' => $m, 'plays' => $byArtistMonth[$artist][$m] ?? 0];
+            }
+            $out[] = ['artist' => $artist, 'total' => (int) $top['plays'], 'series' => $series];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Heatmap matrix [day-of-week 0..6][hour 0..23] = plays count.
+     * Returns a fully-filled 7x24 matrix (zeros included).
+     *
+     * @return array<int, array<int, int>>
+     */
+    public function getHeatmapDayHour(?\DateTimeInterface $from, ?\DateTimeInterface $to): array
+    {
+        $matrix = [];
+        for ($d = 0; $d < 7; $d++) {
+            $matrix[$d] = array_fill(0, 24, 0);
+        }
+        if (!$this->hasScrobblesTable()) {
+            return $matrix;
+        }
+
+        $userId = $this->resolveUserId();
+        $sql = "SELECT CAST(strftime('%w', submission_time) AS INTEGER) AS dow,
+                       CAST(strftime('%H', submission_time) AS INTEGER) AS hour,
+                       COUNT(*) AS plays
+                FROM scrobbles
+                WHERE user_id = :uid";
+        $params = ['uid' => $userId];
+        if ($from !== null) {
+            $sql .= ' AND submission_time >= :from';
+            $params['from'] = $from->format('Y-m-d H:i:s');
+        }
+        if ($to !== null) {
+            $sql .= ' AND submission_time < :to';
+            $params['to'] = $to->format('Y-m-d H:i:s');
+        }
+        $sql .= ' GROUP BY dow, hour';
+
+        foreach ($this->connection()->fetchAllAssociative($sql, $params) as $r) {
+            $matrix[(int) $r['dow']][(int) $r['hour']] = (int) $r['plays'];
+        }
+
+        return $matrix;
+    }
+
+    /**
+     * Plays per day for the given calendar year. Days without scrobbles
+     * return 0. Keys are 'Y-m-d' strings.
+     *
+     * @return array<string, int>
+     */
+    public function getDailyPlays(int $year): array
+    {
+        $start = new \DateTimeImmutable(sprintf('%04d-01-01 00:00:00', $year));
+        $end = new \DateTimeImmutable(sprintf('%04d-01-01 00:00:00', $year + 1));
+
+        $out = [];
+        $cursor = $start;
+        while ($cursor < $end) {
+            $out[$cursor->format('Y-m-d')] = 0;
+            $cursor = $cursor->modify('+1 day');
+        }
+
+        if (!$this->hasScrobblesTable()) {
+            return $out;
+        }
+
+        $userId = $this->resolveUserId();
+        $rows = $this->connection()->fetchAllAssociative(
+            "SELECT date(submission_time) AS d, COUNT(*) AS plays
+             FROM scrobbles
+             WHERE user_id = :uid AND submission_time >= :from AND submission_time < :to
+             GROUP BY d",
+            [
+                'uid' => $userId,
+                'from' => $start->format('Y-m-d H:i:s'),
+                'to' => $end->format('Y-m-d H:i:s'),
+            ],
+        );
+        foreach ($rows as $r) {
+            $key = (string) $r['d'];
+            if (isset($out[$key])) {
+                $out[$key] = (int) $r['plays'];
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Artists whose first-ever scrobble for this user falls in $year.
+     *
+     * @return list<array{artist: string, first_play: string}>
+     */
+    public function getNewArtists(int $year, int $limit = 100): array
+    {
+        if (!$this->hasScrobblesTable()) {
+            return [];
+        }
+
+        $userId = $this->resolveUserId();
+        $rows = $this->connection()->fetchAllAssociative(
+            "SELECT mf.artist AS artist, MIN(s.submission_time) AS first_play
+             FROM scrobbles s
+             JOIN media_file mf ON mf.id = s.media_file_id
+             WHERE s.user_id = :uid AND mf.artist != ''
+             GROUP BY mf.artist
+             HAVING strftime('%Y', first_play) = :year
+             ORDER BY first_play ASC
+             LIMIT :lim",
+            ['uid' => $userId, 'year' => (string) $year, 'lim' => $limit],
+            ['lim' => \Doctrine\DBAL\ParameterType::INTEGER],
+        );
+
+        return array_map(
+            static fn (array $r) => ['artist' => (string) $r['artist'], 'first_play' => (string) $r['first_play']],
+            $rows,
+        );
+    }
+
+    /**
+     * Longest run of consecutive days with at least one scrobble in $year.
+     */
+    public function getLongestListeningStreak(int $year): int
+    {
+        $daily = $this->getDailyPlays($year);
+        $best = 0;
+        $current = 0;
+        foreach ($daily as $plays) {
+            if ($plays > 0) {
+                $current++;
+                $best = max($best, $current);
+            } else {
+                $current = 0;
+            }
+        }
+
+        return $best;
+    }
+
+    /**
+     * Most active month (by plays) of $year.
+     *
+     * @return array{month: string, plays: int}|null
+     */
+    public function getMostActiveMonth(int $year): ?array
+    {
+        if (!$this->hasScrobblesTable()) {
+            return null;
+        }
+
+        $userId = $this->resolveUserId();
+        $row = $this->connection()->fetchAssociative(
+            "SELECT strftime('%Y-%m', submission_time) AS month, COUNT(*) AS plays
+             FROM scrobbles
+             WHERE user_id = :uid
+               AND strftime('%Y', submission_time) = :year
+             GROUP BY month
+             ORDER BY plays DESC, month DESC
+             LIMIT 1",
+            ['uid' => $userId, 'year' => (string) $year],
+        );
+        if ($row === false) {
+            return null;
+        }
+
+        return ['month' => (string) $row['month'], 'plays' => (int) $row['plays']];
+    }
+
+    /**
      * Resolve a list of media_file ids to TrackSummary[], preserving order.
      *
      * @param string[] $ids
