@@ -77,6 +77,66 @@ class SubsonicClient
         return null;
     }
 
+    /**
+     * List every starred song for the configured Subsonic user.
+     *
+     * @return array<int, array{id: string, title: string, artist: string, album: string}>
+     */
+    public function getStarred(): array
+    {
+        $data = $this->call('getStarred', []);
+        $songs = $data['starred']['song'] ?? [];
+
+        $out = [];
+        foreach ($songs as $s) {
+            $out[] = [
+                'id' => (string) ($s['id'] ?? ''),
+                'title' => (string) ($s['title'] ?? ''),
+                'artist' => (string) ($s['artist'] ?? ''),
+                'album' => (string) ($s['album'] ?? ''),
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Star one or more songs by Subsonic media_file id. No-op when the
+     * list is empty. Subsonic accepts repeated `id=` parameters in the
+     * same call; we batch by 50 to avoid blowing up the URL length.
+     */
+    public function starTracks(string ...$songIds): void
+    {
+        $this->changeStar('star', $songIds);
+    }
+
+    /**
+     * Unstar one or more songs by Subsonic media_file id. Same batching
+     * as {@see starTracks()}.
+     */
+    public function unstarTracks(string ...$songIds): void
+    {
+        $this->changeStar('unstar', $songIds);
+    }
+
+    /**
+     * @param string[] $songIds
+     */
+    private function changeStar(string $method, array $songIds): void
+    {
+        $songIds = array_values(array_filter($songIds, static fn (string $id) => $id !== ''));
+        if ($songIds === []) {
+            return;
+        }
+        foreach (array_chunk($songIds, 50) as $batch) {
+            $extra = implode('&', array_map(
+                static fn (string $id) => 'id=' . rawurlencode($id),
+                $batch,
+            ));
+            $this->call($method, [], $extra);
+        }
+    }
+
     public function ping(): bool
     {
         try {
