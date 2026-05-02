@@ -19,6 +19,7 @@ class DumpCronCommand extends Command
         private readonly PlaylistDefinitionRepository $repository,
         private readonly string $projectDir,
         private readonly string $statsRefreshSchedule,
+        private readonly string $loveSyncSchedule = '',
     ) {
         parent::__construct();
     }
@@ -63,6 +64,21 @@ class DumpCronCommand extends Command
                 ));
             } catch (\Throwable $e) {
                 $output->writeln('# SKIP stats refresh: invalid STATS_REFRESH_SCHEDULE (' . $e->getMessage() . ')');
+            }
+        }
+
+        if ($this->loveSyncSchedule !== '') {
+            try {
+                new CronExpression($this->loveSyncSchedule);
+                $output->writeln('');
+                $output->writeln('# Sync Last.fm loved ↔ Navidrome starred (LASTFM_LOVE_SYNC_SCHEDULE)');
+                $output->writeln(sprintf(
+                    '%s php %s app:lastfm:sync-loved',
+                    $this->loveSyncSchedule,
+                    $bin,
+                ));
+            } catch (\Throwable $e) {
+                $output->writeln('# SKIP love-sync: invalid LASTFM_LOVE_SYNC_SCHEDULE (' . $e->getMessage() . ')');
             }
         }
 

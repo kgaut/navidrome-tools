@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\LastFm\LastFmAuthService;
 use App\Service\SettingsService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
@@ -11,7 +12,7 @@ use Symfony\Component\Routing\Attribute\Route;
 class SettingsController extends AbstractController
 {
     #[Route('/settings', name: 'app_settings', methods: ['GET', 'POST'])]
-    public function index(Request $request, SettingsService $settings): Response
+    public function index(Request $request, SettingsService $settings, LastFmAuthService $lastfmAuth): Response
     {
         if ($request->isMethod('POST')) {
             if (!$this->isCsrfTokenValid('settings', (string) $request->request->get('_token'))) {
@@ -31,6 +32,8 @@ class SettingsController extends AbstractController
         return $this->render('settings/index.html.twig', [
             'default_limit' => $settings->getDefaultLimit(),
             'default_template' => $settings->getDefaultNameTemplate(),
+            'lastfm_auth_configured' => $lastfmAuth->isConfigured(),
+            'lastfm_session_user' => $lastfmAuth->getStoredSessionUser(),
         ]);
     }
 }

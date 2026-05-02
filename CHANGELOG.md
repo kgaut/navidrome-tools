@@ -8,6 +8,25 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### Added
+- Sync **bidirectionnelle Last.fm loved ↔ Navidrome starred**
+  (adds-only, idempotent). Le morceau ❤ sur Last.fm devient ★ dans
+  Navidrome (et inversement). Aucun morceau n'est jamais déstarré ni
+  délové automatiquement (suppressions hors v1).
+  - Handshake OAuth-like sur `/lastfm/connect` → `/lastfm/connect/callback`,
+    persiste la session key dans la table `setting`. Page `/settings`
+    affiche un badge ✓/✗ + bouton « Déconnecter ».
+  - Page `/lastfm/love-sync` : statut session, sélecteur de
+    direction (`both` / `lf-to-nd` / `nd-to-lf`), toggle dry-run,
+    bouton « Synchroniser maintenant », rapport (compteurs +
+    listing des loved non matchés avec lien vers `/lastfm/aliases/new`).
+  - CLI `app:lastfm:sync-loved` (`--direction=…`, `--dry-run`),
+    wrapped par `RunHistoryRecorder` (nouveau type
+    `lastfm-love-sync` visible sur `/history`).
+  - `SubsonicClient::getStarred()` / `starTracks()` / `unstarTracks()`
+    (méthodes Subsonic).
+  - Nouvelles env vars `LASTFM_API_SECRET` (requis pour signer
+    `auth.getSession` / `track.love`) et `LASTFM_LOVE_SYNC_SCHEDULE`
+    (cron expression, vide = pas de cron). Closes #23.
 - Matching Last.fm : table d'**alias manuels** Last.fm → media_file
   Navidrome (`lastfm_alias`). Consultée en priorité absolue avant
   toutes les heuristiques (MBID, triplet, couple, fuzzy). Une cible

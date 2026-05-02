@@ -52,6 +52,9 @@ services:
         LASTFM_PAGE_DELAY_SECONDS: '10'
         # Maximum Levenshtein distance for the fuzzy fallback. 0 = disabled.
         LASTFM_FUZZY_MAX_DISTANCE: '0'
+        # Cron schedule for the loved↔starred sync (app:lastfm:sync-loved).
+        # Empty = no cron line. Set e.g. '0 4 * * *' for nightly at 04:00.
+        LASTFM_LOVE_SYNC_SCHEDULE: ''
 
   cron:
     type: php:8.3

@@ -418,6 +418,39 @@ construite automatiquement à partir de l'URL publique de votre instance.
 En prod, votre déploiement Docker doit donc être derrière un domaine
 résolvable par Last.fm (HTTPS recommandé).
 
+## Sync loved ↔ starred
+
+Une fois la connexion Last.fm faite (cf. ci-dessus), la page
+`/lastfm/love-sync` propage les ajouts dans les deux sens entre les
+morceaux ❤ Last.fm et les morceaux ★ Navidrome :
+
+- **lf → nd** : un morceau loved sur Last.fm est starré dans Navidrome
+  (s'il est résolu via MBID, alias manuel ou couple `(artist, title)`).
+- **nd → lf** : un morceau starred dans Navidrome est loved sur Last.fm.
+- **adds-only** : la v1 ne déstarre / délove jamais — la propagation
+  des suppressions arrivera dans une issue séparée.
+
+La sync est **idempotente** : un re-run immédiat ne fait rien tant que
+les deux ensembles sont alignés.
+
+### CLI
+
+```bash
+php bin/console app:lastfm:sync-loved [--direction=both|lf-to-nd|nd-to-lf] [--dry-run]
+```
+
+### Cron
+
+Définissez `LASTFM_LOVE_SYNC_SCHEDULE` pour ajouter une ligne cron
+automatiquement (ex. `0 4 * * *` pour tourner chaque nuit à 04:00). Vide
+par défaut.
+
+### Loved sans match
+
+Les morceaux loved sur Last.fm qui n'ont pas de correspondance dans la
+lib Navidrome apparaissent dans le rapport avec un bouton « ✏️ Mapper »
+qui pré-remplit le formulaire d'alias manuel `/lastfm/aliases/new`.
+
 ## Intégration Lidarr (optionnelle)
 
 Sur la page d'import Last.fm, le tableau des morceaux non trouvés
