@@ -52,6 +52,16 @@ Fonctionnalités livrées :
   (table `lastfm_import_track`, FK CASCADE) avec filtre par statut
   (inserted / duplicate / unmatched, défaut « non matchés »
   s'il y en a) et recherche full-text artiste/titre.
+- **Page `/lastfm/unmatched`** : audit cumulé de **tous** les
+  scrobbles `unmatched` (toutes runs confondues), agrégés par
+  `(artist, title, album)` avec compteur de scrobbles + dernier
+  `played_at`. Filtres GET `artist` / `title` / `album` (substring
+  case-insensitive), pagination 50 par page. Boutons par ligne :
+  « ✏️ Mapper » (alias) et « + Lidarr » (avec redirect retour vers la
+  page). Statut Lidarr (✓/✗/—) en réutilisant
+  `LidarrClient::indexExistingArtists()`. Implémentée par
+  `LastFmImportTrackRepository::queryUnmatchedAggregated()` (helper
+  statique testable + méthode publique d'instance).
 - **Re-match des unmatched** (`app:lastfm:rematch`,
   `POST /lastfm/rematch`) : ré-applique la cascade de matching
   (`App\LastFm\ScrobbleMatcher`, extraite pour mutualisation avec

@@ -5,6 +5,7 @@ namespace App\Repository;
 use App\Entity\LastFmImportTrack;
 use App\Entity\RunHistory;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
+use Doctrine\DBAL\Connection;
 use Doctrine\Persistence\ManagerRegistry;
 
 /**
@@ -84,6 +85,101 @@ class LastFmImportTrackRepository extends ServiceEntityRepository
         }
 
         return (int) $qb->getQuery()->getSingleScalarResult();
+    }
+
+    /**
+     * Aggregate unmatched tracks across all runs by (artist, title, album).
+     * Each result row groups every scrobble that shares the same triplet,
+     * with a count and the most recent played_at — that's the actionable
+     * unit on /lastfm/unmatched (one alias creation = one (artist, title)
+     * couple, not one per scrobble row).
+     *
+     * Filters use case-insensitive substring match. Pagination is 1-based.
+     *
+     * @return array{
+     *     items: list<array{artist:string, title:string, album:?string, scrobbles:int, last_played:\DateTimeImmutable}>,
+     *     total: int
+     * }
+     */
+    public function findUnmatchedAggregated(
+        ?string $artist = null,
+        ?string $title = null,
+        ?string $album = null,
+        int $page = 1,
+        int $perPage = 50,
+    ): array {
+        return self::queryUnmatchedAggregated(
+            $this->getEntityManager()->getConnection(),
+            $artist,
+            $title,
+            $album,
+            $page,
+            $perPage,
+        );
+    }
+
+    /**
+     * Static SQL helper exposed for testability — same contract as
+     * {@see findUnmatchedAggregated()} but takes the Connection directly so
+     * tests can wire a SQLite fixture without booting the Doctrine ORM.
+     *
+     * @return array{
+     *     items: list<array{artist:string, title:string, album:?string, scrobbles:int, last_played:\DateTimeImmutable}>,
+     *     total: int
+     * }
+     */
+    public static function queryUnmatchedAggregated(
+        Connection $conn,
+        ?string $artist,
+        ?string $title,
+        ?string $album,
+        int $page,
+        int $perPage,
+    ): array {
+        $page = max(1, $page);
+        $perPage = max(1, $perPage);
+
+        $where = "status = 'unmatched'";
+        $params = [];
+        if ($artist !== null && $artist !== '') {
+            $where .= ' AND LOWER(artist) LIKE :artist';
+            $params['artist'] = '%' . mb_strtolower($artist) . '%';
+        }
+        if ($title !== null && $title !== '') {
+            $where .= ' AND LOWER(title) LIKE :title';
+            $params['title'] = '%' . mb_strtolower($title) . '%';
+        }
+        if ($album !== null && $album !== '') {
+            $where .= " AND LOWER(COALESCE(album, '')) LIKE :album";
+            $params['album'] = '%' . mb_strtolower($album) . '%';
+        }
+
+        $totalSql = 'SELECT COUNT(*) FROM ('
+            . "SELECT 1 FROM lastfm_import_track WHERE $where "
+            . 'GROUP BY artist, title, album'
+            . ') sub';
+        $total = (int) $conn->fetchOne($totalSql, $params);
+
+        $offset = ($page - 1) * $perPage;
+        $itemsSql = 'SELECT artist, title, album, COUNT(*) AS scrobbles, MAX(played_at) AS last_played '
+            . "FROM lastfm_import_track WHERE $where "
+            . 'GROUP BY artist, title, album '
+            . 'ORDER BY scrobbles DESC, last_played DESC '
+            . 'LIMIT :limit OFFSET :offset';
+        $itemsParams = $params + ['limit' => $perPage, 'offset' => $offset];
+
+        $items = [];
+        foreach ($conn->fetchAllAssociative($itemsSql, $itemsParams) as $row) {
+            $items[] = [
+                'artist' => (string) $row['artist'],
+                'title' => (string) $row['title'],
+                'album' => ($row['album'] ?? null) !== null && $row['album'] !== '' ? (string) $row['album'] : null,
+                'scrobbles' => (int) $row['scrobbles'],
+                'last_played' => new \DateTimeImmutable((string) $row['last_played']),
+            ];
+        }
+
+        return ['items' => $items, 'total' => $total];
     }
 
     /**

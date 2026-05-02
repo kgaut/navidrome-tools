@@ -395,6 +395,27 @@ lando symfony app:lastfm:import myuser --api-key=XXX \
 lando symfony app:lastfm:import myuser --api-key=XXX --show-unmatched=all
 ```
 
+## Liste cumulée des unmatched
+
+La page **`/lastfm/unmatched`** (menu Last.fm → Unmatched) liste tous
+les scrobbles non matchés sur l'ensemble des imports passés, agrégés
+par `(artiste, titre, album)` avec compteur de scrobbles. Filtres en
+GET sur `artist`, `title`, `album` (substring case-insensitive) et
+pagination 50 par page.
+
+Pour chaque ligne :
+
+- **« ✏️ Mapper »** ouvre le formulaire d'alias manuel pré-rempli avec
+  l'artiste et le titre.
+- **« + Lidarr »** envoie l'artiste à Lidarr (si configuré) et
+  redirige sur la page après ajout.
+- Le statut Lidarr (✓ déjà / ✗ absent / —) est affiché par ligne en
+  cherchant l'artiste dans le catalogue Lidarr existant.
+
+Couplée à la commande `app:lastfm:rematch` (ci-dessous), ces deux
+pages forment le workflow de récupération : identifier ce qui manque
+→ créer alias / ajouter à Lidarr → relancer le rematch.
+
 ## Re-match des unmatched
 
 Quand on ajoute des morceaux à Navidrome après un import (ou qu'on

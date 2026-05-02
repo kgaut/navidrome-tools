@@ -80,14 +80,20 @@
             <p class="text-xs text-rose-700 mb-3">
                 ⚠️ Navidrome doit être <strong>arrêté</strong> avant de lancer le rematch.
             </p>
-            <form method="post" action="{{ path('app_lastfm_rematch') }}"
-                  onsubmit="return confirm('Lancer le rematch sur les {{ unmatched_cumulative }} scrobbles non matchés cumulés ?');">
-                <input type="hidden" name="_token" value="{{ csrf_token('lastfm_rematch') }}">
-                <button type="submit"
-                        class="px-4 py-2 rounded bg-emerald-600 text-white text-sm hover:bg-emerald-700">
-                    🔁 Re-tenter le matching de tous les unmatched
-                </button>
-            </form>
+            <div class="flex flex-wrap items-center gap-3">
+                <form method="post" action="{{ path('app_lastfm_rematch') }}"
+                      onsubmit="return confirm('Lancer le rematch sur les {{ unmatched_cumulative }} scrobbles non matchés cumulés ?');">
+                    <input type="hidden" name="_token" value="{{ csrf_token('lastfm_rematch') }}">
+                    <button type="submit"
+                            class="px-4 py-2 rounded bg-emerald-600 text-white text-sm hover:bg-emerald-700">
+                        🔁 Re-tenter le matching de tous les unmatched
+                    </button>
+                </form>
+                <a href="{{ path('app_lastfm_unmatched') }}"
+                   class="text-sm text-sky-700 hover:underline">
+                    Voir la liste détaillée →
+                </a>
+            </div>
         </div>
     {% endif %}
 
