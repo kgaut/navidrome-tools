@@ -64,6 +64,7 @@ class DashboardController extends AbstractController
             'has_scrobbles' => $hasScrobbles,
             'scrobbles_count' => $hasScrobbles ? $navidrome->getScrobblesCount() : null,
             'subsonic' => $subsonic->ping(),
+            'missing_mbid_count' => $navidrome->isAvailable() ? $navidrome->countMediaFilesWithoutMbid() : null,
         ];
 
         $recentRuns = $runHistory->findFilteredPaginated([], 1, 10)['items'];

@@ -137,6 +137,27 @@ class SubsonicClient
         }
     }
 
+    /**
+     * Trigger a Navidrome library scan via the Subsonic `startScan` endpoint.
+     * Returns true when Navidrome accepts the request (regardless of whether
+     * the scan was already running). Useful after writing tags via beets so
+     * Navidrome picks up the new MBIDs without waiting for its own scheduled
+     * scan.
+     */
+    public function startScan(bool $fullScan = false): bool
+    {
+        try {
+            $params = [];
+            if ($fullScan) {
+                $params['fullScan'] = 'true';
+            }
+            $this->call('startScan', $params);
+            return true;
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
     public function ping(): bool
     {
         try {

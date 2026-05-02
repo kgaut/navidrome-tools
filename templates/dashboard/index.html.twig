@@ -16,7 +16,7 @@
         </a>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6 text-sm">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-6 text-sm">
         <div class="rounded border p-3 {{ health.navidrome_db ? 'bg-emerald-50 border-emerald-300' : 'bg-rose-50 border-rose-300' }}">
             <div class="font-medium">DB Navidrome</div>
             <div>{{ health.navidrome_db ? '✓ accessible' : '✗ inaccessible (vérifier NAVIDROME_DB_PATH)' }}</div>
@@ -35,6 +35,19 @@
         <div class="rounded border p-3 {{ health.subsonic ? 'bg-emerald-50 border-emerald-300' : 'bg-rose-50 border-rose-300' }}">
             <div class="font-medium">API Subsonic</div>
             <div>{{ health.subsonic ? '✓ ping OK' : '✗ injoignable (vérifier NAVIDROME_URL/USER/PASSWORD)' }}</div>
+        </div>
+        <div class="rounded border p-3 {% if health.missing_mbid_count is null %}bg-slate-50 border-slate-300{% elseif health.missing_mbid_count == 0 %}bg-emerald-50 border-emerald-300{% else %}bg-amber-50 border-amber-300{% endif %}">
+            <div class="font-medium">Tracks sans MBID</div>
+            <div>
+                {% if health.missing_mbid_count is null %}
+                    —
+                {% elseif health.missing_mbid_count == 0 %}
+                    ✓ tout est taggué
+                {% else %}
+                    {{ health.missing_mbid_count|number_format(0, '.', ' ') }} track{{ health.missing_mbid_count > 1 ? 's' : '' }} à tagger —
+                    <a href="{{ path('app_tagging_missing_mbid') }}" class="underline">voir</a>
+                {% endif %}
+            </div>
         </div>
     </div>
 

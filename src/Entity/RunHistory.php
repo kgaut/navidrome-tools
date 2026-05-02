@@ -18,6 +18,7 @@ class RunHistory
     public const TYPE_LASTFM_IMPORT = 'lastfm-import';
     public const TYPE_LASTFM_LOVE_SYNC = 'lastfm-love-sync';
     public const TYPE_LASTFM_REMATCH = 'lastfm-rematch';
+    public const TYPE_NAVIDROME_RESCAN = 'navidrome-rescan';
 
     public const STATUS_SUCCESS = 'success';
     public const STATUS_ERROR = 'error';

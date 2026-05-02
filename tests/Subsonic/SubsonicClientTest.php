@@ -174,6 +174,49 @@ class SubsonicClientTest extends TestCase
         $sub->fetchCoverArt('', 128);
     }
 
+    public function testStartScanHitsStartScanEndpoint(): void
+    {
+        $captured = null;
+        $client = new MockHttpClient(function (string $method, string $url) use (&$captured): MockResponse {
+            $captured = $url;
+
+            return $this->ok([]);
+        });
+
+        $sub = new SubsonicClient($client, 'http://navi.test', 'admin', 'changeme');
+        $this->assertTrue($sub->startScan(false));
+
+        $this->assertNotNull($captured);
+        $this->assertStringContainsString('/rest/startScan.view?', $captured);
+        $this->assertStringNotContainsString('fullScan=true', $captured);
+    }
+
+    public function testStartScanFullScanFlag(): void
+    {
+        $captured = null;
+        $client = new MockHttpClient(function (string $method, string $url) use (&$captured): MockResponse {
+            $captured = $url;
+
+            return $this->ok([]);
+        });
+
+        $sub = new SubsonicClient($client, 'http://navi.test', 'admin', 'changeme');
+        $this->assertTrue($sub->startScan(true));
+
+        $this->assertNotNull($captured);
+        $this->assertStringContainsString('fullScan=true', $captured);
+    }
+
+    public function testStartScanReturnsFalseOnError(): void
+    {
+        $client = new MockHttpClient([
+            new MockResponse('', ['http_code' => 500]),
+        ]);
+
+        $sub = new SubsonicClient($client, 'http://navi.test', 'admin', 'changeme');
+        $this->assertFalse($sub->startScan());
+    }
+
     /**
      * @param array<string, mixed> $payload
      */

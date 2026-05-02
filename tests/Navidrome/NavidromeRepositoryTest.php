@@ -660,4 +660,54 @@ class NavidromeRepositoryTest extends TestCase
         $this->assertSame('mf-1', $repo->findMediaFileByArtistTitle('Sigur Ros', 'Hoppipolla'));
         $this->assertNull($repo->findMediaFileByArtistTitle('Sigur Ros', 'Unknown Title'));
     }
+
+    public function testFindMediaFilesWithoutMbidReturnsOnlyEmptyOnes(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: false);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-tagged', 'Tagged', 'Daft Punk', 200, 'Discovery', null, '/music/discovery/tagged.flac', 'mbz-1');
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-recording', 'Recording', 'Daft Punk', 200, 'Discovery', null, '/music/discovery/rec.flac', null, 'mbz-2');
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-empty-1', 'Untagged 1', 'Air', 200, 'Moon Safari', null, '/music/moon-safari/untagged-1.flac');
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-empty-2', 'Untagged 2', 'Aphex Twin', 200, 'Drukqs', null, '/music/drukqs/untagged-2.flac');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+
+        $rows = $repo->findMediaFilesWithoutMbid();
+        $ids = array_column($rows, 'id');
+        sort($ids);
+        $this->assertSame(['mf-empty-1', 'mf-empty-2'], $ids);
+        $this->assertSame(2, $repo->countMediaFilesWithoutMbid());
+
+        // Path is exposed for the export pipeline.
+        $byId = [];
+        foreach ($rows as $r) {
+            $byId[$r['id']] = $r;
+        }
+        $this->assertSame('/music/moon-safari/untagged-1.flac', $byId['mf-empty-1']['path']);
+        $this->assertSame('Air', $byId['mf-empty-1']['artist']);
+        $this->assertSame('Moon Safari', $byId['mf-empty-1']['album']);
+    }
+
+    public function testFindMediaFilesWithoutMbidAppliesFiltersAndPagination(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: false);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', 'A', 'Daft Punk', 200, 'Discovery');
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-2', 'B', 'Daft Punk', 200, 'Random Access Memories');
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-3', 'C', 'Air', 200, 'Moon Safari');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+
+        $this->assertSame(2, $repo->countMediaFilesWithoutMbid(artistFilter: 'daft'));
+        $this->assertSame(1, $repo->countMediaFilesWithoutMbid(artistFilter: 'daft', albumFilter: 'memories'));
+        $this->assertSame(0, $repo->countMediaFilesWithoutMbid(artistFilter: 'unknown'));
+
+        $page1 = $repo->findMediaFilesWithoutMbid(limit: 2, offset: 0);
+        $page2 = $repo->findMediaFilesWithoutMbid(limit: 2, offset: 2);
+        $this->assertCount(2, $page1);
+        $this->assertCount(1, $page2);
+        $this->assertNotEquals(
+            array_column($page1, 'id'),
+            array_column($page2, 'id'),
+            'Pagination must yield disjoint slices.',
+        );
+    }
 }

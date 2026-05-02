@@ -546,6 +546,42 @@ Le service :
 3. Si Lidarr répond que l'artiste existe déjà, l'UI affiche un flash
    info (« déjà présent ») au lieu d'une erreur.
 
+## Tracks sans MBID
+
+La page **`/tagging/missing-mbid`** (menu **Tagging**) liste les
+morceaux Navidrome dont les colonnes `mbz_track_id` ET
+`mbz_recording_id` sont vides. Sans MBID, le palier le plus fiable de
+la cascade de matching Last.fm est inutilisable, et l'outil retombe
+sur les paliers (artiste, titre, album) + fuzzy, plus fragiles.
+
+L'architecture est volontairement read-only : navidrome-tools
+**n'écrit jamais** dans tes fichiers audio (le volume `/music` peut
+rester monté `:ro`). Le workflow est :
+
+1. **Audit** sur la page : filtres artiste/album, pagination, voir
+   les chemins absolus.
+2. **Export CSV** (bouton « ⬇ Export CSV ») : télécharge la liste
+   des chemins (id, path, artist, album, title…) que tu pipes dans
+   un tagger sur la machine où ton dossier de musique est en
+   lecture/écriture. Exemples :
+   - **beets** :
+     ```bash
+     # extrait la colonne path et nourris beet
+     tail -n +2 missing-mbid-2026-05-02.csv \
+       | awk -F'"' '{print $4}' \
+       | xargs -d '\n' beet import -A --quiet
+     ```
+   - **MusicBrainz Picard** : ouvre Picard, drag-and-drop le dossier
+     de musique, lance « Scan » puis « Save ».
+3. **Rescan Navidrome** (bouton « ↻ Rescan Navidrome ») : déclenche
+   `startScan` via Subsonic une fois le tagging fini. Les nouveaux
+   MBIDs apparaissent dans `media_file.mbz_track_id` sans attendre
+   le scan planifié. Logué dans `/history` sous le type
+   `navidrome-rescan`.
+
+Une card « Tracks sans MBID » sur le dashboard affiche le compteur
+courant et un raccourci vers la page.
+
 ## Historique des runs cron
 
 Tous les jobs longs sont audités dans la table locale `run_history`.

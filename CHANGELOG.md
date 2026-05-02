@@ -7,6 +7,24 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+### Added
+- Page `/tagging/missing-mbid` : audit des morceaux Navidrome dont
+  `mbz_track_id` ET `mbz_recording_id` sont vides. Filtres
+  artiste/album, pagination, export CSV (id, path, artist,
+  album_artist, album, title, year) à piper dans un tagger externe
+  type `beet import -A` ou MusicBrainz Picard. Bouton
+  « Rescan Navidrome » qui appelle `startScan` via Subsonic
+  (`POST /tagging/missing-mbid/rescan`) pour propager les nouveaux
+  MBIDs sans attendre le scan planifié. Architecture délibérément
+  read-only : navidrome-tools ne touche jamais aux fichiers audio.
+  Card santé sur le dashboard + entrée « Tagging » dans la nav. Run
+  history type `navidrome-rescan`.
+- `NavidromeRepository::findMediaFilesWithoutMbid()` /
+  `countMediaFilesWithoutMbid()` : version-agnostiques, probe
+  `mbz_track_id` et `mbz_recording_id` selon les colonnes présentes.
+- `SubsonicClient::startScan(bool $fullScan = false)` qui hit
+  `/rest/startScan.view` (full-scan optionnel via `?fullScan=true`).
+
 ### Changed
 - Doc : recommandation explicite d'activer
   `LASTFM_FUZZY_MAX_DISTANCE=2` pour les imports one-shot Last.fm

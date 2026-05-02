@@ -937,6 +937,142 @@ class NavidromeRepository
     }
 
     /**
+     * List media_files where every MBID column known to this Navidrome version
+     * is either NULL or empty — i.e. tracks that the Last.fm matcher cannot
+     * resolve via the most reliable path. Used by the /tagging/missing-mbid
+     * audit page and by `app:beets:tag-missing` to feed beets a worklist.
+     *
+     * Filters and pagination:
+     *   - $artistFilter / $albumFilter: case-insensitive substring (LIKE
+     *     %term%) on artist / album. Empty / null = no filter.
+     *   - $limit: max rows returned. Bound to [1, 1000].
+     *   - $offset: SQL offset for pagination.
+     *
+     * Returned shape exposes the optional `path` column when Navidrome stores
+     * it (every modern version does), so callers can hand the absolute file
+     * paths to an external tagger like beets.
+     *
+     * @return list<array{
+     *     id: string,
+     *     path: string,
+     *     artist: string,
+     *     album_artist: string,
+     *     album: string,
+     *     title: string,
+     *     year: int
+     * }>
+     */
+    public function findMediaFilesWithoutMbid(
+        ?string $artistFilter = null,
+        ?string $albumFilter = null,
+        int $limit = 100,
+        int $offset = 0,
+    ): array {
+        $where = $this->missingMbidWhereClause();
+        if ($where === null) {
+            return [];
+        }
+
+        $columns = $this->mediaFileColumns();
+        $hasPath = in_array('path', $columns, true);
+        $select = sprintf(
+            'id, %s AS path, artist, album_artist, album, title, year',
+            $hasPath ? 'path' : "''",
+        );
+
+        $params = [];
+        $types = [];
+        $clauses = [$where];
+        if ($artistFilter !== null && trim($artistFilter) !== '') {
+            $clauses[] = 'LOWER(artist) LIKE :artist';
+            $params['artist'] = '%' . strtolower(trim($artistFilter)) . '%';
+        }
+        if ($albumFilter !== null && trim($albumFilter) !== '') {
+            $clauses[] = 'LOWER(album) LIKE :album';
+            $params['album'] = '%' . strtolower(trim($albumFilter)) . '%';
+        }
+
+        $limit = max(1, min(1000, $limit));
+        $offset = max(0, $offset);
+        $params['lim'] = $limit;
+        $params['off'] = $offset;
+        $types['lim'] = \Doctrine\DBAL\ParameterType::INTEGER;
+        $types['off'] = \Doctrine\DBAL\ParameterType::INTEGER;
+
+        $sql = sprintf(
+            'SELECT %s FROM media_file WHERE %s ORDER BY artist, album, title LIMIT :lim OFFSET :off',
+            $select,
+            implode(' AND ', $clauses),
+        );
+
+        /** @var list<array<string, mixed>> $rows */
+        $rows = $this->connection()->fetchAllAssociative($sql, $params, $types);
+
+        return array_map(static fn (array $r): array => [
+            'id' => (string) $r['id'],
+            'path' => (string) ($r['path'] ?? ''),
+            'artist' => (string) ($r['artist'] ?? ''),
+            'album_artist' => (string) ($r['album_artist'] ?? ''),
+            'album' => (string) ($r['album'] ?? ''),
+            'title' => (string) ($r['title'] ?? ''),
+            'year' => (int) ($r['year'] ?? 0),
+        ], $rows);
+    }
+
+    /**
+     * Counts every media_file row whose MBID columns are all NULL or empty.
+     * Same filter semantics as {@see findMediaFilesWithoutMbid()}; used by
+     * the dashboard card and by paginated UIs.
+     */
+    public function countMediaFilesWithoutMbid(
+        ?string $artistFilter = null,
+        ?string $albumFilter = null,
+    ): int {
+        $where = $this->missingMbidWhereClause();
+        if ($where === null) {
+            return 0;
+        }
+
+        $params = [];
+        $clauses = [$where];
+        if ($artistFilter !== null && trim($artistFilter) !== '') {
+            $clauses[] = 'LOWER(artist) LIKE :artist';
+            $params['artist'] = '%' . strtolower(trim($artistFilter)) . '%';
+        }
+        if ($albumFilter !== null && trim($albumFilter) !== '') {
+            $clauses[] = 'LOWER(album) LIKE :album';
+            $params['album'] = '%' . strtolower(trim($albumFilter)) . '%';
+        }
+
+        $sql = sprintf('SELECT COUNT(*) FROM media_file WHERE %s', implode(' AND ', $clauses));
+
+        return (int) $this->connection()->fetchOne($sql, $params);
+    }
+
+    /**
+     * Build a WHERE fragment matching rows where every MBID column known to
+     * this Navidrome version is NULL or ''. Returns null when none of the
+     * MBID columns exist (e.g. a stub fixture without MBID columns) — caller
+     * should treat that as « nothing to do ».
+     */
+    private function missingMbidWhereClause(): ?string
+    {
+        $columns = $this->mediaFileColumns();
+        $candidates = array_values(array_filter(
+            ['mbz_track_id', 'mbz_recording_id'],
+            static fn (string $c) => in_array($c, $columns, true),
+        ));
+        if ($candidates === []) {
+            return null;
+        }
+
+        return implode(' AND ', array_map(
+            static fn (string $c) => sprintf("(%s IS NULL OR %s = '')", $c, $c),
+            $candidates,
+        ));
+    }
+
+    /**
      * Find a media_file by normalised (artist, title) pair. Case- and whitespace-
      * insensitive. Returns null when there is no match. When several rows share
      * the same (artist, title) — e.g. the same song shipped on a studio album

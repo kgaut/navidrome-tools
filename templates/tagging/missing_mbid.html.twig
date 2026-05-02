@@ -1,0 +1,100 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Tracks sans MBID{% endblock %}
+
+{% block body %}
+    <div class="flex items-start justify-between mb-4 flex-wrap gap-3">
+        <div>
+            <h1 class="text-2xl font-semibold">Tracks sans MBID</h1>
+            <p class="text-sm text-slate-500 max-w-3xl">
+                {{ total|number_format(0, '.', ' ') }}
+                track{{ total > 1 ? 's' : '' }} dans Navidrome dont les colonnes
+                <code>mbz_track_id</code> et <code>mbz_recording_id</code> sont vides.
+                Ces fichiers ne peuvent pas être matchés via le palier MBID lors d'un import Last.fm.
+                Exporte la liste des chemins, lance un tagger externe (par ex. <code>beet import -A</code>
+                sur la machine où le dossier de musique est en RW), puis déclenche un rescan Navidrome
+                pour propager les nouveaux MBIDs.
+            </p>
+        </div>
+        <form method="post" action="{{ path('app_tagging_missing_mbid_rescan') }}"
+              onsubmit="return confirm('Déclencher un rescan Navidrome maintenant ?');">
+            <input type="hidden" name="_token" value="{{ csrf_token('missing_mbid_rescan') }}">
+            <button type="submit" class="px-3 py-1.5 rounded bg-emerald-600 text-white text-sm hover:bg-emerald-700">
+                ↻ Rescan Navidrome
+            </button>
+        </form>
+    </div>
+
+    <form method="get" class="bg-white shadow rounded p-4 mb-4 grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+        <div>
+            <label class="block text-xs uppercase text-slate-500">Artiste</label>
+            <input type="search" name="artist" value="{{ filters.artist|default('') }}" placeholder="ex. Daft Punk"
+                   class="w-full border rounded px-2 py-1 text-sm">
+        </div>
+        <div>
+            <label class="block text-xs uppercase text-slate-500">Album</label>
+            <input type="search" name="album" value="{{ filters.album|default('') }}" placeholder="ex. Discovery"
+                   class="w-full border rounded px-2 py-1 text-sm">
+        </div>
+        <div class="flex gap-2">
+            <button type="submit" class="px-3 py-1.5 rounded bg-slate-900 text-white text-sm">Filtrer</button>
+            <a href="{{ path('app_tagging_missing_mbid') }}" class="text-xs text-slate-500 hover:underline self-center">Reset</a>
+        </div>
+        <div class="text-right">
+            <a href="{{ path('app_tagging_missing_mbid_export', filters|merge({limit: 5000})) }}"
+               class="inline-block px-3 py-1.5 rounded bg-slate-700 text-white text-sm hover:bg-slate-800"
+               title="Télécharge les 5 000 premiers chemins (filtres appliqués) au format CSV">
+                ⬇ Export CSV
+            </a>
+        </div>
+    </form>
+
+    {% if rows is empty %}
+        <div class="bg-white shadow rounded p-6 text-center text-slate-500">
+            Aucun track sans MBID pour ce filtre 🎉
+        </div>
+    {% else %}
+        <div class="bg-white shadow rounded overflow-hidden">
+            <table class="w-full text-sm">
+                <thead class="bg-slate-100 text-slate-600 text-left text-xs">
+                <tr>
+                    <th class="px-3 py-2 w-10">#</th>
+                    <th class="px-3 py-2">Artiste</th>
+                    <th class="px-3 py-2">Album</th>
+                    <th class="px-3 py-2">Titre</th>
+                    <th class="px-3 py-2 text-right">Année</th>
+                    <th class="px-3 py-2">Chemin</th>
+                </tr>
+                </thead>
+                <tbody class="divide-y">
+                {% for row in rows %}
+                    <tr>
+                        <td class="px-3 py-1.5 text-slate-400">{{ (page - 1) * 50 + loop.index }}</td>
+                        <td class="px-3 py-1.5">{{ row.artist }}</td>
+                        <td class="px-3 py-1.5 text-slate-500">{{ row.album ?: '—' }}</td>
+                        <td class="px-3 py-1.5">{{ row.title }}</td>
+                        <td class="px-3 py-1.5 text-right text-slate-500">{{ row.year > 0 ? row.year : '—' }}</td>
+                        <td class="px-3 py-1.5 text-xs text-slate-500 font-mono break-all" title="{{ row.path }}">
+                            {{ row.path ?: '—' }}
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if total_pages > 1 %}
+            <div class="flex items-center justify-center gap-2 mt-4 text-sm">
+                {% if page > 1 %}
+                    <a href="{{ path('app_tagging_missing_mbid', filters|merge({page: page - 1})) }}"
+                       class="px-3 py-1 rounded border hover:bg-slate-100">‹ Précédent</a>
+                {% endif %}
+                <span class="text-slate-500">Page {{ page }} / {{ total_pages }}</span>
+                {% if page < total_pages %}
+                    <a href="{{ path('app_tagging_missing_mbid', filters|merge({page: page + 1})) }}"
+                       class="px-3 py-1 rounded border hover:bg-slate-100">Suivant ›</a>
+                {% endif %}
+            </div>
+        {% endif %}
+    {% endif %}
+{% endblock %}

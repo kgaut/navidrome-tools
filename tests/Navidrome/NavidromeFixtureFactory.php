@@ -37,6 +37,7 @@ final class NavidromeFixtureFactory
         $conn->executeStatement(<<<'SQL'
             CREATE TABLE media_file (
                 id VARCHAR(255) PRIMARY KEY NOT NULL,
+                path VARCHAR(1024) DEFAULT '' NOT NULL,
                 title VARCHAR(255) DEFAULT '' NOT NULL,
                 album VARCHAR(255) DEFAULT '' NOT NULL,
                 artist VARCHAR(255) DEFAULT '' NOT NULL,
@@ -45,7 +46,9 @@ final class NavidromeFixtureFactory
                 album_id VARCHAR(255) DEFAULT '' NOT NULL,
                 duration INTEGER DEFAULT 0 NOT NULL,
                 year INTEGER DEFAULT 0 NOT NULL,
-                genre VARCHAR(255) DEFAULT '' NOT NULL
+                genre VARCHAR(255) DEFAULT '' NOT NULL,
+                mbz_track_id VARCHAR(255) DEFAULT '',
+                mbz_recording_id VARCHAR(255) DEFAULT ''
             )
         SQL);
         $conn->executeStatement(<<<'SQL'
@@ -93,11 +96,26 @@ final class NavidromeFixtureFactory
         int $duration = 180,
         string $album = 'Album',
         ?string $albumArtist = null,
+        string $path = '',
+        ?string $mbzTrackId = null,
+        ?string $mbzRecordingId = null,
     ): void {
         $artistId = 'artist-' . md5($artist);
         $conn->executeStatement(
-            'INSERT INTO media_file (id, title, artist, album, artist_id, album_artist, duration) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [$id, $title, $artist, $album, $artistId, $albumArtist ?? $artist, $duration],
+            'INSERT INTO media_file (id, path, title, artist, album, artist_id, album_artist, duration, mbz_track_id, mbz_recording_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [
+                $id,
+                $path,
+                $title,
+                $artist,
+                $album,
+                $artistId,
+                $albumArtist ?? $artist,
+                $duration,
+                $mbzTrackId,
+                $mbzRecordingId,
+            ],
         );
     }
 
