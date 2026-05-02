@@ -24,7 +24,10 @@ use App\Repository\LastFmMatchCacheRepository;
  *   4. MBID                     → STATUS_MATCHED
  *   5. Triplet (artist, title, album) when album is non-empty → STATUS_MATCHED
  *   6. Couple (artist, title) with strip-feat / strip-version-markers / etc.
- *   7. Fuzzy Levenshtein (opt-in via fuzzyMaxDistance > 0)
+ *   7. Last.fm `track.getInfo`  → recovers a missing MBID or applies the
+ *                                 « autocorrect » spelling (re-runs steps
+ *                                 4-6 against the corrected names)
+ *   8. Fuzzy Levenshtein (opt-in via fuzzyMaxDistance > 0)
  *   → STATUS_UNMATCHED if everything fails. Both successes and failures are
  *   memoized in the cache so subsequent runs short-circuit at step 3.
  */
@@ -37,6 +40,8 @@ class ScrobbleMatcher
         private readonly ?LastFmArtistAliasRepository $artistAliasRepository = null,
         private readonly ?LastFmMatchCacheRepository $cacheRepository = null,
         private readonly int $cacheTtlDays = 30,
+        private readonly ?LastFmClient $lastFmClient = null,
+        private readonly ?string $lastFmApiKey = null,
     ) {
     }
 
@@ -119,6 +124,79 @@ class ScrobbleMatcher
      */
     private function runCascade(LastFmScrobble $scrobble): array
     {
+        // Local-only steps : MBID, triplet, couple. Cheap, no API call.
+        $result = $this->runDbCascade($scrobble);
+        if ($result[0] !== null) {
+            return $result;
+        }
+
+        // Last.fm `track.getInfo` step : recovers scrobbles with no MBID
+        // (or a wrong text spelling) by asking Last.fm for the canonical
+        // form. Wrapped in an opt-in guard so test harnesses that don't
+        // configure the client don't make HTTP calls. Negative results
+        // get cached (in the caller) so we don't re-query on every
+        // rematch run — that's what makes #17 scale beyond the rate limit.
+        if ($this->lastFmClient !== null && $this->lastFmApiKey !== null && $this->lastFmApiKey !== '') {
+            $info = $this->lastFmClient->trackGetInfo(
+                $this->lastFmApiKey,
+                $scrobble->artist,
+                $scrobble->title,
+            );
+            // (a) Try the official MBID Last.fm gave us, even when the
+            //     scrobble already had one — Last.fm sometimes maps the
+            //     scrobble's recording-MBID to the canonical track-MBID.
+            if ($info->hasMbid()) {
+                /** @var string $mbid (hasMbid() guards against null/empty) */
+                $mbid = $info->mbid;
+                $mfid = $this->navidrome->findMediaFileByMbid($mbid);
+                if ($mfid !== null) {
+                    return [$mfid, LastFmMatchCacheEntry::STRATEGY_LASTFM_CORRECTION];
+                }
+            }
+            // (b) Try the autocorrected spelling. We re-run the local
+            //     DB cascade — but NOT the getInfo step itself, which
+            //     would loop. The artist alias was already applied
+            //     upstream, so the corrected names go straight to MBID
+            //     / triplet / couple lookups.
+            if ($info->hasCorrection()) {
+                $corrected = new LastFmScrobble(
+                    artist: $info->correctedArtist ?? $scrobble->artist,
+                    title: $info->correctedTitle ?? $scrobble->title,
+                    album: $scrobble->album,
+                    mbid: $info->mbid ?? $scrobble->mbid,
+                    playedAt: $scrobble->playedAt,
+                );
+                $result = $this->runDbCascade($corrected);
+                if ($result[0] !== null) {
+                    return [$result[0], LastFmMatchCacheEntry::STRATEGY_LASTFM_CORRECTION];
+                }
+            }
+        }
+
+        // Last resort: fuzzy Levenshtein, opt-in via LASTFM_FUZZY_MAX_DISTANCE.
+        if ($this->fuzzyMaxDistance > 0) {
+            $mfid = $this->navidrome->findMediaFileFuzzy(
+                $scrobble->artist,
+                $scrobble->title,
+                $this->fuzzyMaxDistance,
+            );
+            if ($mfid !== null) {
+                return [$mfid, LastFmMatchCacheEntry::STRATEGY_FUZZY];
+            }
+        }
+
+        return [null, null];
+    }
+
+    /**
+     * Local-only sub-cascade : MBID → triplet → couple. Used both by the
+     * primary cascade and by the `track.getInfo` step (re-running on the
+     * autocorrected scrobble).
+     *
+     * @return array{0: ?string, 1: ?string}
+     */
+    private function runDbCascade(LastFmScrobble $scrobble): array
+    {
         if ($scrobble->mbid !== null) {
             $mfid = $this->navidrome->findMediaFileByMbid($scrobble->mbid);
             if ($mfid !== null) {
@@ -143,18 +221,6 @@ class ScrobbleMatcher
         $mfid = $this->navidrome->findMediaFileByArtistTitle($scrobble->artist, $scrobble->title);
         if ($mfid !== null) {
             return [$mfid, LastFmMatchCacheEntry::STRATEGY_COUPLE];
-        }
-
-        // Last resort: fuzzy Levenshtein, opt-in via LASTFM_FUZZY_MAX_DISTANCE.
-        if ($this->fuzzyMaxDistance > 0) {
-            $mfid = $this->navidrome->findMediaFileFuzzy(
-                $scrobble->artist,
-                $scrobble->title,
-                $this->fuzzyMaxDistance,
-            );
-            if ($mfid !== null) {
-                return [$mfid, LastFmMatchCacheEntry::STRATEGY_FUZZY];
-            }
         }
 
         return [null, null];
