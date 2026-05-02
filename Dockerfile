@@ -29,9 +29,9 @@ RUN composer install --no-dev --no-scripts --prefer-dist --no-interaction --no-p
 
 COPY . .
 
-RUN composer dump-autoload --optimize --no-dev --classmap-authoritative \
- && mkdir -p var \
- && chown -R www-data:www-data var \
+RUN composer dump-autoload --optimize --no-dev \
+ && mkdir -p var plugins \
+ && chown -R www-data:www-data var plugins \
  && APP_ENV=prod APP_DEBUG=0 php bin/console cache:warmup --env=prod || true
 
 COPY docker/entrypoint.sh /entrypoint.sh

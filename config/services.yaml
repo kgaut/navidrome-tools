@@ -41,6 +41,9 @@ services:
             - '../src/Entity/'
             - '../src/Kernel.php'
 
+    App\Plugin\:
+        resource: '../plugins/'
+
     App\Generator\GeneratorRegistry:
         arguments:
             $generators: !tagged_iterator app.playlist_generator

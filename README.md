@@ -706,6 +706,12 @@ qui implémente `App\Generator\PlaylistGeneratorInterface` dans
 `src/Generator/`, elle est auto-détectée et apparaît immédiatement dans
 le dropdown de l'UI.
 
+**En déploiement Docker**, il n'est pas nécessaire de rebuilder
+l'image : il suffit de bind-mounter un dossier hôte sur `/app/plugins`
+(namespace `App\Plugin\`) et d'y déposer ses classes. L'autoload et le
+cache Symfony sont régénérés à chaque démarrage du conteneur. Détails et
+exemple complet dans [`docs/PLUGINS.md`](docs/PLUGINS.md#plugins-custom-en-déploiement-docker).
+
 ## Schéma Navidrome utilisé (lecture seule)
 
 | Table          | Colonnes lues                                                |
