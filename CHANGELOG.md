@@ -8,6 +8,17 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### Added
+- **Plugins custom en déploiement Docker** : nouveau namespace
+  `App\Plugin\` mappé sur `plugins/`, bind-mountable sur `/app/plugins`
+  pour ajouter ses propres générateurs de playlists sans rebuilder
+  l'image. L'autoload Composer et le cache Symfony sont régénérés à
+  chaque démarrage du conteneur (`docker/entrypoint.sh`). Le flag
+  `--classmap-authoritative` est retiré du `Dockerfile` pour autoriser
+  le fallback PSR-4 actif au runtime ; le classmap optimisé reste en
+  place pour les vendors. Documentation complète dans
+  `docs/PLUGINS.md` (section « Plugins custom en déploiement Docker »)
+  avec exemple de classe et bind-mount à dupliquer sur les services
+  web ET cron. Closes #69.
 - **Matching Last.fm — featuring asymétrique** : nouveau palier
   `lookupArtistPrefixFeaturingTitle()` dans la cascade
   `findMediaFileByArtistTitle()`. Catche le cas où Last.fm met le
