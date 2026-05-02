@@ -8,6 +8,7 @@ use App\Lidarr\LidarrClient;
 use App\Lidarr\LidarrConfig;
 use App\Repository\LastFmImportTrackRepository;
 use App\Repository\RunHistoryRepository;
+use App\Service\LastFmImportSummary;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -99,6 +100,7 @@ class HistoryController extends AbstractController
 
         return $this->render('history/detail.html.twig', [
             'entry' => $entry,
+            'summary' => LastFmImportSummary::fromRun($entry),
             'tracks' => $tracks,
             'tracks_truncated' => $tracksTruncated,
             'tracks_limit' => self::DETAIL_TRACK_LIMIT,

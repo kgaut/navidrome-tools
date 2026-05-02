@@ -8,6 +8,14 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### Added
+- Encart **« Synthèse »** sur la page `/history/{id}` d'un run
+  `lastfm-import` : nombre absolu de scrobbles récupérés depuis Last.fm
+  + valeur absolue ET pourcentage rapporté à `fetched` pour chaque
+  bucket (insérés, doublons, non matchés, ignorés, matchés =
+  insérés+doublons), barre empilée 4-couleurs en lecture rapide.
+  Calcul délégué à `App\Service\LastFmImportSummary::fromRun()`
+  (résiste aux runs sans `fetched` ou avec métriques manquantes).
+  Closes #47.
 - Variable d'environnement `APP_TIMEZONE` (défaut `UTC`). Appliquée
   au boot du `Kernel` (PHP `date_default_timezone_set`) ET à Twig
   (filtre `|date` via `twig.date.timezone`). Les timestamps restent

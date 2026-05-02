@@ -38,6 +38,54 @@
         {% endif %}
     </div>
 
+    {# ---------- Summary card for Last.fm imports ---------- #}
+    {% if summary is not null %}
+        <div class="bg-white shadow rounded p-6 mt-6 max-w-3xl">
+            <h2 class="text-lg font-semibold mb-1">Synthèse</h2>
+            <p class="text-sm text-slate-500 mb-4">
+                <strong>{{ summary.fetched|number_format(0, '.', ' ') }}</strong>
+                scrobble{{ summary.fetched > 1 ? 's' : '' }} récupéré{{ summary.fetched > 1 ? 's' : '' }} depuis Last.fm
+            </p>
+
+            {% if summary.fetched > 0 %}
+                <div class="flex h-3 rounded overflow-hidden bg-slate-100 mb-4" title="Répartition des scrobbles">
+                    <div class="bg-emerald-500" style="width: {{ summary.inserted.pct }}%"></div>
+                    <div class="bg-slate-400" style="width: {{ summary.duplicates.pct }}%"></div>
+                    <div class="bg-amber-500" style="width: {{ summary.unmatched.pct }}%"></div>
+                    <div class="bg-sky-400" style="width: {{ summary.skipped.pct }}%"></div>
+                </div>
+            {% endif %}
+
+            <ul class="text-sm grid grid-cols-1 sm:grid-cols-2 gap-y-1 max-w-md">
+                <li>
+                    <span class="inline-block w-3 h-3 bg-emerald-500 rounded-sm mr-2 align-middle"></span>
+                    Insérés : <strong>{{ summary.inserted.n|number_format(0, '.', ' ') }}</strong>
+                    <span class="text-slate-500">({{ summary.inserted.pct }}%)</span>
+                </li>
+                <li>
+                    <span class="inline-block w-3 h-3 bg-slate-400 rounded-sm mr-2 align-middle"></span>
+                    Doublons : <strong>{{ summary.duplicates.n|number_format(0, '.', ' ') }}</strong>
+                    <span class="text-slate-500">({{ summary.duplicates.pct }}%)</span>
+                </li>
+                <li>
+                    <span class="inline-block w-3 h-3 bg-amber-500 rounded-sm mr-2 align-middle"></span>
+                    Non matchés : <strong>{{ summary.unmatched.n|number_format(0, '.', ' ') }}</strong>
+                    <span class="text-slate-500">({{ summary.unmatched.pct }}%)</span>
+                </li>
+                <li>
+                    <span class="inline-block w-3 h-3 bg-sky-400 rounded-sm mr-2 align-middle"></span>
+                    Ignorés : <strong>{{ summary.skipped.n|number_format(0, '.', ' ') }}</strong>
+                    <span class="text-slate-500">({{ summary.skipped.pct }}%)</span>
+                </li>
+                <li class="sm:col-span-2 mt-2 pt-2 border-t border-slate-200">
+                    Matchés <span class="text-xs text-slate-500">(insérés + doublons)</span> :
+                    <strong>{{ summary.matched.n|number_format(0, '.', ' ') }}</strong>
+                    <span class="text-slate-500">({{ summary.matched.pct }}%)</span>
+                </li>
+            </ul>
+        </div>
+    {% endif %}
+
     {# ---------- Per-track section for Last.fm imports ---------- #}
     {% if entry.type == 'lastfm-import' and (status_counts|default({})) is not empty %}
         <div class="bg-white shadow rounded p-6 mt-6 max-w-5xl">
