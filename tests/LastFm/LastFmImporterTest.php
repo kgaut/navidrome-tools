@@ -3,6 +3,7 @@
 namespace App\Tests\LastFm;
 
 use App\Entity\LastFmAlias;
+use App\Entity\LastFmMatchCacheEntry;
 use App\LastFm\LastFmImporter;
 use App\LastFm\LastFmScrobble;
 use App\LastFm\ScrobbleMatcher;
@@ -246,6 +247,44 @@ class LastFmImporterTest extends TestCase
         $this->assertSame(1, $report->cacheHitsNegative, 'second unmatchable scrobble');
     }
 
+    public function testStaleNegativeCacheEntriesAreAutoPurgedAtImportStart(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: true);
+        // Track newly added to the lib — the old negative cache row is wrong.
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', 'Take Me to Church', 'Hozier');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $cache = new InMemoryLastFmMatchCacheRepository();
+        // Seed a negative entry from 90 days ago.
+        $cache->seed(
+            new LastFmMatchCacheEntry('Hozier', 'Take Me to Church', null, LastFmMatchCacheEntry::STRATEGY_NEGATIVE),
+            (new \DateTimeImmutable())->modify('-90 days'),
+        );
+        // Seed a fresh negative for an unmatchable couple — must survive.
+        $cache->seed(
+            new LastFmMatchCacheEntry('Unknown', 'Nothing', null, LastFmMatchCacheEntry::STRATEGY_NEGATIVE),
+        );
+
+        $client = new FakeLastFmClient([
+            new LastFmScrobble('Hozier', 'Take Me to Church', '', null, new \DateTimeImmutable('2024-06-01 10:00:00')),
+        ]);
+
+        $importer = new LastFmImporter(
+            client: $client,
+            navidrome: $repo,
+            matcher: new ScrobbleMatcher($repo, null, 0, null, $cache, 30),
+            cacheRepository: $cache,
+            cacheTtlDays: 30,
+        );
+        $report = $importer->import('k', 'u', dryRun: true);
+
+        $this->assertSame(1, $report->inserted, 'stale negative was purged → cascade re-ran → match');
+        // Fresh negative kept, stale one purged → cache entry overwritten
+        // with a positive for Hozier.
+        $this->assertTrue($cache->findByCouple('Hozier', 'Take Me to Church')?->isPositive());
+        $this->assertFalse($cache->findByCouple('Unknown', 'Nothing')?->isPositive() ?? true, 'fresh negative kept intact');
+    }
+
     private function makeImporter(
         FakeLastFmClient $client,
         NavidromeRepository $repo,
@@ -255,6 +294,6 @@ class LastFmImporterTest extends TestCase
     ): LastFmImporter {
         $matcher = new ScrobbleMatcher($repo, $aliasRepo, $fuzzy, null, $cache);
 
-        return new LastFmImporter($client, $repo, $matcher);
+        return new LastFmImporter($client, $repo, $matcher, cacheRepository: $cache);
     }
 }

@@ -9,6 +9,7 @@ use App\LastFm\RematchReport;
 use App\LastFm\ScrobbleMatcher;
 use App\Navidrome\NavidromeRepository;
 use App\Repository\LastFmImportTrackRepository;
+use App\Repository\LastFmMatchCacheRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -33,6 +34,8 @@ class LastFmRematchService
         private readonly NavidromeRepository $navidrome,
         private readonly EntityManagerInterface $em,
         ?LoggerInterface $logger = null,
+        private readonly ?LastFmMatchCacheRepository $cacheRepository = null,
+        private readonly int $cacheTtlDays = 30,
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
@@ -45,6 +48,11 @@ class LastFmRematchService
             );
         }
         $userId = $this->navidrome->resolveUserId();
+
+        // Same auto-purge as LastFmImporter — stale negatives let the
+        // cascade re-try unmatched couples that may have become
+        // matchable since the cache row was written.
+        $this->cacheRepository?->purgeStale($this->cacheTtlDays);
 
         $report = new RematchReport();
         $batch = 0;
