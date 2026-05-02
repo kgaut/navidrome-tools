@@ -51,6 +51,10 @@ Fonctionnalités principales :
 
 ## Quickstart Docker (production / self-host)
 
+> Pour un guide complet (intégration à une stack existante, networks
+> Docker partagés, exemple de Caddyfile, troubleshooting), voir
+> [`docs/DOCKER.md`](docs/DOCKER.md).
+
 ```bash
 # 1. Récupérer le compose et l'éditer
 curl -O https://raw.githubusercontent.com/kgaut/navidrome-playlist-generator/main/docker-compose.example.yml
