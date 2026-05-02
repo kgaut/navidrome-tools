@@ -10,6 +10,16 @@ class ImportReport
     public int $unmatched = 0;
     public int $skipped = 0;
 
+    /**
+     * Match-cache observability counters. All three sum to the number of
+     * scrobbles that reached the cascade (i.e. the alias-skipped scrobbles
+     * are excluded). Useful to estimate the speed-up from the resolution
+     * cache between two runs.
+     */
+    public int $cacheHitsPositive = 0;
+    public int $cacheHitsNegative = 0;
+    public int $cacheMisses = 0;
+
     /** @var array<string, array{artist: string, title: string, album: string, count: int}> */
     private array $unmatchedAggregate = [];
 

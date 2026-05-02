@@ -12,6 +12,7 @@ parameters:
     lastfm.api_secret: '%env(LASTFM_API_SECRET)%'
     lastfm.page_delay_seconds: '%env(int:LASTFM_PAGE_DELAY_SECONDS)%'
     lastfm.fuzzy_max_distance: '%env(int:LASTFM_FUZZY_MAX_DISTANCE)%'
+    lastfm.match_cache_ttl_days: '%env(int:LASTFM_MATCH_CACHE_TTL_DAYS)%'
     lastfm.love_sync_schedule: '%env(LASTFM_LOVE_SYNC_SCHEDULE)%'
     lastfm.rematch_schedule: '%env(LASTFM_REMATCH_SCHEDULE)%'
     beets.queue_path: '%env(resolve:BEETS_QUEUE_PATH)%'
@@ -95,13 +96,10 @@ services:
         arguments:
             $pageDelaySeconds: '%lastfm.page_delay_seconds%'
 
-    App\LastFm\LastFmImporter:
-        arguments:
-            $fuzzyMaxDistance: '%lastfm.fuzzy_max_distance%'
-
     App\LastFm\ScrobbleMatcher:
         arguments:
             $fuzzyMaxDistance: '%lastfm.fuzzy_max_distance%'
+            $cacheTtlDays: '%lastfm.match_cache_ttl_days%'
 
     App\LastFm\LastFmAuthService:
         arguments:

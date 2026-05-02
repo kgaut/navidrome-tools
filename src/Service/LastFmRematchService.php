@@ -61,6 +61,12 @@ class LastFmRematchService
             );
 
             $result = $this->matcher->match($scrobble);
+            match ($result->cacheStatus) {
+                MatchResult::CACHE_HIT_POSITIVE => $report->cacheHitsPositive++,
+                MatchResult::CACHE_HIT_NEGATIVE => $report->cacheHitsNegative++,
+                MatchResult::CACHE_MISS => $report->cacheMisses++,
+                default => null,
+            };
 
             if ($result->status === MatchResult::STATUS_SKIPPED) {
                 $report->skipped++;

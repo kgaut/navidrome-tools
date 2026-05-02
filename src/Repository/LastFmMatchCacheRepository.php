@@ -66,6 +66,12 @@ class LastFmMatchCacheRepository extends ServiceEntityRepository
         string $strategy,
         ?int $confidenceScore,
     ): void {
+        // Don't cache rows that would normalize to an empty key — they'd
+        // collide on the unique (norm, norm) index after the first insert
+        // and the cascade can't lookup them anyway.
+        if (NavidromeRepository::normalize($artist) === '' || NavidromeRepository::normalize($title) === '') {
+            return;
+        }
         $existing = $this->findByCouple($artist, $title);
         if ($existing !== null) {
             $existing->setSource($artist, $title);
