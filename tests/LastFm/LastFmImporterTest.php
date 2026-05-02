@@ -5,6 +5,7 @@ namespace App\Tests\LastFm;
 use App\Entity\LastFmAlias;
 use App\LastFm\LastFmImporter;
 use App\LastFm\LastFmScrobble;
+use App\LastFm\ScrobbleMatcher;
 use App\Navidrome\NavidromeRepository;
 use App\Tests\Navidrome\NavidromeFixtureFactory;
 use PHPUnit\Framework\TestCase;
@@ -47,7 +48,7 @@ class LastFmImporterTest extends TestCase
         ]);
 
         $repo = new NavidromeRepository($this->dbPath, 'admin');
-        $importer = new LastFmImporter($client, $repo);
+        $importer = $this->makeImporter($client, $repo);
         $report = $importer->import('fake-key', 'fake-user');
 
         $this->assertSame(4, $report->fetched);
@@ -76,7 +77,7 @@ class LastFmImporterTest extends TestCase
         ]);
 
         $repo = new NavidromeRepository($this->dbPath, 'admin');
-        $report = (new LastFmImporter($client, $repo))->import('k', 'u', dryRun: true);
+        $report = $this->makeImporter($client, $repo)->import('k', 'u', dryRun: true);
 
         $this->assertSame(1, $report->inserted, 'Report counts inserted even in dry-run');
         $count = $conn->fetchOne('SELECT COUNT(*) FROM scrobbles WHERE user_id = ?', ['user-1']);
@@ -99,7 +100,7 @@ class LastFmImporterTest extends TestCase
 
         $repo = new NavidromeRepository($this->dbPath, 'admin');
         $events = [];
-        (new LastFmImporter($client, $repo))->import(
+        $this->makeImporter($client, $repo)->import(
             'k',
             'u',
             dryRun: true,
@@ -131,7 +132,7 @@ class LastFmImporterTest extends TestCase
 
         $repo = new NavidromeRepository($this->dbPath, 'admin');
         $events = [];
-        (new LastFmImporter($client, $repo, null, 0, $aliasRepo))->import(
+        $this->makeImporter($client, $repo, aliasRepo: $aliasRepo)->import(
             'k',
             'u',
             dryRun: true,
@@ -156,7 +157,7 @@ class LastFmImporterTest extends TestCase
         ]);
 
         $repo = new NavidromeRepository($this->dbPath, 'admin');
-        $report = (new LastFmImporter($client, $repo, null, 0, $aliasRepo))->import('k', 'u', dryRun: true);
+        $report = $this->makeImporter($client, $repo, aliasRepo: $aliasRepo)->import('k', 'u', dryRun: true);
 
         $this->assertSame(0, $report->inserted);
         $this->assertSame(0, $report->unmatched);
@@ -176,12 +177,12 @@ class LastFmImporterTest extends TestCase
         $repo = new NavidromeRepository($this->dbPath, 'admin');
 
         // Without fuzzy: unmatched.
-        $report = (new LastFmImporter($client, $repo))->import('k', 'u', dryRun: true);
+        $report = $this->makeImporter($client, $repo)->import('k', 'u', dryRun: true);
         $this->assertSame(1, $report->unmatched);
         $this->assertSame(0, $report->inserted);
 
         // With fuzzy max distance 2: matched.
-        $report = (new LastFmImporter($client, $repo, null, 2))->import('k', 'u', dryRun: true);
+        $report = $this->makeImporter($client, $repo, fuzzy: 2)->import('k', 'u', dryRun: true);
         $this->assertSame(0, $report->unmatched);
         $this->assertSame(1, $report->inserted);
     }
@@ -204,7 +205,7 @@ class LastFmImporterTest extends TestCase
 
         $repo = new NavidromeRepository($this->dbPath, 'admin');
         $events = [];
-        (new LastFmImporter($client, $repo))->import(
+        $this->makeImporter($client, $repo)->import(
             'k',
             'u',
             dryRun: true,
@@ -218,5 +219,42 @@ class LastFmImporterTest extends TestCase
             ['Hit', 'inserted', 'mf-1'],
             ['Nada', 'unmatched', null],
         ], $events);
+    }
+
+    public function testCacheCountersAreReportedAcrossScrobbles(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: true);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', 'Hit', 'Artist');
+
+        $client = new FakeLastFmClient([
+            new LastFmScrobble('Artist', 'Hit', '', null, new \DateTimeImmutable('2024-06-01 10:00:00')),
+            // Same couple → positive cache hit.
+            new LastFmScrobble('Artist', 'Hit', '', null, new \DateTimeImmutable('2024-06-02 10:00:00')),
+            // Different couple, never matchable → cache miss + negative cache.
+            new LastFmScrobble('Unknown', 'Nothing', '', null, new \DateTimeImmutable('2024-06-03 10:00:00')),
+            // Same unmatchable couple → negative cache hit.
+            new LastFmScrobble('Unknown', 'Nothing', '', null, new \DateTimeImmutable('2024-06-04 10:00:00')),
+        ]);
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $cache = new InMemoryLastFmMatchCacheRepository();
+        $importer = $this->makeImporter($client, $repo, cache: $cache);
+        $report = $importer->import('k', 'u', dryRun: true);
+
+        $this->assertSame(2, $report->cacheMisses, 'first occurrence of each distinct couple');
+        $this->assertSame(1, $report->cacheHitsPositive, 'second matchable scrobble');
+        $this->assertSame(1, $report->cacheHitsNegative, 'second unmatchable scrobble');
+    }
+
+    private function makeImporter(
+        FakeLastFmClient $client,
+        NavidromeRepository $repo,
+        ?InMemoryAliasRepository $aliasRepo = null,
+        int $fuzzy = 0,
+        ?InMemoryLastFmMatchCacheRepository $cache = null,
+    ): LastFmImporter {
+        $matcher = new ScrobbleMatcher($repo, $aliasRepo, $fuzzy, null, $cache);
+
+        return new LastFmImporter($client, $repo, $matcher);
     }
 }

@@ -3,31 +3,20 @@
 namespace App\LastFm;
 
 use App\Navidrome\NavidromeRepository;
-use App\Repository\LastFmAliasRepository;
-use App\Repository\LastFmArtistAliasRepository;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
 class LastFmImporter
 {
     private LoggerInterface $logger;
-    private readonly ScrobbleMatcher $matcher;
 
     public function __construct(
         private readonly LastFmClient $client,
         private readonly NavidromeRepository $navidrome,
+        private readonly ScrobbleMatcher $matcher,
         ?LoggerInterface $logger = null,
-        int $fuzzyMaxDistance = 0,
-        ?LastFmAliasRepository $aliasRepository = null,
-        ?LastFmArtistAliasRepository $artistAliasRepository = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
-        $this->matcher = new ScrobbleMatcher(
-            $this->navidrome,
-            $aliasRepository,
-            $fuzzyMaxDistance,
-            $artistAliasRepository,
-        );
     }
 
     /**
@@ -66,6 +55,7 @@ class LastFmImporter
 
             $result = $this->matcher->match($scrobble);
             $mediaFileId = $result->mediaFileId;
+            $this->bumpCacheCounters($report, $result);
 
             if ($result->status === MatchResult::STATUS_SKIPPED) {
                 $report->skipped++;
@@ -106,5 +96,15 @@ class LastFmImporter
         }
 
         return $report;
+    }
+
+    private function bumpCacheCounters(ImportReport $report, MatchResult $result): void
+    {
+        match ($result->cacheStatus) {
+            MatchResult::CACHE_HIT_POSITIVE => $report->cacheHitsPositive++,
+            MatchResult::CACHE_HIT_NEGATIVE => $report->cacheHitsNegative++,
+            MatchResult::CACHE_MISS => $report->cacheMisses++,
+            default => null,
+        };
     }
 }
