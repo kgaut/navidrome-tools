@@ -73,7 +73,7 @@
                         </td>
                         <td class="px-3 py-1.5 text-xs text-slate-500">
                             {% if entry.metrics %}
-                                {% for k, v in entry.metrics|filter(v => v is not null and v != '') %}{{ k }}={{ v }} {% endfor %}
+                                {% for k, v in entry.metrics|filter(v => v is not null and v is not iterable and v != '') %}{{ k }}={{ v }} {% endfor %}
                             {% endif %}
                         </td>
                         <td class="px-3 py-1.5 text-right">
