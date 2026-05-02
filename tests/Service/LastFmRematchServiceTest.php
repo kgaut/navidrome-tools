@@ -94,6 +94,41 @@ class LastFmRematchServiceTest extends TestCase
         $this->assertSame(0, (int) $count);
     }
 
+    public function testRematchDeduplicatesAcrossMultipleImportsForSameScrobble(): void
+    {
+        // Regression: when two distinct imports both produced an unmatched row
+        // for the *same* Last.fm scrobble (same artist/title/playedAt), running
+        // rematch must insert into Navidrome only once and flip the second row
+        // to `duplicate` thanks to scrobbleExistsNear() seeing the autocommitted
+        // insert from the first iteration.
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: true);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', 'Hit', 'Artist');
+
+        $playedAt = new \DateTimeImmutable('2026-04-02 10:00:00');
+        $run1 = $this->makeRun();
+        $run2 = $this->makeRun();
+        $tracks = [
+            $this->makeUnmatchedTrack($run1, 'Artist', 'Hit', $playedAt),
+            $this->makeUnmatchedTrack($run2, 'Artist', 'Hit', $playedAt),
+        ];
+
+        $service = $this->makeService($tracks);
+        $report = $service->rematch();
+
+        $this->assertSame(2, $report->considered);
+        $this->assertSame(1, $report->matchedAsInserted);
+        $this->assertSame(1, $report->matchedAsDuplicate);
+        $this->assertSame(0, $report->stillUnmatched);
+
+        $this->assertSame(LastFmImportTrack::STATUS_INSERTED, $tracks[0]->getStatus());
+        $this->assertSame(LastFmImportTrack::STATUS_DUPLICATE, $tracks[1]->getStatus());
+        $this->assertSame('mf-1', $tracks[0]->getMatchedMediaFileId());
+        $this->assertSame('mf-1', $tracks[1]->getMatchedMediaFileId());
+
+        $count = $conn->fetchOne('SELECT COUNT(*) FROM scrobbles WHERE user_id = ?', ['user-1']);
+        $this->assertSame(1, (int) $count, 'Only one scrobble should be inserted despite two unmatched rows');
+    }
+
     public function testRematchIsIdempotent(): void
     {
         $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: true);
