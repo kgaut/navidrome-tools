@@ -324,6 +324,10 @@ la variable d'environnement `LASTFM_API_KEY`. De même, le username peut
    désactiver.
 2. **Matching** sur la lib Navidrome (essais successifs jusqu'à
    succès) :
+   0. **Alias manuel** : si une entrée existe dans la table
+      `lastfm_alias` (page `/lastfm/aliases`) pour le couple
+      `(artist, title)` normalisé, elle court-circuite tout. Cible
+      vide = scrobble compté en `skipped` (utile pour les podcasts).
    1. **MusicBrainz ID** si Last.fm le fournit (le plus fiable) ;
    2. **Triplet** `(artist, title, album)` normalisé — départage les
       morceaux qui existent sur plusieurs albums (single + version

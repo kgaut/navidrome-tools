@@ -3,6 +3,7 @@
 namespace App\LastFm;
 
 use App\Navidrome\NavidromeRepository;
+use App\Repository\LastFmAliasRepository;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
@@ -15,6 +16,7 @@ class LastFmImporter
         private readonly NavidromeRepository $navidrome,
         ?LoggerInterface $logger = null,
         private readonly int $fuzzyMaxDistance = 0,
+        private readonly ?LastFmAliasRepository $aliasRepository = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
@@ -54,24 +56,38 @@ class LastFmImporter
             $report->fetched++;
 
             $mediaFileId = null;
-            if ($scrobble->mbid !== null) {
+            $status = null;
+
+            // Manual alias overrides every heuristic. A `null` target means
+            // « ignore this scrobble silently » (skipped status).
+            $alias = $this->aliasRepository?->findByScrobble($scrobble->artist, $scrobble->title);
+            if ($alias !== null) {
+                if ($alias->isSkip()) {
+                    $report->skipped++;
+                    $status = 'skipped';
+                } else {
+                    $mediaFileId = $alias->getTargetMediaFileId();
+                }
+            }
+
+            if ($status === null && $mediaFileId === null && $scrobble->mbid !== null) {
                 $mediaFileId = $this->navidrome->findMediaFileByMbid($scrobble->mbid);
             }
             // Try the artist+title+album triplet before the bare couple — the
             // same song can live on a studio album AND a compilation AND a
             // single, and the album disambiguates which row the user played.
-            if ($mediaFileId === null && $scrobble->album !== '') {
+            if ($status === null && $mediaFileId === null && $scrobble->album !== '') {
                 $mediaFileId = $this->navidrome->findMediaFileByArtistTitleAlbum(
                     $scrobble->artist,
                     $scrobble->title,
                     $scrobble->album,
                 );
             }
-            if ($mediaFileId === null) {
+            if ($status === null && $mediaFileId === null) {
                 $mediaFileId = $this->navidrome->findMediaFileByArtistTitle($scrobble->artist, $scrobble->title);
             }
             // Last resort: fuzzy Levenshtein, opt-in via LASTFM_FUZZY_MAX_DISTANCE.
-            if ($mediaFileId === null && $this->fuzzyMaxDistance > 0) {
+            if ($status === null && $mediaFileId === null && $this->fuzzyMaxDistance > 0) {
                 $mediaFileId = $this->navidrome->findMediaFileFuzzy(
                     $scrobble->artist,
                     $scrobble->title,
@@ -79,7 +95,13 @@ class LastFmImporter
                 );
             }
 
-            if ($mediaFileId === null) {
+            if ($status === 'skipped') {
+                // Explicit skip via alias → no DB write, no unmatched report.
+                $this->logger->debug('Skipped scrobble (alias): {artist} — {title}', [
+                    'artist' => $scrobble->artist,
+                    'title' => $scrobble->title,
+                ]);
+            } elseif ($mediaFileId === null) {
                 $report->recordUnmatched($scrobble);
                 $this->logger->debug('Unmatched scrobble: {artist} — {title}', [
                     'artist' => $scrobble->artist,

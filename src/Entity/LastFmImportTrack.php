@@ -21,6 +21,7 @@ class LastFmImportTrack
     public const STATUS_INSERTED = 'inserted';
     public const STATUS_DUPLICATE = 'duplicate';
     public const STATUS_UNMATCHED = 'unmatched';
+    public const STATUS_SKIPPED = 'skipped';
 
     #[ORM\Id]
     #[ORM\GeneratedValue]

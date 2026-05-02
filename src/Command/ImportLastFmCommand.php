@@ -132,6 +132,8 @@ class ImportLastFmCommand extends Command
                     toleranceSeconds: $tolerance,
                     dryRun: $dryRun,
                     progress: function (int $f, int $i, int $d, int $u) use ($io): void {
+                        // Progress signature is fixed (4 ints) — skipped is shown
+                        // only in the final summary.
                         $io->writeln(sprintf(
                             '  fetched=%d  inserted=%d  duplicates=%d  unmatched=%d',
                             $f,
@@ -159,6 +161,7 @@ class ImportLastFmCommand extends Command
                     'inserted' => $r->inserted,
                     'duplicates' => $r->duplicates,
                     'unmatched' => $r->unmatched,
+                    'skipped' => $r->skipped,
                     'unmatched_artists' => $r->unmatchedArtistsRanking(100),
                     'dry_run' => $dryRun,
                     'date_min' => $dateMin?->format('Y-m-d'),
@@ -173,12 +176,13 @@ class ImportLastFmCommand extends Command
 
         $io->newLine();
         $io->success(sprintf(
-            '%s done. fetched=%d inserted=%d duplicates=%d unmatched=%d',
+            '%s done. fetched=%d inserted=%d duplicates=%d unmatched=%d skipped=%d',
             $dryRun ? 'Dry-run' : 'Import',
             $report->fetched,
             $report->inserted,
             $report->duplicates,
             $report->unmatched,
+            $report->skipped,
         ));
 
         $this->renderUnmatched($io, $report, (string) $input->getOption('show-unmatched'));

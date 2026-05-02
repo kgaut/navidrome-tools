@@ -46,7 +46,18 @@
                         </div>
                     </div>
 
-                    <a href="{{ path('app_lastfm_import') }}" class="hover:underline">Import Last.fm</a>
+                    {# Last.fm dropdown — import + alias mappings #}
+                    <div class="relative group">
+                        <button type="button"
+                                class="hover:underline flex items-center gap-1 cursor-pointer"
+                                aria-haspopup="true">
+                            Last.fm <span class="text-xs">▾</span>
+                        </button>
+                        <div class="absolute right-0 top-full mt-1 w-44 bg-slate-800 text-slate-100 rounded shadow-lg invisible opacity-0 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 transition py-1 z-30">
+                            <a href="{{ path('app_lastfm_import') }}" class="block px-4 py-2 text-sm hover:bg-slate-700">Import</a>
+                            <a href="{{ path('app_lastfm_alias_index') }}" class="block px-4 py-2 text-sm hover:bg-slate-700">Alias</a>
+                        </div>
+                    </div>
                     <a href="{{ path('app_history') }}" class="hover:underline">Historique</a>
                     <a href="{{ path('app_settings') }}" class="hover:underline">Réglages</a>
                     <span class="text-slate-400">{{ app.user.userIdentifier }}</span>

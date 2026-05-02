@@ -1,0 +1,61 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ alias ? 'Modifier alias' : 'Nouvel alias' }} Last.fm{% endblock %}
+
+{% block body %}
+    <div class="mb-4">
+        <a href="{{ path('app_lastfm_alias_index') }}" class="text-sm text-sky-700 hover:underline">
+            ← Retour à la liste des alias
+        </a>
+    </div>
+
+    <h1 class="text-2xl font-semibold mb-2">
+        {{ alias ? 'Modifier l\'alias' : 'Nouvel alias Last.fm → Navidrome' }}
+    </h1>
+    <p class="text-sm text-slate-500 mb-6">
+        Forcez la résolution d'une paire (artiste, titre) Last.fm vers un media_file Navidrome
+        spécifique. Consulté avant toutes les heuristiques de matching.
+    </p>
+
+    <div class="bg-white shadow rounded p-6 max-w-2xl">
+        {{ form_start(form) }}
+            <div class="space-y-4">
+                <div>
+                    {{ form_label(form.source_artist, null, {label_attr: {class: 'block text-xs uppercase text-slate-500'}}) }}
+                    {{ form_widget(form.source_artist, {attr: {class: 'w-full border rounded px-2 py-1 text-sm'}}) }}
+                    <p class="text-xs text-slate-500 mt-1">{{ form_help(form.source_artist) }}</p>
+                    {{ form_errors(form.source_artist) }}
+                </div>
+                <div>
+                    {{ form_label(form.source_title, null, {label_attr: {class: 'block text-xs uppercase text-slate-500'}}) }}
+                    {{ form_widget(form.source_title, {attr: {class: 'w-full border rounded px-2 py-1 text-sm'}}) }}
+                    {{ form_errors(form.source_title) }}
+                </div>
+
+                <div class="border-t pt-4">
+                    <label class="flex items-center gap-2 text-sm">
+                        {{ form_widget(form.skip, {attr: {class: 'h-4 w-4'}}) }}
+                        <span>{{ form.skip.vars.label }}</span>
+                    </label>
+                    <p class="text-xs text-slate-500 mt-1 ml-6">{{ form_help(form.skip) }}</p>
+                </div>
+
+                <div>
+                    {{ form_label(form.target_media_file_id, null, {label_attr: {class: 'block text-xs uppercase text-slate-500'}}) }}
+                    {{ form_widget(form.target_media_file_id, {attr: {class: 'w-full border rounded px-2 py-1 text-sm font-mono'}}) }}
+                    <p class="text-xs text-slate-500 mt-1">{{ form_help(form.target_media_file_id) }}</p>
+                    {{ form_errors(form.target_media_file_id) }}
+                </div>
+            </div>
+
+            <div class="flex items-center gap-3 mt-6">
+                <button type="submit" class="px-4 py-2 rounded bg-slate-900 text-white text-sm">
+                    {{ alias ? 'Enregistrer les modifications' : 'Créer l\'alias' }}
+                </button>
+                <a href="{{ path('app_lastfm_alias_index') }}" class="text-sm text-slate-500 hover:underline">
+                    Annuler
+                </a>
+            </div>
+        {{ form_end(form) }}
+    </div>
+{% endblock %}

@@ -91,12 +91,14 @@
                             <th class="px-3 py-2">Artiste</th>
                             <th class="px-3 py-2">Album</th>
                             <th class="px-3 py-2">MBID</th>
+                            <th class="px-3 py-2"></th>
                         </tr>
                         </thead>
                         <tbody class="divide-y">
                         {% for t in tracks %}
                             {% set badge = t.status == 'inserted' ? 'bg-emerald-100 text-emerald-800'
                                 : t.status == 'duplicate' ? 'bg-slate-200 text-slate-700'
+                                : t.status == 'skipped' ? 'bg-sky-100 text-sky-800'
                                 : 'bg-amber-100 text-amber-800' %}
                             <tr>
                                 <td class="px-3 py-1.5 text-slate-400">{{ loop.index }}</td>
@@ -117,6 +119,13 @@
                                 <td class="px-3 py-1.5 text-slate-500">{{ t.album ?? '—' }}</td>
                                 <td class="px-3 py-1.5 text-xs text-slate-400">
                                     {{ t.mbid ? t.mbid|slice(0, 8) ~ '…' : '—' }}
+                                </td>
+                                <td class="px-3 py-1.5 text-right whitespace-nowrap">
+                                    {% if t.status == 'unmatched' %}
+                                        <a href="{{ path('app_lastfm_alias_new', {source_artist: t.artist, source_title: t.title}) }}"
+                                           class="text-xs px-2 py-0.5 rounded bg-slate-700 text-white hover:bg-slate-800"
+                                           title="Créer un alias manuel pour ce scrobble">✏️ Mapper</a>
+                                    {% endif %}
                                 </td>
                             </tr>
                         {% endfor %}

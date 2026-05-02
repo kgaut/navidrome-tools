@@ -80,7 +80,7 @@ class HistoryController extends AbstractController
                 ? (string) $request->query->get('status')
                 : $defaultStatus;
 
-            if (!in_array($statusFilter, ['', LastFmImportTrack::STATUS_INSERTED, LastFmImportTrack::STATUS_DUPLICATE, LastFmImportTrack::STATUS_UNMATCHED], true)) {
+            if (!in_array($statusFilter, ['', LastFmImportTrack::STATUS_INSERTED, LastFmImportTrack::STATUS_DUPLICATE, LastFmImportTrack::STATUS_UNMATCHED, LastFmImportTrack::STATUS_SKIPPED], true)) {
                 $statusFilter = '';
             }
 
@@ -108,6 +108,7 @@ class HistoryController extends AbstractController
                 LastFmImportTrack::STATUS_INSERTED => 'Insérés',
                 LastFmImportTrack::STATUS_DUPLICATE => 'Doublons',
                 LastFmImportTrack::STATUS_UNMATCHED => 'Non matchés',
+                LastFmImportTrack::STATUS_SKIPPED => 'Ignorés',
             ],
             'unmatched_artists' => $unmatchedArtists,
             'lidarr_configured' => $this->lidarrConfig->isConfigured(),
