@@ -754,6 +754,40 @@ L'option « remplacer la playlist existante » utilise
 `getPlaylists.view` + `deletePlaylist.view` pour retirer l'ancienne du
 même nom appartenant au même utilisateur, puis recrée la nouvelle.
 
+## Gestion des playlists existantes
+
+Page `/playlists` (lien « Playlists » dans la barre de nav) : liste
+toutes les playlists Navidrome avec leur métadonnées (nombre de
+morceaux, durée, dates de création/modification, owner, public/privé).
+Cases à cocher + bouton « Supprimer la sélection » pour la suppression
+en masse. Bouton « M3U » par ligne pour télécharger la playlist au
+format M3U Extended (lisible par VLC / mpv / foobar2000).
+
+Page détail `/playlists/{id}` : affiche le contenu de la playlist
+(titre, artiste, album, durée, play count, statut starred ★) et permet :
+
+- **Renommer** la playlist (`updatePlaylist.view`)
+- **Dupliquer** la playlist sous le nom « X (copie) »
+- **Supprimer** la playlist (avec nettoyage automatique du
+  `lastSubsonicPlaylistId` des `PlaylistDefinition` rattachées)
+- **Star/unstar individuel** d'un morceau (icône ★/☆)
+- **Bulk star/unstar** : « ★ Tout starrer » / « ☆ Tout dé-starrer »,
+  un seul appel API
+- **Retirer un morceau** de la playlist (`updatePlaylist.view` avec
+  `songIndexToRemove`)
+- **Détecter les morceaux morts** (présents dans la playlist mais
+  absents de `media_file`) et les purger en un clic
+- **Statistiques** : durée totale, nombre starré, % jamais joués, top
+  10 artistes, top 10 albums, distribution par année (mini bar chart)
+- **Exporter en M3U**
+
+Toutes les écritures passent par l'API Subsonic — aucune écriture
+directe dans la DB Navidrome (qui peut donc rester montée `:ro`).
+
+L'export M3U est aussi disponible sur la prévisualisation des
+définitions de playlist (`/playlist/{id}/preview` → bouton « Exporter
+M3U »), pour récupérer la liste avant même de la créer côté Navidrome.
+
 ## Changelog
 
 L'historique des évolutions est tenu dans [`CHANGELOG.md`](CHANGELOG.md)

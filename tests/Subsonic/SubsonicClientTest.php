@@ -217,6 +217,200 @@ class SubsonicClientTest extends TestCase
         $this->assertFalse($sub->startScan());
     }
 
+    public function testGetPlaylistsExposesEnrichedMetadata(): void
+    {
+        $client = new MockHttpClient([
+            $this->ok([
+                'playlists' => [
+                    'playlist' => [
+                        [
+                            'id' => 'pl-1',
+                            'name' => 'Top Rock',
+                            'owner' => 'admin',
+                            'songCount' => 42,
+                            'duration' => 9876,
+                            'public' => true,
+                            'created' => '2025-01-01T00:00:00.000Z',
+                            'changed' => '2025-06-15T12:34:56.000Z',
+                            'comment' => 'auto-generated',
+                        ],
+                    ],
+                ],
+            ]),
+        ]);
+
+        $sub = new SubsonicClient($client, 'http://navi.test', 'admin', 'changeme');
+        $playlists = $sub->getPlaylists();
+
+        $this->assertCount(1, $playlists);
+        $p = $playlists[0];
+        $this->assertSame('pl-1', $p['id']);
+        $this->assertSame('Top Rock', $p['name']);
+        $this->assertSame('admin', $p['owner']);
+        $this->assertSame(42, $p['songCount']);
+        $this->assertSame(9876, $p['duration']);
+        $this->assertTrue($p['public']);
+        $this->assertSame('2025-01-01T00:00:00.000Z', $p['created']);
+        $this->assertSame('2025-06-15T12:34:56.000Z', $p['changed']);
+        $this->assertSame('auto-generated', $p['comment']);
+    }
+
+    public function testGetPlaylistsDefaultsMissingFields(): void
+    {
+        $client = new MockHttpClient([
+            $this->ok([
+                'playlists' => [
+                    'playlist' => [
+                        ['id' => 'pl-9', 'name' => 'Bare', 'owner' => 'admin'],
+                    ],
+                ],
+            ]),
+        ]);
+
+        $sub = new SubsonicClient($client, 'http://navi.test', 'admin', 'changeme');
+        $p = $sub->getPlaylists()[0];
+
+        $this->assertSame(0, $p['songCount']);
+        $this->assertSame(0, $p['duration']);
+        $this->assertFalse($p['public']);
+        $this->assertNull($p['created']);
+        $this->assertNull($p['changed']);
+        $this->assertSame('', $p['comment']);
+    }
+
+    public function testGetPlaylistReturnsTracksWithStarredStatus(): void
+    {
+        $client = new MockHttpClient([
+            $this->ok([
+                'playlist' => [
+                    'id' => 'pl-1',
+                    'name' => 'Top Rock',
+                    'owner' => 'admin',
+                    'songCount' => 2,
+                    'duration' => 360,
+                    'public' => false,
+                    'created' => '2025-01-01T00:00:00.000Z',
+                    'changed' => '2025-06-15T12:34:56.000Z',
+                    'comment' => '',
+                    'entry' => [
+                        [
+                            'id' => 'mf-1',
+                            'title' => 'Halo',
+                            'artist' => 'Beyoncé',
+                            'album' => 'I Am',
+                            'duration' => 200,
+                            'playCount' => 12,
+                            'year' => 2008,
+                            'starred' => '2025-02-03T10:00:00Z',
+                            'path' => 'Beyoncé/I Am/01 - Halo.mp3',
+                        ],
+                        [
+                            'id' => 'mf-2',
+                            'title' => 'Smile',
+                            'artist' => 'Lily Allen',
+                            'album' => 'Alright Still',
+                            'duration' => 160,
+                            'playCount' => 5,
+                        ],
+                    ],
+                ],
+            ]),
+        ]);
+
+        $sub = new SubsonicClient($client, 'http://navi.test', 'admin', 'changeme');
+        $pl = $sub->getPlaylist('pl-1');
+
+        $this->assertSame('pl-1', $pl['id']);
+        $this->assertSame('Top Rock', $pl['name']);
+        $this->assertCount(2, $pl['tracks']);
+        $this->assertSame('mf-1', $pl['tracks'][0]['id']);
+        $this->assertSame(2008, $pl['tracks'][0]['year']);
+        $this->assertSame('2025-02-03T10:00:00Z', $pl['tracks'][0]['starred']);
+        $this->assertSame('Beyoncé/I Am/01 - Halo.mp3', $pl['tracks'][0]['path']);
+        $this->assertNull($pl['tracks'][1]['starred']);
+        $this->assertNull($pl['tracks'][1]['year']);
+    }
+
+    public function testGetPlaylistRejectsEmptyId(): void
+    {
+        $sub = new SubsonicClient(new MockHttpClient(static function () {
+            throw new \RuntimeException('Should not perform HTTP for empty id.');
+        }), 'http://navi.test', 'admin', 'changeme');
+
+        $this->expectException(\RuntimeException::class);
+        $sub->getPlaylist('');
+    }
+
+    public function testUpdatePlaylistRenameOnlyTransmitsName(): void
+    {
+        $captured = null;
+        $client = new MockHttpClient(function (string $method, string $url) use (&$captured): MockResponse {
+            $captured = $url;
+
+            return $this->ok([]);
+        });
+
+        $sub = new SubsonicClient($client, 'http://navi.test', 'admin', 'changeme');
+        $sub->updatePlaylist('pl-1', name: 'Renamed');
+
+        $this->assertNotNull($captured);
+        $this->assertStringContainsString('/rest/updatePlaylist.view?', $captured);
+        $this->assertStringContainsString('playlistId=pl-1', $captured);
+        $this->assertStringContainsString('name=Renamed', $captured);
+        $this->assertStringNotContainsString('comment=', $captured);
+        $this->assertStringNotContainsString('public=', $captured);
+        $this->assertStringNotContainsString('songIdToAdd=', $captured);
+    }
+
+    public function testUpdatePlaylistAddRemoveSongs(): void
+    {
+        $captured = null;
+        $client = new MockHttpClient(function (string $method, string $url) use (&$captured): MockResponse {
+            $captured = $url;
+
+            return $this->ok([]);
+        });
+
+        $sub = new SubsonicClient($client, 'http://navi.test', 'admin', 'changeme');
+        $sub->updatePlaylist(
+            'pl-1',
+            songIdToAdd: ['mf-10', 'mf-11'],
+            songIndexToRemove: [3, 7],
+        );
+
+        $this->assertNotNull($captured);
+        $this->assertStringContainsString('songIdToAdd=mf-10', $captured);
+        $this->assertStringContainsString('songIdToAdd=mf-11', $captured);
+        $this->assertStringContainsString('songIndexToRemove=3', $captured);
+        $this->assertStringContainsString('songIndexToRemove=7', $captured);
+    }
+
+    public function testUpdatePlaylistPublicFlag(): void
+    {
+        $captured = null;
+        $client = new MockHttpClient(function (string $method, string $url) use (&$captured): MockResponse {
+            $captured = $url;
+
+            return $this->ok([]);
+        });
+
+        $sub = new SubsonicClient($client, 'http://navi.test', 'admin', 'changeme');
+        $sub->updatePlaylist('pl-1', public: false);
+
+        $this->assertNotNull($captured);
+        $this->assertStringContainsString('public=false', $captured);
+    }
+
+    public function testUpdatePlaylistRejectsEmptyId(): void
+    {
+        $sub = new SubsonicClient(new MockHttpClient(static function () {
+            throw new \RuntimeException('Should not perform HTTP for empty id.');
+        }), 'http://navi.test', 'admin', 'changeme');
+
+        $this->expectException(\RuntimeException::class);
+        $sub->updatePlaylist('', name: 'X');
+    }
+
     /**
      * @param array<string, mixed> $payload
      */

@@ -866,6 +866,87 @@ class NavidromeRepository
     }
 
     /**
+     * Given a list of media_file ids, return those that no longer exist
+     * in the Navidrome library (file was removed/moved/renamed). Useful
+     * for detecting « dead » entries inside a Subsonic playlist.
+     *
+     * @param string[] $ids
+     *
+     * @return string[] subset of $ids, preserving original order
+     */
+    public function filterMissingMediaFileIds(array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $rows = $this->connection()->fetchAllAssociative(
+            sprintf('SELECT id FROM media_file WHERE id IN (%s)', $placeholders),
+            $ids,
+        );
+
+        $existing = [];
+        foreach ($rows as $r) {
+            $existing[(string) $r['id']] = true;
+        }
+
+        $missing = [];
+        foreach ($ids as $id) {
+            if (!isset($existing[$id])) {
+                $missing[] = $id;
+            }
+        }
+
+        return $missing;
+    }
+
+    /**
+     * Per-id metadata needed for playlist stats (year + album + artist).
+     * Returned in the same order as input ids; missing rows are silently
+     * dropped (use {@see filterMissingMediaFileIds()} to surface them).
+     *
+     * @param string[] $ids
+     *
+     * @return array<int, array{id: string, artist: string, album: string, year: ?int, duration: int}>
+     */
+    public function getMediaFileMetadata(array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $rows = $this->connection()->fetchAllAssociative(
+            sprintf(
+                'SELECT id, artist, album, year, duration FROM media_file WHERE id IN (%s)',
+                $placeholders,
+            ),
+            $ids,
+        );
+
+        $byId = [];
+        foreach ($rows as $r) {
+            $byId[(string) $r['id']] = [
+                'id' => (string) $r['id'],
+                'artist' => (string) ($r['artist'] ?? ''),
+                'album' => (string) ($r['album'] ?? ''),
+                'year' => isset($r['year']) ? (int) $r['year'] : null,
+                'duration' => (int) ($r['duration'] ?? 0),
+            ];
+        }
+
+        $out = [];
+        foreach ($ids as $id) {
+            if (isset($byId[$id])) {
+                $out[] = $byId[$id];
+            }
+        }
+
+        return $out;
+    }
+
+    /**
      * Find an artist id by name. Prefers the dedicated `artist` table when
      * present (Navidrome >= 0.50), falls back on a DISTINCT lookup over
      * media_file. Case- and whitespace-insensitive. Returns null when no

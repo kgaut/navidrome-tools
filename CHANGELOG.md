@@ -43,6 +43,26 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
   Last.fm renvoie le terme corrigé même quand l'input était déjà
   canonique. Réutilise `LASTFM_API_KEY` existant (pas de nouvelle
   variable). Closes #17.
+- **Gestion des playlists Navidrome** (epic #71) : nouvelle section
+  `/playlists` qui liste les playlists existantes côté Navidrome avec
+  leurs métadonnées (nombre de morceaux, durée, dates création/
+  modification, owner, public/privé) — `SubsonicClient::getPlaylists()`
+  enrichi avec ces champs. Page détail `/playlists/{id}` affiche le
+  contenu (artist/album/durée/play count/statut starred), avec : bouton
+  rename, suppression (cleanup automatique du `lastSubsonicPlaylistId`
+  des `PlaylistDefinition` rattachées), duplication, star/unstar par
+  morceau et bulk star/unstar (réutilise `SubsonicClient::starTracks`/
+  `unstarTracks` existants), retrait d'un morceau, détection des
+  morceaux « morts » (présents dans la playlist mais absents de
+  `media_file`) avec bouton purge, statistiques (durée totale, top 10
+  artistes, top 10 albums, distribution par année, % jamais joués),
+  bulk delete depuis la liste, export M3U téléchargeable. Le
+  `M3uExporter` est aussi branché sur la prévisualisation des
+  `PlaylistDefinition` (closes #8). Toutes les écritures passent par
+  l'API Subsonic (`updatePlaylist.view`, `deletePlaylist.view`) — la
+  DB Navidrome reste mountée `:ro` en prod. Nouvelles méthodes
+  `SubsonicClient::getPlaylist()` et `updatePlaylist()`. Closes #72,
+  #73, #74, #75, #76, #77, #78, #79, #80, #81, #82, #83.
 - **Plugins custom en déploiement Docker** : nouveau namespace
   `App\Plugin\` mappé sur `plugins/`, bind-mountable sur `/app/plugins`
   pour ajouter ses propres générateurs de playlists sans rebuilder

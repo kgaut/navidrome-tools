@@ -36,6 +36,7 @@
             <nav class="flex items-center gap-4 text-sm">
                 {% if app.user %}
                     <a href="{{ path('app_dashboard') }}" class="hover:underline">Dashboard</a>
+                    <a href="{{ path('app_playlists_index') }}" class="hover:underline">Playlists</a>
                     <a href="{{ path('app_playlist_new') }}" class="hover:underline">Nouvelle playlist</a>
 
                     {# Stats dropdown — pure CSS hover/focus, no JS #}
