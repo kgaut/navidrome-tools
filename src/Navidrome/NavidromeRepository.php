@@ -1207,6 +1207,7 @@ class NavidromeRepository
         $bareTitleN = self::normalize($bareTitle);
         $artistChanged = $leadArtistN !== '' && $leadArtistN !== $artistN;
         $titleChanged = $bareTitleN !== '' && $bareTitleN !== $titleN;
+        $titleHadFeaturing = self::titleHasFeaturingMarker($title);
 
         if ($artistChanged) {
             $id = $this->lookupExactArtistTitle($leadArtistN, $titleN);
@@ -1218,6 +1219,20 @@ class NavidromeRepository
             $id = $this->lookupExactArtistTitle($artistN, $bareTitleN);
             if ($id !== null) {
                 return $id;
+            }
+
+            // Asymmetric featuring : Last.fm packs "(feat. X)" in the title,
+            // Navidrome packs it in the artist column ("Jurassic 5 feat.
+            // Roots Manuva / Join the Dots"). Strict match on bareTitle
+            // failed because the artist column has a longer string. Try a
+            // prefix-based artist lookup, gated on the explicit featuring
+            // marker in the original title to keep the false-positive rate
+            // tight.
+            if ($titleHadFeaturing) {
+                $id = $this->lookupArtistPrefixFeaturingTitle($artistN, $bareTitleN);
+                if ($id !== null) {
+                    return $id;
+                }
             }
         }
         if ($artistChanged && $titleChanged) {
@@ -1249,6 +1264,74 @@ class NavidromeRepository
         $id = $this->connection()->fetchOne($sql, ['a' => $artistNormalized, 't' => $titleNormalized]);
 
         return is_string($id) && $id !== '' ? $id : null;
+    }
+
+    /**
+     * Refined lookup for the asymmetric-featuring case: title strict on
+     * the bare (already feat-stripped) form, artist matched as a prefix
+     * followed by a recognised featuring marker. Catches the convention
+     * where Last.fm puts "(feat. X)" in the title while Navidrome puts
+     * it in the artist column. Gated by {@see titleHasFeaturingMarker()}
+     * in the cascade caller to avoid false-positives on plain titles.
+     *
+     * Marker list mirrors {@see stripFeaturingFromTitle()}: feat / ft /
+     * featuring / with — already lower-cased and dot-stripped by
+     * np_normalize() on the candidate side, hence the simple `LIKE
+     * ':a feat %'` form below.
+     */
+    private function lookupArtistPrefixFeaturingTitle(string $artistNormalized, string $titleNormalized): ?string
+    {
+        if ($artistNormalized === '' || $titleNormalized === '') {
+            return null;
+        }
+
+        $sql = 'SELECT id FROM media_file
+                WHERE np_normalize(title) = :t
+                  AND (
+                      np_normalize(artist) LIKE :feat
+                      OR np_normalize(artist) LIKE :ft
+                      OR np_normalize(artist) LIKE :featuring
+                      OR np_normalize(artist) LIKE :with
+                  )
+                ORDER BY id ASC
+                LIMIT 1';
+        $id = $this->connection()->fetchOne($sql, [
+            't' => $titleNormalized,
+            'feat' => $artistNormalized . ' feat %',
+            'ft' => $artistNormalized . ' ft %',
+            'featuring' => $artistNormalized . ' featuring %',
+            'with' => $artistNormalized . ' with %',
+        ]);
+
+        return is_string($id) && $id !== '' ? $id : null;
+    }
+
+    /**
+     * True when the (raw) title carries an explicit featuring marker —
+     * "(feat. X)" / "[ft. X]" / "(featuring X)" / "(with X)" — including
+     * truncated open-paren forms ("(Ft Roots Manuva" without trailing
+     * `)`) when the truncation comes from Last.fm's title length cap.
+     * Used as the signal to enable {@see lookupArtistPrefixFeaturingTitle()}.
+     */
+    private static function titleHasFeaturingMarker(string $title): bool
+    {
+        // Closed paren / bracket form.
+        if (preg_match('/\((?:feat\.?|ft\.?|featuring|with)\s+[^)]+\)/iu', $title)) {
+            return true;
+        }
+        if (preg_match('/\[(?:feat\.?|ft\.?|featuring|with)\s+[^\]]+\]/iu', $title)) {
+            return true;
+        }
+
+        // Truncated open paren (no closing paren in the whole title).
+        if (
+            !preg_match('/\([^)]*\)/u', $title)
+            && preg_match('/\((?:feat\.?|ft\.?|featuring|with)\s+/iu', $title)
+        ) {
+            return true;
+        }
+
+        return false;
     }
 
     /**

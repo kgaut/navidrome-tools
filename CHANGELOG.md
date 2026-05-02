@@ -8,6 +8,19 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### Added
+- **Matching Last.fm — featuring asymétrique** : nouveau palier
+  `lookupArtistPrefixFeaturingTitle()` dans la cascade
+  `findMediaFileByArtistTitle()`. Catche le cas où Last.fm met le
+  featuring dans le titre (ex. `Jurassic 5 / Join The Dots (Ft Roots
+  Manuva`) tandis que Navidrome le met dans l'artiste (ex. `Jurassic 5
+  feat. Roots Manuva / Join the Dots`). Active uniquement quand le
+  titre original contient un marker explicite `(feat./ft./featuring/
+  with X)` (helper `titleHasFeaturingMarker`) — gardé strict sur le
+  titre nettoyé pour limiter les faux-positifs. Marker LIKE côté
+  artiste : `:a feat %`, `:a ft %`, `:a featuring %`, `:a with %`.
+  Mesuré sur le dataset local : 23 unmatched distincts avec marker,
+  6 récupérables (Orelsan, Cypress Hill, Tiken Jah Fakoly, High Tone…).
+  Closes #67.
 - **Alias d'artistes (synonymes)** : nouvelle table
   `lastfm_artist_alias` (id, source_artist, source_artist_norm UNIQUE,
   target_artist, created_at) qui mappe un nom source Last.fm → nom
