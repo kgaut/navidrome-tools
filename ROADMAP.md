@@ -28,7 +28,6 @@ l'ordre d'attaque recommandé.
 
 | #   | Titre                                                              | Effort |
 |-----|--------------------------------------------------------------------|--------|
-| [#12] | Normalisation Unicode (accents, casse étendue)                  | S      |
 | [#13] | Normalisation ponctuation et caractères spéciaux                | S      |
 | [#14] | Suppression des suffixes parasites (Remastered, Live, feat.)    | S      |
 | [#15] | Désambiguation par triplet (artist, title, album)               | S      |
@@ -118,7 +117,6 @@ quand on tagge des releases) :
 [#9]: https://github.com/kgaut/navidrome-playlist-generator/issues/9
 [#10]: https://github.com/kgaut/navidrome-playlist-generator/issues/10
 [#11]: https://github.com/kgaut/navidrome-playlist-generator/issues/11
-[#12]: https://github.com/kgaut/navidrome-playlist-generator/issues/12
 [#13]: https://github.com/kgaut/navidrome-playlist-generator/issues/13
 [#14]: https://github.com/kgaut/navidrome-playlist-generator/issues/14
 [#15]: https://github.com/kgaut/navidrome-playlist-generator/issues/15

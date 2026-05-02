@@ -880,7 +880,7 @@ class NavidromeRepository
         );
         if ($tables !== []) {
             $rows = $this->connection()->fetchAllAssociative(
-                'SELECT id FROM artist WHERE LOWER(TRIM(name)) = :n LIMIT 2',
+                'SELECT id FROM artist WHERE np_normalize(name) = :n LIMIT 2',
                 ['n' => $name],
             );
             if (count($rows) === 1) {
@@ -893,8 +893,8 @@ class NavidromeRepository
         }
 
         $rows = $this->connection()->fetchAllAssociative(
-            'SELECT DISTINCT artist_id FROM media_file
-             WHERE LOWER(TRIM(artist)) = :n AND artist_id != "" LIMIT 2',
+            "SELECT DISTINCT artist_id FROM media_file
+             WHERE np_normalize(artist) = :n AND artist_id != '' LIMIT 2",
             ['n' => $name],
         );
         if (count($rows) === 1) {
@@ -989,11 +989,11 @@ class NavidromeRepository
 
     private function lookupExactArtistTitle(string $artistNormalized, string $titleNormalized): ?string
     {
-        $sql = "SELECT id FROM media_file
-                WHERE LOWER(TRIM(artist)) = :a
-                  AND LOWER(TRIM(title)) = :t
-                ORDER BY (LOWER(TRIM(album_artist)) = :a) DESC, id ASC
-                LIMIT 1";
+        $sql = 'SELECT id FROM media_file
+                WHERE np_normalize(artist) = :a
+                  AND np_normalize(title) = :t
+                ORDER BY (np_normalize(album_artist) = :a) DESC, id ASC
+                LIMIT 1';
         $id = $this->connection()->fetchOne($sql, ['a' => $artistNormalized, 't' => $titleNormalized]);
 
         return is_string($id) && $id !== '' ? $id : null;
@@ -1107,9 +1107,24 @@ class NavidromeRepository
         );
     }
 
-    private static function normalize(string $s): string
+    /**
+     * Lowercase, trim, and strip Unicode diacritics so that "Beyoncé" matches
+     * "Beyonce", "Sigur Rós" matches "Sigur Ros", "Mötörhead" matches
+     * "Motorhead", etc. Decomposition uses NFKD (compatibility decomposition)
+     * then drops every combining mark (\p{Mn}). Also exposed to SQLite as the
+     * `np_normalize(value)` UDF so that the same transformation is applied
+     * server-side on the indexed columns — see {@see connection()}.
+     */
+    public static function normalize(string $s): string
     {
-        return mb_strtolower(trim($s));
+        $s = mb_strtolower(trim($s));
+        $decomposed = \Normalizer::normalize($s, \Normalizer::FORM_KD);
+        if ($decomposed === false) {
+            // Input was not valid UTF-8 — fall back to the lowercased form.
+            return $s;
+        }
+
+        return (string) preg_replace('/\p{Mn}+/u', '', $decomposed);
     }
 
     /**
@@ -1143,6 +1158,15 @@ class NavidromeRepository
             ]);
         } catch (DbalException $e) {
             throw new \RuntimeException('Cannot open Navidrome database at ' . $this->dbPath . ': ' . $e->getMessage(), 0, $e);
+        }
+
+        // Expose self::normalize() as a SQLite scalar UDF so that artist/title
+        // columns can be matched accent- and case-insensitively without
+        // pre-computing a normalized column. Cost is one PHP callback per row
+        // scanned; acceptable for libs under ~100k tracks.
+        $native = $this->connection->getNativeConnection();
+        if ($native instanceof \PDO) {
+            $native->sqliteCreateFunction('np_normalize', [self::class, 'normalize'], 1);
         }
 
         return $this->connection;

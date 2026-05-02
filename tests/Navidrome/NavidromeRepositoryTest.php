@@ -268,4 +268,43 @@ class NavidromeRepositoryTest extends TestCase
         // Both fallbacks must apply: featuring strip + version-marker strip.
         $this->assertSame('mf-1', $repo->findMediaFileByArtistTitle('Orelsan feat. Stromae', 'La pluie - Radio Edit'));
     }
+
+    /**
+     * @return iterable<string, array{0: string, 1: string, 2: string, 3: string}>
+     */
+    public static function accentVariants(): iterable
+    {
+        // [stored_artist, stored_title, query_artist, query_title]
+        yield 'acute accent (Beyoncé)'      => ['Beyoncé', 'Halo', 'Beyonce', 'Halo'];
+        yield 'reverse query (no accent → accented)' => ['Beyonce', 'Halo', 'Beyoncé', 'Halo'];
+        yield 'multiple acutes (Sigur Rós)' => ['Sigur Rós', 'Hoppípolla', 'Sigur Ros', 'Hoppipolla'];
+        yield 'umlauts (Mötörhead)'         => ['Mötörhead', 'Ace of Spades', 'Motorhead', 'Ace of Spades'];
+        yield 'cedilla (Café Tacvba)'       => ['Café Tacvba', 'La Ingrata', 'Cafe Tacvba', 'La Ingrata'];
+        yield 'accent in title only'        => ['Stromae', 'Papaoutaï', 'Stromae', 'Papaoutai'];
+    }
+
+    #[DataProvider('accentVariants')]
+    public function testFindMediaFileByArtistTitleIgnoresDiacritics(
+        string $storedArtist,
+        string $storedTitle,
+        string $queryArtist,
+        string $queryTitle,
+    ): void {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: false);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', $storedTitle, $storedArtist);
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $this->assertSame('mf-1', $repo->findMediaFileByArtistTitle($queryArtist, $queryTitle));
+    }
+
+    public function testFindArtistIdByNameIgnoresDiacritics(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', 'Halo', 'Beyoncé');
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-2', 'Hoppípolla', 'Sigur Rós');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $this->assertSame('artist-' . md5('Beyoncé'), $repo->findArtistIdByName('Beyonce'));
+        $this->assertSame('artist-' . md5('Sigur Rós'), $repo->findArtistIdByName('Sigur Ros'));
+    }
 }

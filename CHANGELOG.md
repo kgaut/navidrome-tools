@@ -8,6 +8,14 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### Added
+- Matching Last.fm : normalisation Unicode (décomposition NFKD +
+  strip des combining marks `\p{Mn}+`). `Beyoncé` matche désormais
+  `Beyonce`, `Sigur Rós` matche `Sigur Ros`, `Mötörhead` matche
+  `Motorhead`, etc. Une UDF SQLite `np_normalize(value)` est
+  enregistrée sur la connexion Navidrome pour appliquer la même
+  normalisation aux colonnes (`media_file.artist/title/album_artist`,
+  `artist.name`). Requiert l'extension `ext-intl` (déjà présente dans
+  les images Docker / runners CI). Closes #12.
 - Section « Artistes non matchés » sur la page `/history/{id}` d'un run
   `lastfm-import` : top 100 artistes agrégés (scrobbles sommés),
   persistés dans `metrics.unmatched_artists`. Pour chaque artiste,
