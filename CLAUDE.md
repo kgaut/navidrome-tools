@@ -200,6 +200,13 @@ Décisions structurantes :
      Demo/Instrumental sont volontairement non strippés (différents
      enregistrements) ;
   4. les deux strips combinés.
+  5. **Featuring asymétrique** : si le titre original contenait un
+     marker `(feat./ft./featuring/with X)` (`titleHasFeaturingMarker`)
+     et que les paliers précédents ont échoué, retente avec
+     `lookupArtistPrefixFeaturingTitle()` — title strict sur le bare,
+     artiste LIKE `:a feat %` / `:a ft %` / etc. Catche le cas où
+     Last.fm met le featuring dans le titre et Navidrome dans
+     l'artiste.
 - **`scrobbles.submission_time` en INTEGER unix epoch** depuis
   Navidrome 0.55. Toutes les requêtes Navidrome bindent
   `getTimestamp()` (PARAM INTEGER) et passent le modifier

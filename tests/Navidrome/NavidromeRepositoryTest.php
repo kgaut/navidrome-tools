@@ -600,6 +600,70 @@ class NavidromeRepositoryTest extends TestCase
         $this->assertNull($repo->findMediaFileByArtistTitle('Some Artist', 'Foo (random truncated text'));
     }
 
+    public function testFindMediaFileByArtistTitleAsymmetricFeaturingTruncated(): void
+    {
+        // Last.fm packs "(Ft Roots Manuva" (truncated) in the title, while
+        // Navidrome stores the featuring info on the artist column.
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: false);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-feat', 'Join the Dots', 'Jurassic 5 feat. Roots Manuva');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $this->assertSame('mf-feat', $repo->findMediaFileByArtistTitle('Jurassic 5', 'Join The Dots (Ft Roots Manuva'));
+    }
+
+    public function testFindMediaFileByArtistTitleAsymmetricFeaturingClosedParen(): void
+    {
+        // Same convention but with the closing `)` present.
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: false);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-feat', 'Crazy in Love', 'Beyoncé feat. Jay-Z');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $this->assertSame('mf-feat', $repo->findMediaFileByArtistTitle('Beyoncé', 'Crazy in Love (feat. Jay-Z)'));
+    }
+
+    public function testFindMediaFileByArtistTitleAsymmetricFeaturingFtVariant(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: false);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-feat', 'Run This Town', 'Jay-Z ft. Rihanna');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $this->assertSame('mf-feat', $repo->findMediaFileByArtistTitle('Jay-Z', 'Run This Town (ft. Rihanna)'));
+    }
+
+    public function testFindMediaFileByArtistTitleAsymmetricFeaturingWithVariant(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: false);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-feat', 'Bad Guy', 'Billie Eilish with Justin Bieber');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $this->assertSame('mf-feat', $repo->findMediaFileByArtistTitle('Billie Eilish', 'Bad Guy (with Justin Bieber)'));
+    }
+
+    public function testFindMediaFileByArtistTitlePrefersStrictArtistOverFeaturingCandidate(): void
+    {
+        // Both artists exist : the bare artist as-is AND the prefixed feat.
+        // form. The strict palier should win — we only fall through to the
+        // prefix lookup when strict fails.
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: false);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-strict', 'Some Track', 'Beyoncé');
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-feat', 'Some Track', 'Beyoncé feat. Jay-Z');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $this->assertSame('mf-strict', $repo->findMediaFileByArtistTitle('Beyoncé', 'Some Track (feat. Jay-Z)'));
+    }
+
+    public function testFindMediaFileByArtistTitleAsymmetricFeaturingAbstainsWithoutMarker(): void
+    {
+        // Title has no featuring marker → the prefix-based palier must NOT
+        // fire (false-positive guard). Returns null even though the lib has
+        // a "Beyoncé feat. Jay-Z / Some Track" candidate.
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: false);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-feat', 'Some Track', 'Beyoncé feat. Jay-Z');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $this->assertNull($repo->findMediaFileByArtistTitle('Beyoncé', 'Some Track'));
+    }
+
     /**
      * @return iterable<string, array{0: string, 1: string}>
      */
