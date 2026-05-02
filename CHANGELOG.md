@@ -8,6 +8,19 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### Added
+- Page **`/lastfm/unmatched`** (menu Last.fm → Unmatched) : audit
+  cumulé de tous les scrobbles non matchés sur l'ensemble des imports,
+  agrégés par `(artist, title, album)` avec compteur et dernier
+  `played_at`. Filtres GET `artist` / `title` / `album` (substring
+  case-insensitive), pagination 50 par page. Actions par ligne :
+  « ✏️ Mapper » (alias manuel) et « + Lidarr » (qui redirige sur la
+  page après ajout, via le nouveau hidden field `_redirect_unmatched`
+  géré par `LidarrController`). Statut Lidarr ✓/✗/— affiché par ligne
+  en réutilisant `LidarrClient::indexExistingArtists()`. Implémentée
+  par `LastFmImportTrackRepository::findUnmatchedAggregated()` +
+  helper statique testable `queryUnmatchedAggregated()`. Lien depuis
+  la carte « Re-tenter le matching cumulé » sur `/lastfm/import`.
+  Closes #56.
 - Commande **`app:lastfm:rematch`** (+ UI sur `/history/{id}` et
   `/lastfm/import`, + cron via `LASTFM_REMATCH_SCHEDULE`) qui ré-applique
   la cascade de matching courante sur les rows `lastfm_import_track`

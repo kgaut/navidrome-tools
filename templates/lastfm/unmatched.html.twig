@@ -1,0 +1,138 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Scrobbles non matchés{% endblock %}
+
+{% block body %}
+    <div class="flex items-start justify-between mb-4 flex-wrap gap-3">
+        <div>
+            <h1 class="text-2xl font-semibold">Scrobbles non matchés</h1>
+            <p class="text-sm text-slate-500">
+                {{ total|number_format(0, '.', ' ') }}
+                groupe{{ total > 1 ? 's' : '' }}
+                (artiste, titre, album) cumulé{{ total > 1 ? 's' : '' }} sur tous les imports.
+                Pour chaque ligne : créez un alias manuel, ajoutez l'artiste à Lidarr, ou
+                lancez un re-match cumulé via la page <a href="{{ path('app_lastfm_import') }}" class="underline">Import</a>.
+            </p>
+        </div>
+    </div>
+
+    <form method="get" class="bg-white shadow rounded p-4 mb-4 grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+        <div>
+            <label class="block text-xs uppercase text-slate-500">Artiste</label>
+            <input type="search" name="artist" value="{{ filters.artist }}" placeholder="ex. Gentleman"
+                   class="w-full border rounded px-2 py-1 text-sm">
+        </div>
+        <div>
+            <label class="block text-xs uppercase text-slate-500">Titre</label>
+            <input type="search" name="title" value="{{ filters.title }}" placeholder="ex. Berlin"
+                   class="w-full border rounded px-2 py-1 text-sm">
+        </div>
+        <div>
+            <label class="block text-xs uppercase text-slate-500">Album</label>
+            <input type="search" name="album" value="{{ filters.album }}" placeholder="ex. Rainbow Warrior"
+                   class="w-full border rounded px-2 py-1 text-sm">
+        </div>
+        <div class="flex gap-2">
+            <button type="submit" class="px-3 py-1.5 rounded bg-slate-900 text-white text-sm">Filtrer</button>
+            <a href="{{ path('app_lastfm_unmatched') }}" class="text-xs text-slate-500 hover:underline self-center">Reset</a>
+        </div>
+    </form>
+
+    {% if not lidarr_configured %}
+        <div class="mb-4 p-3 rounded bg-amber-50 text-amber-800 text-sm">
+            Lidarr n'est pas configuré (<code>LIDARR_URL</code> / <code>LIDARR_API_KEY</code>) —
+            les actions Lidarr sont désactivées.
+        </div>
+    {% elseif not lidarr_reachable %}
+        <div class="mb-4 p-3 rounded bg-rose-50 text-rose-800 text-sm">
+            Lidarr injoignable — actions désactivées le temps qu'il revienne.
+        </div>
+    {% endif %}
+
+    {% if rows is empty %}
+        <div class="bg-white shadow rounded p-6 text-center text-slate-500">
+            Aucun scrobble non matché pour ce filtre 🎉
+        </div>
+    {% else %}
+        <div class="bg-white shadow rounded overflow-hidden">
+            <table class="w-full text-sm">
+                <thead class="bg-slate-100 text-slate-600 text-left text-xs">
+                <tr>
+                    <th class="px-3 py-2 w-10">#</th>
+                    <th class="px-3 py-2">Artiste</th>
+                    <th class="px-3 py-2">Titre</th>
+                    <th class="px-3 py-2">Album</th>
+                    <th class="px-3 py-2 text-right">Scrobbles</th>
+                    <th class="px-3 py-2">Dernier joué</th>
+                    <th class="px-3 py-2">Lidarr</th>
+                    <th class="px-3 py-2 text-right">Actions</th>
+                </tr>
+                </thead>
+                <tbody class="divide-y">
+                {% for row in rows %}
+                    <tr>
+                        <td class="px-3 py-1.5 text-slate-400">{{ (page - 1) * 50 + loop.index }}</td>
+                        <td class="px-3 py-1.5">
+                            <a href="https://www.last.fm/music/{{ row.artist|url_encode }}"
+                               class="hover:underline" target="_blank" rel="noopener">{{ row.artist }}</a>
+                        </td>
+                        <td class="px-3 py-1.5">
+                            <a href="https://www.last.fm/music/{{ row.artist|url_encode }}/_/{{ row.title|url_encode }}"
+                               class="hover:underline" target="_blank" rel="noopener">{{ row.title }}</a>
+                        </td>
+                        <td class="px-3 py-1.5 text-slate-500">{{ row.album ?? '—' }}</td>
+                        <td class="px-3 py-1.5 text-right">{{ row.scrobbles }}</td>
+                        <td class="px-3 py-1.5 text-xs text-slate-500" title="{{ row.last_played|date('Y-m-d H:i:s') }}">
+                            {{ row.last_played|date('Y-m-d') }}
+                        </td>
+                        <td class="px-3 py-1.5">
+                            {% if not lidarr_configured or not lidarr_reachable %}
+                                <span class="text-xs text-slate-400">—</span>
+                            {% elseif row.lidarr_url %}
+                                <a href="{{ row.lidarr_url }}" target="_blank" rel="noopener"
+                                   class="text-xs px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 hover:bg-emerald-200">
+                                    ✓ déjà
+                                </a>
+                            {% else %}
+                                <span class="text-xs px-2 py-0.5 rounded bg-slate-200 text-slate-700">✗ absent</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-3 py-1.5 text-right whitespace-nowrap">
+                            <a href="{{ path('app_lastfm_alias_new', {source_artist: row.artist, source_title: row.title}) }}"
+                               class="text-xs px-2 py-0.5 rounded bg-slate-700 text-white hover:bg-slate-800 mr-1"
+                               title="Créer un alias manuel pour ce scrobble">✏️ Mapper</a>
+                            {% if lidarr_configured and lidarr_reachable and not row.lidarr_url %}
+                                <form method="post" action="{{ path('app_lidarr_add_artist') }}"
+                                      class="inline"
+                                      onsubmit="return confirm('Ajouter « {{ row.artist|e('js') }} » à Lidarr ?');">
+                                    <input type="hidden" name="_token" value="{{ csrf_token('lidarr_add') }}">
+                                    <input type="hidden" name="artist" value="{{ row.artist }}">
+                                    <input type="hidden" name="_redirect_unmatched" value="1">
+                                    <button type="submit"
+                                            class="text-xs px-2 py-0.5 rounded bg-emerald-600 text-white hover:bg-emerald-700">
+                                        + Lidarr
+                                    </button>
+                                </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if total_pages > 1 %}
+            <div class="flex items-center justify-center gap-2 mt-4 text-sm">
+                {% if page > 1 %}
+                    <a href="{{ path('app_lastfm_unmatched', filters|merge({page: page - 1})) }}"
+                       class="px-3 py-1 rounded border hover:bg-slate-100">‹ Précédent</a>
+                {% endif %}
+                <span class="text-slate-500">Page {{ page }} / {{ total_pages }}</span>
+                {% if page < total_pages %}
+                    <a href="{{ path('app_lastfm_unmatched', filters|merge({page: page + 1})) }}"
+                       class="px-3 py-1 rounded border hover:bg-slate-100">Suivant ›</a>
+                {% endif %}
+            </div>
+        {% endif %}
+    {% endif %}
+{% endblock %}
