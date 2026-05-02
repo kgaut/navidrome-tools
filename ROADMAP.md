@@ -56,6 +56,29 @@ l'ordre d'attaque recommandé.
 | [#8]  | Export M3U téléchargeable depuis la prévisualisation            | S      |
 | [#5]  | Diff entre deux runs d'une même playlist                        | M      |
 
+#### Gestion des playlists Navidrome (meta [#71])
+
+Vraie page de gestion des playlists côté navidrome-tools : voir/renommer/
+supprimer/starrer sans avoir à ouvrir Navidrome. Toutes les écritures
+restent côté Subsonic (DB Navidrome `:ro`). Voir le meta [#71] pour le
+contexte complet et l'ordre d'attaque (72 → 73 → 74-77 en parallèle).
+
+| #     | Titre                                                              | Effort |
+|-------|--------------------------------------------------------------------|--------|
+| [#72] | Liste sur `/playlists` (étend `getPlaylists` avec count/durée/dates) | S      |
+| [#73] | Page détail `/playlists/{id}` avec tracks et statut starred        | S      |
+| [#74] | Renommer une playlist via `updatePlaylist.view`                    | S      |
+| [#75] | Supprimer depuis l'UI + nettoyage `lastSubsonicPlaylistId`         | S      |
+| [#76] | Star / unstar individuel d'un morceau (réutilise `starTracks`)     | S      |
+| [#77] | Bulk star/unstar de tous les morceaux d'une playlist               | S      |
+| [#79] | Dupliquer une playlist                                             | S      |
+| [#82] | Bulk delete depuis la liste                                        | S      |
+| [#83] | Export M3U depuis la page détail (mutualisé avec [#8])             | M      |
+| [#84] | Auto-star CLI réutilisant `starTracks` (ferme [#6])                | M      |
+| [#78] | Ajouter / retirer / réordonner des morceaux                        | M      |
+| [#80] | Statistiques par playlist (durée, top artistes, distribution)      | M      |
+| [#81] | Détection des morceaux morts + purge                               | M      |
+
 ### Cron / observabilité
 
 | #   | Titre                                                              | Effort |
@@ -128,3 +151,17 @@ quand on tagge des releases) :
 [#31]: https://github.com/kgaut/navidrome-playlist-generator/issues/31
 [#47]: https://github.com/kgaut/navidrome-playlist-generator/issues/47
 [#58]: https://github.com/kgaut/navidrome-playlist-generator/issues/58
+[#71]: https://github.com/kgaut/navidrome-playlist-generator/issues/71
+[#72]: https://github.com/kgaut/navidrome-playlist-generator/issues/72
+[#73]: https://github.com/kgaut/navidrome-playlist-generator/issues/73
+[#74]: https://github.com/kgaut/navidrome-playlist-generator/issues/74
+[#75]: https://github.com/kgaut/navidrome-playlist-generator/issues/75
+[#76]: https://github.com/kgaut/navidrome-playlist-generator/issues/76
+[#77]: https://github.com/kgaut/navidrome-playlist-generator/issues/77
+[#78]: https://github.com/kgaut/navidrome-playlist-generator/issues/78
+[#79]: https://github.com/kgaut/navidrome-playlist-generator/issues/79
+[#80]: https://github.com/kgaut/navidrome-playlist-generator/issues/80
+[#81]: https://github.com/kgaut/navidrome-playlist-generator/issues/81
+[#82]: https://github.com/kgaut/navidrome-playlist-generator/issues/82
+[#83]: https://github.com/kgaut/navidrome-playlist-generator/issues/83
+[#84]: https://github.com/kgaut/navidrome-playlist-generator/issues/84
