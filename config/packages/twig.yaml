@@ -1,5 +1,9 @@
 twig:
     default_path: '%kernel.project_dir%/templates'
+    date:
+        # Convert dates to APP_TIMEZONE when rendered via the |date filter,
+        # so UTC-stored timestamps display in the operator's local time.
+        timezone: '%env(APP_TIMEZONE)%'
     globals:
         navidrome_url: '%navidrome.url%'
 

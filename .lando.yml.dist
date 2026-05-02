@@ -22,6 +22,8 @@ services:
         APP_ENV: dev
         APP_DEBUG: '1'
         APP_SECRET: dev-secret-change-me-please-1234567890
+        # Display timezone (PHP + Twig). Default UTC. Try Europe/Paris.
+        APP_TIMEZONE: 'UTC'
         NAVIDROME_DB_PATH: /app/var/navidrome.db
         NAVIDROME_URL: http://host.lando.internal:4533
         NAVIDROME_USER: admin

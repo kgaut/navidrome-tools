@@ -8,6 +8,12 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### Added
+- Variable d'environnement `APP_TIMEZONE` (défaut `UTC`). Appliquée
+  au boot du `Kernel` (PHP `date_default_timezone_set`) ET à Twig
+  (filtre `|date` via `twig.date.timezone`). Les timestamps restent
+  stockés en UTC ; la conversion ne se fait qu'à l'affichage. Une
+  valeur invalide retombe silencieusement sur UTC. Exemples :
+  `Europe/Paris`, `America/New_York`, `Asia/Tokyo`.
 - Sync **bidirectionnelle Last.fm loved ↔ Navidrome starred**
   (adds-only, idempotent). Le morceau ❤ sur Last.fm devient ★ dans
   Navidrome (et inversement). Aucun morceau n'est jamais déstarré ni

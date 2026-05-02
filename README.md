@@ -85,6 +85,7 @@ pouvez les éditer puis les activer.
 | `APP_SECRET`         | oui         | Secret Symfony (32 caractères hex). `openssl rand -hex 32`.              |
 | `APP_ENV`            | non (`prod`)| `prod` ou `dev`.                                                         |
 | `APP_MODE`           | non (`web`) | `web` (FrankenPHP) ou `cron` (supercronic).                              |
+| `APP_TIMEZONE`       | non (`UTC`) | Fuseau d'affichage (PHP + Twig). Ex. `Europe/Paris`. Stockage reste UTC. |
 | `NAVIDROME_DB_PATH`  | oui         | Chemin du fichier SQLite Navidrome dans le conteneur. Bind-mounter `:ro`.|
 | `NAVIDROME_URL`      | oui         | URL HTTP(S) de Navidrome (sans slash final).                             |
 | `NAVIDROME_USER`     | oui         | Utilisateur Navidrome dont on lit les écoutes et qui possède les playlists. |
