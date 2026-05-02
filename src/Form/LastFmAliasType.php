@@ -23,17 +23,23 @@ class LastFmAliasType extends AbstractType
         /** @var LastFmAlias|null $alias */
         $alias = $options['alias'];
         $isSkip = $alias !== null && $alias->isSkip();
+        $prefillArtist = $options['prefill_source_artist'] !== ''
+            ? $options['prefill_source_artist']
+            : ($alias?->getSourceArtist() ?? '');
+        $prefillTitle = $options['prefill_source_title'] !== ''
+            ? $options['prefill_source_title']
+            : ($alias?->getSourceTitle() ?? '');
 
         $builder
             ->add('source_artist', TextType::class, [
                 'label' => 'Artiste (Last.fm)',
                 'help' => 'Tel qu\'écrit par Last.fm. Comparé sans accents / casse / ponctuation.',
-                'data' => $alias?->getSourceArtist() ?? '',
+                'data' => $prefillArtist,
                 'constraints' => [new NotBlank()],
             ])
             ->add('source_title', TextType::class, [
                 'label' => 'Titre (Last.fm)',
-                'data' => $alias?->getSourceTitle() ?? '',
+                'data' => $prefillTitle,
                 'constraints' => [new NotBlank()],
             ])
             ->add('skip', CheckboxType::class, [
@@ -70,7 +76,11 @@ class LastFmAliasType extends AbstractType
     {
         $resolver->setDefaults([
             'alias' => null,
+            'prefill_source_artist' => '',
+            'prefill_source_title' => '',
         ]);
         $resolver->setAllowedTypes('alias', [LastFmAlias::class, 'null']);
+        $resolver->setAllowedTypes('prefill_source_artist', 'string');
+        $resolver->setAllowedTypes('prefill_source_title', 'string');
     }
 }
