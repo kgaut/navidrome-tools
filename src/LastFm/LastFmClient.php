@@ -89,6 +89,113 @@ class LastFmClient
     }
 
     /**
+     * Iterate over every loved track for $user (most-recent first).
+     * 50 entries per page, paginated until exhaustion. Same throttling
+     * as {@see streamRecentTracks()}.
+     *
+     * @return \Generator<LastFmLovedTrack>
+     */
+    public function iterateLovedTracks(string $apiKey, string $user): \Generator
+    {
+        $page = 1;
+        $totalPages = null;
+
+        do {
+            $payload = $this->call([
+                'method' => 'user.getLovedTracks',
+                'user' => $user,
+                'api_key' => $apiKey,
+                'format' => 'json',
+                'limit' => 50,
+                'page' => $page,
+            ]);
+
+            $tracks = $payload['lovedtracks']['track'] ?? [];
+            if (isset($tracks['name'])) {
+                $tracks = [$tracks];
+            }
+
+            foreach ($tracks as $track) {
+                $ts = isset($track['date']['uts']) ? (int) $track['date']['uts'] : 0;
+                yield new LastFmLovedTrack(
+                    artist: (string) ($track['artist']['name'] ?? $track['artist']['#text'] ?? ''),
+                    title: (string) ($track['name'] ?? ''),
+                    mbid: ($track['mbid'] ?? '') !== '' ? (string) $track['mbid'] : null,
+                    lovedAt: $ts > 0
+                        ? (new \DateTimeImmutable('@' . $ts))->setTimezone(new \DateTimeZone('UTC'))
+                        : null,
+                );
+            }
+
+            if ($totalPages === null) {
+                $totalPages = (int) ($payload['lovedtracks']['@attr']['totalPages'] ?? 1);
+            }
+            $page++;
+            if ($page <= $totalPages && $this->pageDelaySeconds > 0) {
+                sleep($this->pageDelaySeconds);
+            }
+        } while ($page <= $totalPages);
+    }
+
+    /**
+     * Mark a track as loved by the user owning $sk. Authenticated +
+     * signed POST per https://www.last.fm/api/show/track.love.
+     */
+    public function trackLove(string $apiKey, string $apiSecret, string $sk, string $artist, string $title): void
+    {
+        $this->writeAction('track.love', $apiKey, $apiSecret, $sk, $artist, $title);
+    }
+
+    public function trackUnlove(string $apiKey, string $apiSecret, string $sk, string $artist, string $title): void
+    {
+        $this->writeAction('track.unlove', $apiKey, $apiSecret, $sk, $artist, $title);
+    }
+
+    private function writeAction(
+        string $method,
+        string $apiKey,
+        string $apiSecret,
+        string $sk,
+        string $artist,
+        string $title,
+    ): void {
+        $params = [
+            'method' => $method,
+            'api_key' => $apiKey,
+            'artist' => $artist,
+            'track' => $title,
+            'sk' => $sk,
+        ];
+        $params['api_sig'] = LastFmApiSigner::sign($params, $apiSecret);
+        $params['format'] = 'json';
+
+        try {
+            $response = $this->httpClient->request('POST', self::BASE_URL, [
+                'body' => $params,
+                'timeout' => 30,
+            ]);
+            $body = $response->toArray(throw: true);
+        } catch (\Throwable $e) {
+            throw new \RuntimeException(sprintf(
+                'Last.fm %s failed for "%s — %s": %s',
+                $method,
+                $artist,
+                $title,
+                $e->getMessage(),
+            ), 0, $e);
+        }
+
+        if (isset($body['error'])) {
+            throw new \RuntimeException(sprintf(
+                'Last.fm %s error %s: %s',
+                $method,
+                $body['error'],
+                $body['message'] ?? 'unknown',
+            ));
+        }
+    }
+
+    /**
      * @param array<string, scalar> $params
      *
      * @return array<string, mixed>
