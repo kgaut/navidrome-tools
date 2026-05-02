@@ -38,21 +38,22 @@ class LastFmAliasController extends AbstractController
     #[Route('/lastfm/aliases/new', name: 'app_lastfm_alias_new', methods: ['GET', 'POST'])]
     public function new(Request $request, LastFmAliasRepository $repo, EntityManagerInterface $em): Response
     {
+        // Pre-fill from query string (« Mapper » button on /history/{id}
+        // and /lastfm/unmatched). Passed as FormType options because the
+        // field's `data` option in the builder takes precedence over
+        // post-creation `setData()` calls.
+        $prefillArtist = $request->isMethod('GET')
+            ? trim((string) $request->query->get('source_artist', ''))
+            : '';
+        $prefillTitle = $request->isMethod('GET')
+            ? trim((string) $request->query->get('source_title', ''))
+            : '';
+
         $form = $this->createForm(LastFmAliasType::class, null, [
             'alias' => null,
+            'prefill_source_artist' => $prefillArtist,
+            'prefill_source_title' => $prefillTitle,
         ]);
-
-        // Pre-fill from query string when coming from a "Mapper" button.
-        if ($request->isMethod('GET')) {
-            $prefillArtist = (string) $request->query->get('source_artist', '');
-            $prefillTitle = (string) $request->query->get('source_title', '');
-            if ($prefillArtist !== '') {
-                $form->get('source_artist')->setData($prefillArtist);
-            }
-            if ($prefillTitle !== '') {
-                $form->get('source_title')->setData($prefillTitle);
-            }
-        }
 
         $form->handleRequest($request);
         if ($form->isSubmitted() && $form->isValid()) {

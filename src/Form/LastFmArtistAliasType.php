@@ -18,12 +18,15 @@ class LastFmArtistAliasType extends AbstractType
     {
         /** @var LastFmArtistAlias|null $alias */
         $alias = $options['alias'];
+        $prefillSource = $options['prefill_source_artist'] !== ''
+            ? $options['prefill_source_artist']
+            : ($alias?->getSourceArtist() ?? '');
 
         $builder
             ->add('source_artist', TextType::class, [
                 'label' => 'Artiste source (Last.fm)',
                 'help' => 'Le nom tel qu\'envoyé par Last.fm (ex. « La Ruda Salska »). Comparé sans accents / casse / ponctuation.',
-                'data' => $alias?->getSourceArtist() ?? '',
+                'data' => $prefillSource,
                 'constraints' => [new NotBlank()],
             ])
             ->add('target_artist', TextType::class, [
@@ -38,7 +41,9 @@ class LastFmArtistAliasType extends AbstractType
     {
         $resolver->setDefaults([
             'alias' => null,
+            'prefill_source_artist' => '',
         ]);
         $resolver->setAllowedTypes('alias', [LastFmArtistAlias::class, 'null']);
+        $resolver->setAllowedTypes('prefill_source_artist', 'string');
     }
 }

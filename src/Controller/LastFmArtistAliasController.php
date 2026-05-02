@@ -38,17 +38,18 @@ class LastFmArtistAliasController extends AbstractController
     #[Route('/lastfm/artist-aliases/new', name: 'app_lastfm_artist_alias_new', methods: ['GET', 'POST'])]
     public function new(Request $request, LastFmArtistAliasRepository $repo, EntityManagerInterface $em): Response
     {
+        // Pre-fill from query string when coming from the « Aliaser l'artiste »
+        // button — passed as a FormType option so it wires into the field's
+        // initial `data`. Setting `data` via the form builder takes precedence
+        // over post-creation `setData()` calls, hence this route.
+        $prefillSource = $request->isMethod('GET')
+            ? trim((string) $request->query->get('source_artist', ''))
+            : '';
+
         $form = $this->createForm(LastFmArtistAliasType::class, null, [
             'alias' => null,
+            'prefill_source_artist' => $prefillSource,
         ]);
-
-        // Pre-fill from query string when coming from the « Aliaser l'artiste » button.
-        if ($request->isMethod('GET')) {
-            $prefill = (string) $request->query->get('source_artist', '');
-            if ($prefill !== '') {
-                $form->get('source_artist')->setData($prefill);
-            }
-        }
 
         $form->handleRequest($request);
         if ($form->isSubmitted() && $form->isValid()) {
