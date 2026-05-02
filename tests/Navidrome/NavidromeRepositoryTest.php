@@ -204,18 +204,28 @@ class NavidromeRepositoryTest extends TestCase
      */
     public static function versionMarkerVariants(): iterable
     {
-        yield 'dash + Radio Edit'         => ['Soleil Bleu - Radio Edit'];
-        yield 'parens + Radio Edit'       => ['Soleil Bleu (Radio Edit)'];
-        yield 'dash + Album Version'      => ['Soleil Bleu - Album Version'];
-        yield 'parens + Album Version'    => ['Soleil Bleu (Album Version)'];
-        yield 'dash + Remastered'         => ['Soleil Bleu - Remastered'];
-        yield 'dash + Remastered year'    => ['Soleil Bleu - Remastered 2011'];
-        yield 'dash + year Remaster'      => ['Soleil Bleu - 2011 Remaster'];
-        yield 'parens + Remastered year'  => ['Soleil Bleu (Remastered 2011)'];
-        yield 'dash + Extended Mix'       => ['Soleil Bleu - Extended Mix'];
-        yield 'dash + Mono Version'       => ['Soleil Bleu - Mono Version'];
-        yield 'en dash + Radio Edit'      => ["Soleil Bleu \u{2013} Radio Edit"];
-        yield 'mixed case'                => ['Soleil Bleu - Radio EDIT'];
+        yield 'dash + Radio Edit'             => ['Soleil Bleu - Radio Edit'];
+        yield 'parens + Radio Edit'           => ['Soleil Bleu (Radio Edit)'];
+        yield 'brackets + Radio Edit'         => ['Soleil Bleu [Radio Edit]'];
+        yield 'dash + Album Version'          => ['Soleil Bleu - Album Version'];
+        yield 'parens + Album Version'        => ['Soleil Bleu (Album Version)'];
+        yield 'dash + Remastered'             => ['Soleil Bleu - Remastered'];
+        yield 'dash + Remastered year'        => ['Soleil Bleu - Remastered 2011'];
+        yield 'dash + year Remaster'          => ['Soleil Bleu - 2011 Remaster'];
+        yield 'parens + Remastered year'      => ['Soleil Bleu (Remastered 2011)'];
+        yield 'dash + Extended Mix'           => ['Soleil Bleu - Extended Mix'];
+        yield 'dash + Mono Version'           => ['Soleil Bleu - Mono Version'];
+        yield 'en dash + Radio Edit'          => ["Soleil Bleu \u{2013} Radio Edit"];
+        yield 'mixed case'                    => ['Soleil Bleu - Radio EDIT'];
+        yield 'parens + Live'                 => ['Soleil Bleu (Live)'];
+        yield 'parens + Live at venue'        => ['Soleil Bleu (Live at Reading 1992)'];
+        yield 'dash + Live'                   => ['Soleil Bleu - Live'];
+        yield 'parens + Acoustic'             => ['Soleil Bleu (Acoustic)'];
+        yield 'parens + Acoustic Version'     => ['Soleil Bleu (Acoustic Version)'];
+        yield 'parens + Instrumental'         => ['Soleil Bleu (Instrumental)'];
+        yield 'parens + Demo'                 => ['Soleil Bleu (Demo)'];
+        yield 'parens + Deluxe Edition'       => ['Soleil Bleu (Deluxe Edition)'];
+        yield 'dash + Deluxe Version'         => ['Soleil Bleu - Deluxe Version'];
     }
 
     #[DataProvider('versionMarkerVariants')]
@@ -244,19 +254,46 @@ class NavidromeRepositoryTest extends TestCase
         $this->assertSame('mf-edit', $repo->findMediaFileByArtistTitle('Some Artist', 'Soleil Bleu - Radio Edit'));
     }
 
-    public function testFindMediaFileByArtistTitleVersionStripDoesNotEatLiveOrRemix(): void
+    public function testFindMediaFileByArtistTitleStripDoesNotEatTitleBodyKeywords(): void
     {
-        // Live / Remix / Acoustic refer to different recordings; we deliberately
-        // do NOT strip them. If Navidrome doesn't have the exact suffixed row,
-        // the import should leave it unmatched (better than matching the wrong
-        // recording).
+        // Decoration patterns require explicit delimiters (parens / brackets
+        // / dash), so a title like "Live and Let Die" or "Live Forever" must
+        // remain intact when matching against the same bare row.
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: false);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-let-die', 'Live and Let Die', 'Wings');
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-forever', 'Live Forever', 'Oasis');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $this->assertSame('mf-let-die', $repo->findMediaFileByArtistTitle('Wings', 'Live and Let Die'));
+        $this->assertSame('mf-forever', $repo->findMediaFileByArtistTitle('Oasis', 'Live Forever'));
+    }
+
+    public function testFindMediaFileByArtistTitleVersionStripLeavesRemixAlone(): void
+    {
+        // Remix is intentionally NOT in the strip list — DJ remixes are
+        // distinct recordings. If the lib doesn't have the suffixed row,
+        // the import should leave it unmatched.
         $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: false);
         NavidromeFixtureFactory::insertTrack($conn, 'mf-bare', 'Soleil Bleu', 'Some Artist');
 
         $repo = new NavidromeRepository($this->dbPath, 'admin');
-        $this->assertNull($repo->findMediaFileByArtistTitle('Some Artist', 'Soleil Bleu - Live'));
-        $this->assertNull($repo->findMediaFileByArtistTitle('Some Artist', 'Soleil Bleu (Acoustic)'));
         $this->assertNull($repo->findMediaFileByArtistTitle('Some Artist', 'Soleil Bleu - DJ Foo Remix'));
+        $this->assertNull($repo->findMediaFileByArtistTitle('Some Artist', 'Soleil Bleu (Club Remix)'));
+    }
+
+    public function testFindMediaFileByArtistTitleStripsFeaturingFromTitle(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: false);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', 'Crazy in Love', 'Beyonce');
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-2', 'Bad Guy', 'Billie Eilish');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        // "(feat. X)" / "(ft. X)" / "(featuring X)" / "(with X)" suffixes
+        // are stripped from the title side. Brackets work too.
+        $this->assertSame('mf-1', $repo->findMediaFileByArtistTitle('Beyonce', 'Crazy in Love (feat. Jay-Z)'));
+        $this->assertSame('mf-1', $repo->findMediaFileByArtistTitle('Beyonce', 'Crazy in Love (ft. Jay-Z)'));
+        $this->assertSame('mf-1', $repo->findMediaFileByArtistTitle('Beyonce', 'Crazy in Love [featuring Jay-Z]'));
+        $this->assertSame('mf-2', $repo->findMediaFileByArtistTitle('Billie Eilish', 'Bad Guy (with Justin Bieber)'));
     }
 
     public function testFindMediaFileByArtistTitleCombinesFeaturingAndVersionStrip(): void

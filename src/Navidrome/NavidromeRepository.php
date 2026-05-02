@@ -967,7 +967,7 @@ class NavidromeRepository
         // delimiters (parens, dashes, dots in "feat.") that self::normalize()
         // now strips out. Re-normalize the stripped form before lookup.
         $leadArtistN = self::normalize(self::stripFeaturedArtists($artist));
-        $bareTitleN = self::normalize(self::stripVersionMarkers($title));
+        $bareTitleN = self::normalize(self::stripVersionMarkers(self::stripFeaturingFromTitle($title)));
         $artistChanged = $leadArtistN !== '' && $leadArtistN !== $artistN;
         $titleChanged = $bareTitleN !== '' && $bareTitleN !== $titleN;
 
@@ -1020,21 +1020,25 @@ class NavidromeRepository
     }
 
     /**
-     * Drop a trailing version-marker suffix from a (raw, not yet normalized)
-     * title. Handles the parenthesized form "(Radio Edit)" and the
-     * dash-separated form " - Radio Edit" (also en/em dashes). Markers are
-     * limited to those that denote different *masters / packagings* of the
-     * same musical recording (radio/album/single/extended/mono/stereo
-     * edit/version/mix and remaster with optional year). Live / Remix /
-     * Acoustic / Instrumental / Demo are intentionally NOT stripped — they
-     * typically refer to a different recording. Operates on the raw input
-     * because self::normalize() strips parens/dashes, which would defeat
-     * the patterns below.
+     * Drop a trailing version-marker / decoration suffix from a (raw, not yet
+     * normalized) title. Handles three forms — parenthesized "(Radio Edit)",
+     * bracketed "[Radio Edit]", dash-separated " - Radio Edit" (ASCII -, en
+     * dash, em dash). Strips master/packaging markers (radio/album/single/
+     * extended/mono/stereo edit/version/mix, remaster with optional year) and
+     * recording-context markers (live, acoustic, instrumental, demo, deluxe).
+     * Live/acoustic/etc. is only stripped when *delimited* — `Live and Let
+     * Die` in the title body remains intact. Remix is intentionally NOT
+     * stripped (DJ remixes are usually distinct recordings). Operates on
+     * the raw input because self::normalize() strips parens/dashes/dots
+     * which would defeat the patterns below.
      */
     private static function stripVersionMarkers(string $title): string
     {
         // Order matters: longer alternatives must come first so "remastered 2011"
         // is captured by the year-aware pattern instead of just "remastered".
+        // Contextual markers (live/acoustic/…) accept an optional trailing
+        // qualifier so "Live at Reading 1992" / "Acoustic Version" / "Deluxe
+        // Edition" all match.
         $markers = '(?:'
             . 'remastered \d{4}|remaster \d{4}|\d{4} remastered|\d{4} remaster'
             . '|radio edit|radio mix|radio version'
@@ -1043,12 +1047,36 @@ class NavidromeRepository
             . '|extended version|extended mix|extended edit'
             . '|mono version|stereo version'
             . '|remastered|remaster'
+            . '|live(?:\s[^)\]]+)?'
+            . '|acoustic(?:\s+(?:version|mix))?'
+            . '|instrumental(?:\s+version)?'
+            . '|demo(?:\s+version)?'
+            . '|deluxe(?:\s+(?:edition|version))?'
             . ')';
 
         // Parenthesized form: " (Radio Edit)".
         $stripped = preg_replace('/\s*\(' . $markers . '\)\s*$/iu', '', $title) ?? $title;
+        // Bracketed form: " [Radio Edit]".
+        $stripped = preg_replace('/\s*\[' . $markers . '\]\s*$/iu', '', $stripped) ?? $stripped;
         // Dash-separated form: " - Radio Edit" (ASCII -, en dash, em dash).
         $stripped = preg_replace('/\s+[\-\x{2013}\x{2014}]\s+' . $markers . '\s*$/iu', '', $stripped) ?? $stripped;
+
+        return trim($stripped);
+    }
+
+    /**
+     * Drop a parenthesized or bracketed featuring/with suffix from a title.
+     * Catches "Crazy in Love (feat. Jay-Z)", "Bad Guy (with Justin Bieber)",
+     * "Some Track [featuring X]". Only the delimited form is stripped — never
+     * a trailing " feat. X" without parens, which is too risky on titles
+     * (real titles can legitimately contain "feat" as a word). Operates on
+     * the raw input.
+     */
+    private static function stripFeaturingFromTitle(string $title): string
+    {
+        $pattern = '(?:feat\.?|ft\.?|featuring|with)\s+[^)\]]+';
+        $stripped = preg_replace('/\s*\(' . $pattern . '\)\s*$/iu', '', $title) ?? $title;
+        $stripped = preg_replace('/\s*\[' . $pattern . '\]\s*$/iu', '', $stripped) ?? $stripped;
 
         return trim($stripped);
     }
