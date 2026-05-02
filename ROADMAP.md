@@ -62,6 +62,7 @@ l'ordre d'attaque recommandé.
 |-----|--------------------------------------------------------------------|--------|
 | [#7]  | Notifications cron (Discord / Slack / Pushover)                 | M      |
 | [#9]  | Webhooks sortants génériques (POST JSON après chaque run)       | M      |
+| [#58] | Tableau des 10 derniers runs sur le dashboard                   | S      |
 
 ### UI — Miniatures album/artiste (meta [#26])
 
@@ -126,3 +127,4 @@ quand on tagge des releases) :
 [#30]: https://github.com/kgaut/navidrome-playlist-generator/issues/30
 [#31]: https://github.com/kgaut/navidrome-playlist-generator/issues/31
 [#47]: https://github.com/kgaut/navidrome-playlist-generator/issues/47
+[#58]: https://github.com/kgaut/navidrome-playlist-generator/issues/58
