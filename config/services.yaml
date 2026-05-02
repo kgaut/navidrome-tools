@@ -94,3 +94,8 @@ services:
         arguments:
             $apiKey: '%lastfm.api_key%'
             $apiSecret: '%lastfm.api_secret%'
+
+    App\LastFm\LovedStarredSyncService:
+        arguments:
+            $apiKey: '%lastfm.api_key%'
+            $apiSecret: '%lastfm.api_secret%'

@@ -47,6 +47,7 @@ class HistoryController extends AbstractController
                 RunHistory::TYPE_PLAYLIST => 'Playlist',
                 RunHistory::TYPE_STATS => 'Stats',
                 RunHistory::TYPE_LASTFM_IMPORT => 'Import Last.fm',
+                RunHistory::TYPE_LASTFM_LOVE_SYNC => 'Sync loved/star',
             ],
             'statuses' => [
                 RunHistory::STATUS_SUCCESS => 'Succès',
