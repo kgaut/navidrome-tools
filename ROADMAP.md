@@ -77,6 +77,12 @@ d'attaque (A est prérequis pour B-F).
 | [#30] | D. Miniatures sur les histories (Last.fm, Navidrome, run detail)| S      |
 | [#31] | E. Miniatures sur la preview de playlist                        | S      |
 
+### UI — autres
+
+| #   | Titre                                                              | Effort |
+|-----|--------------------------------------------------------------------|--------|
+| [#87] | Dark theme par défaut sur l'UI                                  | S      |
+
 ---
 
 ## En cours
@@ -122,3 +128,4 @@ quand on tagge des releases) :
 [#31]: https://github.com/kgaut/navidrome-playlist-generator/issues/31
 [#47]: https://github.com/kgaut/navidrome-playlist-generator/issues/47
 [#58]: https://github.com/kgaut/navidrome-playlist-generator/issues/58
+[#87]: https://github.com/kgaut/navidrome-playlist-generator/issues/87
