@@ -8,6 +8,28 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### Added
+- Matching Last.fm : nouveau strip **track-number prefix**
+  (`stripTrackNumberPrefix`) qui retire les préfixes type `01 - `,
+  `02_`, `12-`, `100. ` du titre — vestige de tags MP3 anciens. Exige
+  un séparateur (`_`, `-`, `.`, espace) ET un caractère non-blanc
+  derrière, donc `1979`, `5/4`, `99 Luftballons` restent intacts.
+  Mesuré sur le dataset local : +54 unmatched distincts récupérés.
+  Closes #49.
+- Matching Last.fm : nouveau strip **paren tronquée** Last.fm
+  (`stripTruncatedParen`) qui retire un bloc de parenthèse OUVERTE en
+  fin de titre quand son contenu commence par un marker connu (Last.fm
+  tronque les titres ~64 chars). Garde-fou : abstient si une autre
+  parenthèse fermée est présente. Mesuré : +4 unmatched distincts.
+  Closes #50.
+- Matching Last.fm : nouveau palier last-resort **strip lead-artist**
+  (`stripLeadArtist`) qui retire les co-artistes séparés par `,`,
+  ` - `, ` & `, ` and `, ` et ` (ex. `Médine & Rounhaa` → `Médine`,
+  `Queen & David Bowie` → `Queen`). Conservatif : lookup strict
+  uniquement (pas combiné avec strip-version-markers ni strip-feat) ET
+  exige `album_artist = artist stripped` côté Navidrome (seuil de
+  confiance haut pour limiter les faux-positifs sur les vrais
+  duos/featurings non reconnus comme tels). Mesuré : +11 unmatched
+  distincts. Closes #51.
 - Page **`/lastfm/unmatched`** (menu Last.fm → Unmatched) : audit
   cumulé de tous les scrobbles non matchés sur l'ensemble des imports,
   agrégés par `(artist, title, album)` avec compteur et dernier

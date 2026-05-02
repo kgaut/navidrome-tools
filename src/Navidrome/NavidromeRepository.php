@@ -1065,7 +1065,10 @@ class NavidromeRepository
         // delimiters (parens, dashes, dots in "feat.") that self::normalize()
         // now strips out. Re-normalize the stripped form before lookup.
         $leadArtistN = self::normalize(self::stripFeaturedArtists($artist));
-        $bareTitleN = self::normalize(self::stripVersionMarkers(self::stripFeaturingFromTitle($title)));
+        $bareTitle = self::stripVersionMarkers(self::stripFeaturingFromTitle(
+            self::stripTruncatedParen(self::stripTrackNumberPrefix($title)),
+        ));
+        $bareTitleN = self::normalize($bareTitle);
         $artistChanged = $leadArtistN !== '' && $leadArtistN !== $artistN;
         $titleChanged = $bareTitleN !== '' && $bareTitleN !== $titleN;
 
@@ -1082,7 +1085,19 @@ class NavidromeRepository
             }
         }
         if ($artistChanged && $titleChanged) {
-            return $this->lookupExactArtistTitle($leadArtistN, $bareTitleN);
+            $id = $this->lookupExactArtistTitle($leadArtistN, $bareTitleN);
+            if ($id !== null) {
+                return $id;
+            }
+        }
+
+        // Last-resort: split lead artist on multi-artist separators
+        // ("&", " - ", " and ", " et ", ","). Conservative: only on the
+        // strict (artist, title) couple AND require album_artist to match
+        // the stripped artist for confidence.
+        $leadOnlyN = self::normalize(self::stripLeadArtist($artist));
+        if ($leadOnlyN !== '' && $leadOnlyN !== $artistN && $leadOnlyN !== $leadArtistN) {
+            return $this->lookupExactArtistTitleRequiringAlbumArtist($leadOnlyN, $titleN);
         }
 
         return null;
@@ -1094,6 +1109,25 @@ class NavidromeRepository
                 WHERE np_normalize(artist) = :a
                   AND np_normalize(title) = :t
                 ORDER BY (np_normalize(album_artist) = :a) DESC, id ASC
+                LIMIT 1';
+        $id = $this->connection()->fetchOne($sql, ['a' => $artistNormalized, 't' => $titleNormalized]);
+
+        return is_string($id) && $id !== '' ? $id : null;
+    }
+
+    /**
+     * Strict couple lookup that ALSO requires album_artist to match.
+     * Used as a confidence threshold for risky strips (e.g. lead-artist
+     * fallback on multi-artist separators) where the relaxed tie-break
+     * of {@see lookupExactArtistTitle()} would let through false-positives.
+     */
+    private function lookupExactArtistTitleRequiringAlbumArtist(string $artistNormalized, string $titleNormalized): ?string
+    {
+        $sql = 'SELECT id FROM media_file
+                WHERE np_normalize(artist) = :a
+                  AND np_normalize(title) = :t
+                  AND np_normalize(album_artist) = :a
+                ORDER BY id ASC
                 LIMIT 1';
         $id = $this->connection()->fetchOne($sql, ['a' => $artistNormalized, 't' => $titleNormalized]);
 
@@ -1177,6 +1211,55 @@ class NavidromeRepository
         $stripped = preg_replace('/\s*\[' . $pattern . '\]\s*$/iu', '', $stripped) ?? $stripped;
 
         return trim($stripped);
+    }
+
+    /**
+     * Drop a leading track-number prefix like "01 - ", "02_", "12-",
+     * "100. " from a title — vestige of old MP3 tags where the title
+     * embeds the track number. Requires a delimiter (`_`, `-`, `.`,
+     * whitespace) AND a non-blank character behind, so titles like
+     * "1979" or "5/4" (followed by end-of-string) are not eaten.
+     */
+    private static function stripTrackNumberPrefix(string $title): string
+    {
+        return trim(preg_replace('/^\d{1,3}[_\-.\s]+(?=\S)/u', '', $title) ?? $title);
+    }
+
+    /**
+     * Drop a trailing OPEN parenthesis block when its content starts
+     * with a known marker keyword — Last.fm truncates titles around 64
+     * chars and leaves unbalanced parens. Abstains if the title already
+     * contains a closed `(...)` group (could be legit). Conservative:
+     * only strips when the open-paren content begins with a recognized
+     * marker so we don't eat legit titles ending in "Foo (something".
+     */
+    private static function stripTruncatedParen(string $title): string
+    {
+        if (preg_match('/\([^)]*\)/u', $title)) {
+            return $title;
+        }
+        $markers = '(?:feat\.?|ft\.?|featuring|with|live|acoustic|remastered|remaster|deluxe|extended|radio|album|single|mono|stereo|instrumental|demo)';
+
+        return trim(preg_replace('/\s*\(' . $markers . '[^)]*$/iu', '', $title) ?? $title);
+    }
+
+    /**
+     * Drop trailing co-artists separated by `,`, ` - `, `&`, ` and `,
+     * ` et ` to keep only the lead artist (e.g. "Médine & Rounhaa" →
+     * "Médine"). Returns the input unchanged if no recognized
+     * separator is present. Used as a last-resort fallback when the
+     * regular cascade fails.
+     */
+    private static function stripLeadArtist(string $artist): string
+    {
+        if (preg_match('/^(.*?)(?:\s*,\s*|\s+-\s+|\s*&\s*|\s+(?:and|et)\s+)/iu', $artist, $m)) {
+            $lead = trim($m[1]);
+            if ($lead !== '' && $lead !== $artist) {
+                return $lead;
+            }
+        }
+
+        return $artist;
     }
 
     /**
