@@ -5,6 +5,7 @@ namespace App\Controller;
 use App\Entity\LastFmAlias;
 use App\Form\LastFmAliasType;
 use App\Repository\LastFmAliasRepository;
+use App\Repository\LastFmMatchCacheRepository;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -36,8 +37,12 @@ class LastFmAliasController extends AbstractController
     }
 
     #[Route('/lastfm/aliases/new', name: 'app_lastfm_alias_new', methods: ['GET', 'POST'])]
-    public function new(Request $request, LastFmAliasRepository $repo, EntityManagerInterface $em): Response
-    {
+    public function new(
+        Request $request,
+        LastFmAliasRepository $repo,
+        EntityManagerInterface $em,
+        LastFmMatchCacheRepository $cacheRepo,
+    ): Response {
         // Pre-fill from query string (« Mapper » button on /history/{id}
         // and /lastfm/unmatched). Passed as FormType options because the
         // field's `data` option in the builder takes precedence over
@@ -83,6 +88,13 @@ class LastFmAliasController extends AbstractController
                 return $this->redirectToRoute('app_lastfm_alias_index', ['q' => $sourceArtist]);
             }
 
+            // Drop any stale match cache row for this couple — the alias
+            // is the source of truth from now on, so the cache must
+            // either be re-cascaded or simply re-bypassed (the alias
+            // check happens first in the matcher).
+            $cacheRepo->purgeByCouple($sourceArtist, $sourceTitle);
+            $em->flush();
+
             $this->addFlash('success', sprintf(
                 'Alias créé : « %s — %s » → %s.',
                 $sourceArtist,
@@ -100,8 +112,13 @@ class LastFmAliasController extends AbstractController
     }
 
     #[Route('/lastfm/aliases/{id}/edit', name: 'app_lastfm_alias_edit', methods: ['GET', 'POST'])]
-    public function edit(int $id, Request $request, LastFmAliasRepository $repo, EntityManagerInterface $em): Response
-    {
+    public function edit(
+        int $id,
+        Request $request,
+        LastFmAliasRepository $repo,
+        EntityManagerInterface $em,
+        LastFmMatchCacheRepository $cacheRepo,
+    ): Response {
         $alias = $repo->find($id);
         if ($alias === null) {
             throw $this->createNotFoundException('Alias introuvable.');
@@ -118,6 +135,12 @@ class LastFmAliasController extends AbstractController
             $skip = (bool) $form->get('skip')->getData();
             $target = $skip ? null : trim((string) $form->get('target_media_file_id')->getData());
 
+            // Capture pre-edit source so we purge cache rows under both
+            // the old AND new couples — the user may have renamed the
+            // alias's source, leaving cache rows under either key.
+            $oldSourceArtist = $alias->getSourceArtist();
+            $oldSourceTitle = $alias->getSourceTitle();
+
             $alias->setSource($sourceArtist, $sourceTitle);
             $alias->setTargetMediaFileId($target);
 
@@ -128,6 +151,12 @@ class LastFmAliasController extends AbstractController
 
                 return $this->redirectToRoute('app_lastfm_alias_index');
             }
+
+            $cacheRepo->purgeByCouple($oldSourceArtist, $oldSourceTitle);
+            if ($oldSourceArtist !== $sourceArtist || $oldSourceTitle !== $sourceTitle) {
+                $cacheRepo->purgeByCouple($sourceArtist, $sourceTitle);
+            }
+            $em->flush();
 
             $this->addFlash('success', sprintf('Alias « %s — %s » mis à jour.', $sourceArtist, $sourceTitle));
 
@@ -141,8 +170,13 @@ class LastFmAliasController extends AbstractController
     }
 
     #[Route('/lastfm/aliases/{id}/delete', name: 'app_lastfm_alias_delete', methods: ['POST'])]
-    public function delete(int $id, Request $request, LastFmAliasRepository $repo, EntityManagerInterface $em): Response
-    {
+    public function delete(
+        int $id,
+        Request $request,
+        LastFmAliasRepository $repo,
+        EntityManagerInterface $em,
+        LastFmMatchCacheRepository $cacheRepo,
+    ): Response {
         $alias = $repo->find($id);
         if ($alias === null) {
             throw $this->createNotFoundException('Alias introuvable.');
@@ -153,7 +187,14 @@ class LastFmAliasController extends AbstractController
         }
 
         $label = sprintf('%s — %s', $alias->getSourceArtist(), $alias->getSourceTitle());
+        $sourceArtist = $alias->getSourceArtist();
+        $sourceTitle = $alias->getSourceTitle();
         $em->remove($alias);
+        $em->flush();
+        // Drop the cache row for this couple. Without the alias, the
+        // cascade now decides — and any stale resolution cached from
+        // before the alias was created might be wrong.
+        $cacheRepo->purgeByCouple($sourceArtist, $sourceTitle);
         $em->flush();
         $this->addFlash('success', sprintf('Alias « %s » supprimé.', $label));
 
