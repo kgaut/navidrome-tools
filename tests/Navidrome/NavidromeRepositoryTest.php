@@ -490,4 +490,174 @@ class NavidromeRepositoryTest extends TestCase
         $this->assertNull($repo->findMediaFileFuzzy('', 'Track', 3));
         $this->assertNull($repo->findMediaFileFuzzy('Artist', '', 3));
     }
+
+    /**
+     * @return iterable<string, array{0: string, 1: string}>
+     */
+    public static function trackNumberPrefixVariants(): iterable
+    {
+        // [stored_title, query_title]
+        yield 'underscore separator'         => ['One Step Forward', '1_One Step Forward'];
+        yield 'dash separator'               => ['I Chase the Devil', '3-I Chase the Devil'];
+        yield 'two-digit dash'               => ['P.H. Theme', '01 - P.H. Theme'];
+        yield 'two-digit underscore'         => ['Strange Days', '02_Strange Days'];
+        yield 'compact dash'                 => ['Tequila (Tequila Sunrise)', '12-Tequila (Tequila Sunrise)'];
+        yield 'space separator'              => ['On Est Encore Là', '09 On Est Encore Là'];
+        yield 'three-digit dot'              => ['Outro', '100. Outro'];
+        yield 'mixed dot space'              => ['Foo', '7. Foo'];
+    }
+
+    #[DataProvider('trackNumberPrefixVariants')]
+    public function testFindMediaFileByArtistTitleStripsTrackNumberPrefix(string $storedTitle, string $queryTitle): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: false);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', $storedTitle, 'Some Artist');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $this->assertSame(
+            'mf-1',
+            $repo->findMediaFileByArtistTitle('Some Artist', $queryTitle),
+            sprintf('"%s" should fall back to "%s"', $queryTitle, $storedTitle),
+        );
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function trackNumberPrefixSafeTitles(): iterable
+    {
+        // Titles that look like a number but must NOT be stripped: the number
+        // is the title itself (no separator + non-blank char behind).
+        yield 'pure number'  => ['1979'];
+        yield 'with slash'   => ['5/4'];
+        yield 'two words'    => ['99 Luftballons'];
+        yield 'four minutes' => ['4 Minutes'];
+    }
+
+    #[DataProvider('trackNumberPrefixSafeTitles')]
+    public function testFindMediaFileByArtistTitleTrackNumberPrefixDoesNotEatLegitNumbers(string $title): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: false);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', $title, 'Some Artist');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        // Strict match must still work — the strip helper must keep numeric
+        // titles intact.
+        $this->assertSame(
+            'mf-1',
+            $repo->findMediaFileByArtistTitle('Some Artist', $title),
+            sprintf('"%s" must still match strict', $title),
+        );
+    }
+
+    /**
+     * @return iterable<string, array{0: string, 1: string}>
+     */
+    public static function truncatedParenVariants(): iterable
+    {
+        // [stored_title, query_title]
+        yield 'live with the far eas'       => ['Runaway', 'Runaway (Live With The Far Eas'];
+        yield 'live with the far'           => ['Rainy Days', 'Rainy Days (Live with the Far'];
+        yield 'live version with th'        => ['Dem Gone', 'Dem Gone (Live Version With Th'];
+        yield 'no space before paren'       => ['Foo', 'Foo(Live truncated text'];
+        yield 'feat truncated'              => ['Crazy in Love', 'Crazy in Love (feat. Jay-'];
+        yield 'with truncated'              => ['Bad Guy', 'Bad Guy (with Justin Bie'];
+    }
+
+    #[DataProvider('truncatedParenVariants')]
+    public function testFindMediaFileByArtistTitleStripsTruncatedParen(string $storedTitle, string $queryTitle): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: false);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', $storedTitle, 'Some Artist');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $this->assertSame(
+            'mf-1',
+            $repo->findMediaFileByArtistTitle('Some Artist', $queryTitle),
+            sprintf('"%s" should fall back to "%s"', $queryTitle, $storedTitle),
+        );
+    }
+
+    public function testFindMediaFileByArtistTitleTruncatedParenAbstainsWithClosedParen(): void
+    {
+        // The title already has a closed paren group → strip would be unsafe
+        // (the open trailing paren could legitimately belong to the title).
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: false);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', 'Foo', 'Some Artist');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $this->assertNull($repo->findMediaFileByArtistTitle('Some Artist', 'Foo (Bar) (Live truncat'));
+    }
+
+    public function testFindMediaFileByArtistTitleTruncatedParenAbstainsWithoutMarker(): void
+    {
+        // No recognized marker after the open paren → don't strip (could be
+        // a legit unbalanced title).
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: false);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', 'Foo', 'Some Artist');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $this->assertNull($repo->findMediaFileByArtistTitle('Some Artist', 'Foo (random truncated text'));
+    }
+
+    /**
+     * @return iterable<string, array{0: string, 1: string}>
+     */
+    public static function leadArtistVariants(): iterable
+    {
+        // [stored_artist, query_artist]
+        yield 'ampersand'       => ['Médine', 'Médine & Rounhaa'];
+        yield 'tight ampersand' => ['Queen', 'Queen & David Bowie'];
+        yield ' - separator'    => ['Les Ogres De Barback', 'Les Ogres De Barback - La Fanfare Du Belgistan'];
+        yield ' et separator'   => ['Daran', 'Daran et Les Chaises'];
+        yield ' and separator'  => ['Cher', 'Cher and Sonny'];
+        yield 'comma separator' => ['Crosby', 'Crosby, Stills, Nash'];
+    }
+
+    #[DataProvider('leadArtistVariants')]
+    public function testFindMediaFileByArtistTitleStripsLeadArtist(string $storedArtist, string $queryArtist): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: false);
+        // Track exists with album_artist = stored artist (canonical studio
+        // album of that artist) — required for the lead-artist fallback to
+        // accept the match (high-confidence threshold).
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', 'Some Title', $storedArtist, albumArtist: $storedArtist);
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $this->assertSame(
+            'mf-1',
+            $repo->findMediaFileByArtistTitle($queryArtist, 'Some Title'),
+            sprintf('"%s" should fall back to "%s"', $queryArtist, $storedArtist),
+        );
+    }
+
+    public function testFindMediaFileByArtistTitleLeadArtistRequiresAlbumArtistMatch(): void
+    {
+        // Same title, same lead artist — but album_artist differs (Various
+        // Artists compilation). The fallback must NOT match: the high-
+        // confidence threshold demands album_artist = stripped artist.
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: false);
+        NavidromeFixtureFactory::insertTrack(
+            $conn,
+            'mf-compilation',
+            'Some Title',
+            'Médine',
+            albumArtist: 'Various Artists',
+        );
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $this->assertNull($repo->findMediaFileByArtistTitle('Médine & Rounhaa', 'Some Title'));
+    }
+
+    public function testFindMediaFileByArtistTitleLeadArtistLeavesMonoNamesAlone(): void
+    {
+        // No recognized separator → stripLeadArtist returns input unchanged
+        // → fallback skipped → only strict / feat / version cascade applies.
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: false);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', 'Hoppipolla', 'Sigur Ros');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $this->assertSame('mf-1', $repo->findMediaFileByArtistTitle('Sigur Ros', 'Hoppipolla'));
+        $this->assertNull($repo->findMediaFileByArtistTitle('Sigur Ros', 'Unknown Title'));
+    }
 }
