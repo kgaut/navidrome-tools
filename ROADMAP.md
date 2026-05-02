@@ -74,7 +74,6 @@ contexte complet et l'ordre d'attaque (72 → 73 → 74-77 en parallèle).
 | [#79] | Dupliquer une playlist                                             | S      |
 | [#82] | Bulk delete depuis la liste                                        | S      |
 | [#83] | Export M3U depuis la page détail (mutualisé avec [#8])             | M      |
-| [#84] | Auto-star CLI réutilisant `starTracks` (ferme [#6])                | M      |
 | [#78] | Ajouter / retirer / réordonner des morceaux                        | M      |
 | [#80] | Statistiques par playlist (durée, top artistes, distribution)      | M      |
 | [#81] | Détection des morceaux morts + purge                               | M      |
@@ -164,4 +163,3 @@ quand on tagge des releases) :
 [#81]: https://github.com/kgaut/navidrome-playlist-generator/issues/81
 [#82]: https://github.com/kgaut/navidrome-playlist-generator/issues/82
 [#83]: https://github.com/kgaut/navidrome-playlist-generator/issues/83
-[#84]: https://github.com/kgaut/navidrome-playlist-generator/issues/84
