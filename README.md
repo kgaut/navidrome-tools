@@ -337,9 +337,12 @@ la variable d'environnement `LASTFM_API_KEY`. De même, le username peut
    3. **Couple** `(artist, title)` normalisé, avec tie-break
       `album_artist = artist` puis `id ASC` ;
    4. **Fallback fuzzy** Levenshtein artist+title (opt-in via
-      `LASTFM_FUZZY_MAX_DISTANCE`, défaut 0 = désactivé, 3 = seuil
-      raisonnable). Coûteux : ne s'active que sur les scrobbles qui
-      ont échoué aux 3 paliers précédents.
+      `LASTFM_FUZZY_MAX_DISTANCE`, défaut 0 = désactivé). **Recommandé
+      pour les imports one-shot** : passer à `2` rattrape les typos
+      type `Du riiechst so gut` → `Du riechst so gut` ou
+      `Tchaïkovski` → `Tchaikovsky` avec très peu de faux-positifs.
+      Coûteux : O(N) par scrobble unmatched — acceptable pour un
+      import manuel, à laisser à `0` sur de très grosses libs.
 
    La normalisation utilisée à toutes les étapes : lowercase + trim
    + décomposition Unicode NFKD + strip des diacritiques (Beyoncé ↔

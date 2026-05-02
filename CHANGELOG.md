@@ -7,6 +7,14 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+### Changed
+- Doc : recommandation explicite d'activer
+  `LASTFM_FUZZY_MAX_DISTANCE=2` pour les imports one-shot Last.fm
+  (`README.md` section Stratégie, `.env.dist`, `CLAUDE.md` §6).
+  Le fuzzy reste désactivé par défaut (coût CPU sur gros catalogues)
+  mais rattrape les typos type `Du riiechst so gut` →
+  `Du riechst so gut` avec très peu de faux-positifs. Closes #52.
+
 ### Added
 - Matching Last.fm : nouveau strip **track-number prefix**
   (`stripTrackNumberPrefix`) qui retire les préfixes type `01 - `,

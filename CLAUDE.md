@@ -343,6 +343,7 @@ Le push du tag déclenche `docker-publish` (cf. `.github/workflows/ci.yml`).
 | `LASTFM_API_KEY`               | Optionnel, fallback du formulaire et de la CLI              |
 | `LASTFM_USER`                  | Optionnel, pré-remplit le champ user / fallback CLI         |
 | `LASTFM_PAGE_DELAY_SECONDS`    | Pause entre 2 pages de l'API (default 10, 0 pour désactiver)|
+| `LASTFM_FUZZY_MAX_DISTANCE`    | Distance Levenshtein max pour le fallback fuzzy (default 0 = off, **2 recommandé pour les imports one-shot**) |
 | `LASTFM_REMATCH_SCHEDULE`      | Cron expr pour `app:lastfm:rematch` (vide = désactivé)      |
 
 Wirées dans : `.env` (dev), `.env.dist` (template), `phpunit.xml.dist`
