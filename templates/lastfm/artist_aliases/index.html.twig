@@ -1,0 +1,86 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Alias artistes Last.fm{% endblock %}
+
+{% block body %}
+    <div class="flex items-start justify-between mb-4 flex-wrap gap-3">
+        <div>
+            <h1 class="text-2xl font-semibold">Alias artistes Last.fm → Navidrome</h1>
+            <p class="text-sm text-slate-500">
+                {{ total|number_format(0, '.', ' ') }} alias définis. Réécrit le nom d'artiste avant la cascade
+                (utile pour les renommages : « La Ruda Salska » → « La Ruda »). Un seul alias couvre tous les
+                morceaux. Pour mapper un track précis vers un media_file, utilisez les
+                <a href="{{ path('app_lastfm_alias_index') }}" class="underline">alias track-level</a>.
+            </p>
+        </div>
+        <a href="{{ path('app_lastfm_artist_alias_new') }}"
+           class="px-3 py-1.5 rounded bg-slate-900 text-white text-sm">+ Nouvel alias artiste</a>
+    </div>
+
+    <form method="get" class="bg-white shadow rounded p-4 mb-4 flex flex-wrap items-end gap-3">
+        <div class="flex-1 min-w-[200px]">
+            <label class="block text-xs uppercase text-slate-500">Recherche</label>
+            <input type="search" name="q" value="{{ filters.q }}" placeholder="Filtrer par artiste source ou cible…"
+                   class="w-full border rounded px-2 py-1 text-sm">
+        </div>
+        <button type="submit" class="px-3 py-1.5 rounded bg-slate-900 text-white text-sm">Filtrer</button>
+        <a href="{{ path('app_lastfm_artist_alias_index') }}" class="text-xs text-slate-500 hover:underline">Réinitialiser</a>
+    </form>
+
+    {% if aliases is empty %}
+        <div class="bg-white shadow rounded p-6 text-center text-slate-500">
+            {% if filters.q %}
+                Aucun alias artiste ne correspond à « {{ filters.q }} ».
+            {% else %}
+                Aucun alias artiste défini pour l'instant. Cliquez « + Nouvel alias artiste » ou utilisez le bouton
+                « 🎭 Aliaser l'artiste » sur la page <a href="{{ path('app_lastfm_unmatched') }}" class="underline">Unmatched</a>.
+            {% endif %}
+        </div>
+    {% else %}
+        <div class="bg-white shadow rounded overflow-hidden">
+            <table class="w-full text-sm">
+                <thead class="bg-slate-100 text-slate-600 text-left text-xs">
+                <tr>
+                    <th class="px-3 py-2">Artiste source (Last.fm)</th>
+                    <th class="px-3 py-2">Artiste cible (Navidrome)</th>
+                    <th class="px-3 py-2">Créé le</th>
+                    <th class="px-3 py-2"></th>
+                </tr>
+                </thead>
+                <tbody class="divide-y">
+                {% for alias in aliases %}
+                    <tr>
+                        <td class="px-3 py-1.5">{{ alias.sourceArtist }}</td>
+                        <td class="px-3 py-1.5">{{ alias.targetArtist }}</td>
+                        <td class="px-3 py-1.5 text-xs text-slate-500">{{ alias.createdAt|date('Y-m-d H:i') }}</td>
+                        <td class="px-3 py-1.5 text-right whitespace-nowrap">
+                            <a href="{{ path('app_lastfm_artist_alias_edit', {id: alias.id}) }}"
+                               class="text-xs text-sky-700 hover:underline">Modifier</a>
+                            <form method="post" action="{{ path('app_lastfm_artist_alias_delete', {id: alias.id}) }}"
+                                  class="inline-block ml-2"
+                                  onsubmit="return confirm('Supprimer cet alias artiste ?');">
+                                <input type="hidden" name="_token" value="{{ csrf_token('delete-artist-alias-' ~ alias.id) }}">
+                                <button type="submit" class="text-xs text-rose-700 hover:underline">Supprimer</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if total_pages > 1 %}
+            <div class="flex items-center justify-center gap-2 mt-4 text-sm">
+                {% if page > 1 %}
+                    <a href="{{ path('app_lastfm_artist_alias_index', filters|merge({page: page - 1})) }}"
+                       class="px-3 py-1 rounded border hover:bg-slate-100">‹ Précédent</a>
+                {% endif %}
+                <span class="text-slate-500">Page {{ page }} / {{ total_pages }}</span>
+                {% if page < total_pages %}
+                    <a href="{{ path('app_lastfm_artist_alias_index', filters|merge({page: page + 1})) }}"
+                       class="px-3 py-1 rounded border hover:bg-slate-100">Suivant ›</a>
+                {% endif %}
+            </div>
+        {% endif %}
+    {% endif %}
+{% endblock %}

@@ -4,6 +4,7 @@ namespace App\LastFm;
 
 use App\Navidrome\NavidromeRepository;
 use App\Repository\LastFmAliasRepository;
+use App\Repository\LastFmArtistAliasRepository;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
@@ -18,9 +19,15 @@ class LastFmImporter
         ?LoggerInterface $logger = null,
         int $fuzzyMaxDistance = 0,
         ?LastFmAliasRepository $aliasRepository = null,
+        ?LastFmArtistAliasRepository $artistAliasRepository = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
-        $this->matcher = new ScrobbleMatcher($this->navidrome, $aliasRepository, $fuzzyMaxDistance);
+        $this->matcher = new ScrobbleMatcher(
+            $this->navidrome,
+            $aliasRepository,
+            $fuzzyMaxDistance,
+            $artistAliasRepository,
+        );
     }
 
     /**

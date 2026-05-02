@@ -1,0 +1,49 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ alias ? 'Modifier alias artiste' : 'Nouvel alias artiste' }} Last.fm{% endblock %}
+
+{% block body %}
+    <div class="mb-4">
+        <a href="{{ path('app_lastfm_artist_alias_index') }}" class="text-sm text-sky-700 hover:underline">
+            ← Retour à la liste des alias artistes
+        </a>
+    </div>
+
+    <h1 class="text-2xl font-semibold mb-2">
+        {{ alias ? 'Modifier l\'alias artiste' : 'Nouvel alias artiste' }}
+    </h1>
+    <p class="text-sm text-slate-500 mb-6">
+        Réécrit le nom d'artiste source en nom canonique avant la cascade de matching.
+        Un seul alias couvre tous les morceaux de l'artiste — utile pour les renommages
+        (« La Ruda Salska » → « La Ruda »), les variantes de romanisation, ou les conventions
+        « The X » / « X, The ».
+    </p>
+
+    <div class="bg-white shadow rounded p-6 max-w-2xl">
+        {{ form_start(form) }}
+            <div class="space-y-4">
+                <div>
+                    {{ form_label(form.source_artist, null, {label_attr: {class: 'block text-xs uppercase text-slate-500'}}) }}
+                    {{ form_widget(form.source_artist, {attr: {class: 'w-full border rounded px-2 py-1 text-sm'}}) }}
+                    <p class="text-xs text-slate-500 mt-1">{{ form_help(form.source_artist) }}</p>
+                    {{ form_errors(form.source_artist) }}
+                </div>
+                <div>
+                    {{ form_label(form.target_artist, null, {label_attr: {class: 'block text-xs uppercase text-slate-500'}}) }}
+                    {{ form_widget(form.target_artist, {attr: {class: 'w-full border rounded px-2 py-1 text-sm'}}) }}
+                    <p class="text-xs text-slate-500 mt-1">{{ form_help(form.target_artist) }}</p>
+                    {{ form_errors(form.target_artist) }}
+                </div>
+            </div>
+
+            <div class="flex items-center gap-3 mt-6">
+                <button type="submit" class="px-4 py-2 rounded bg-slate-900 text-white text-sm">
+                    {{ alias ? 'Enregistrer les modifications' : 'Créer l\'alias artiste' }}
+                </button>
+                <a href="{{ path('app_lastfm_artist_alias_index') }}" class="text-sm text-slate-500 hover:underline">
+                    Annuler
+                </a>
+            </div>
+        {{ form_end(form) }}
+    </div>
+{% endblock %}

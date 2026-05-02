@@ -52,6 +52,17 @@ Fonctionnalités livrées :
   (table `lastfm_import_track`, FK CASCADE) avec filtre par statut
   (inserted / duplicate / unmatched, défaut « non matchés »
   s'il y en a) et recherche full-text artiste/titre.
+- **Alias d'artiste** (`/lastfm/artist-aliases`) : table
+  `lastfm_artist_alias` qui mappe un nom source Last.fm → nom
+  canonique côté Navidrome (ex. « La Ruda Salska » → « La Ruda »).
+  Consulté par `App\LastFm\ScrobbleMatcher` **après** l'alias
+  track-level (`lastfm_alias`) mais **avant** la cascade — réécrit
+  l'artiste du `LastFmScrobble` puis laisse les heuristiques
+  habituelles tourner. Un seul alias couvre tous les morceaux
+  d'un artiste renommé. Bouton « 🎭 Aliaser artiste » sur
+  `/lastfm/unmatched`. CRUD complet (new/edit/delete + recherche
+  paginée). Comparaison via `NavidromeRepository::normalize()`
+  (case / accents / ponctuation insensitive). Sub-issue de #11.
 - **Page `/lastfm/unmatched`** : audit cumulé de **tous** les
   scrobbles `unmatched` (toutes runs confondues), agrégés par
   `(artist, title, album)` avec compteur de scrobbles + dernier
