@@ -19,6 +19,15 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
   read-only : navidrome-tools ne touche jamais aux fichiers audio.
   Card santé sur le dashboard + entrée « Tagging » dans la nav. Run
   history type `navidrome-rescan`.
+- Queue beets : nouvelle env var `BEETS_QUEUE_PATH` (vide par
+  défaut). Quand configurée, un bouton « 📋 Pousser dans la queue
+  beets » apparaît sur `/tagging/missing-mbid` et appendit les
+  chemins filtrés (jusqu'à 5 000) dans un fichier protégé par
+  `flock` que tu fais consommer par un cron beets côté hôte
+  (`beet import -A`). Bandeau d'info indique la taille courante
+  de la queue. Run history type `beets-queue-push`. Le dossier de
+  musique reste read-only pour navidrome-tools — seul le fichier
+  de queue est en RW. Doc README + cron type fourni.
 - `NavidromeRepository::findMediaFilesWithoutMbid()` /
   `countMediaFilesWithoutMbid()` : version-agnostiques, probe
   `mbz_track_id` et `mbz_recording_id` selon les colonnes présentes.

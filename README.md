@@ -582,6 +582,30 @@ rester monté `:ro`). Le workflow est :
 Une card « Tracks sans MBID » sur le dashboard affiche le compteur
 courant et un raccourci vers la page.
 
+### Queue beets (intégration semi-automatique)
+
+Si tu préfères ne pas copier-coller le CSV à chaque fois, configure
+`BEETS_QUEUE_PATH` (ex. `/shared/beets-queue.txt`). La page expose
+alors un bouton **« 📋 Pousser dans la queue beets »** qui appendit
+les chemins filtrés dans ce fichier sous `flock` (sûr en
+concurrence). Côté hôte beets, monter le même volume et lancer un
+cron qui consomme la queue, par exemple :
+
+```bash
+# /etc/cron.d/beets-queue : toutes les 15 min
+*/15 * * * * beets   ( flock -x 9 ; \
+   [ -s /shared/beets-queue.txt ] || exit 0 ; \
+   mv /shared/beets-queue.txt /shared/beets-queue.processing ; \
+ ) 9>/shared/beets-queue.lock && \
+ beet import -A --quiet $(cat /shared/beets-queue.processing) && \
+ rm /shared/beets-queue.processing
+```
+
+Avec ce pattern, navidrome-tools ne touche **que** le fichier de
+queue (RW), `/music` reste `:ro`. Le push est tracé dans
+`/history` (type `beets-queue-push`) et le bandeau de la page
+affiche la taille courante de la queue.
+
 ## Historique des runs cron
 
 Tous les jobs longs sont audités dans la table locale `run_history`.

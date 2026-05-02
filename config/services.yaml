@@ -14,6 +14,7 @@ parameters:
     lastfm.fuzzy_max_distance: '%env(int:LASTFM_FUZZY_MAX_DISTANCE)%'
     lastfm.love_sync_schedule: '%env(LASTFM_LOVE_SYNC_SCHEDULE)%'
     lastfm.rematch_schedule: '%env(LASTFM_REMATCH_SCHEDULE)%'
+    beets.queue_path: '%env(resolve:BEETS_QUEUE_PATH)%'
     lidarr.url: '%env(LIDARR_URL)%'
     lidarr.api_key: '%env(LIDARR_API_KEY)%'
     lidarr.root_folder_path: '%env(LIDARR_ROOT_FOLDER_PATH)%'
@@ -112,3 +113,7 @@ services:
     App\Service\CoverArtCache:
         arguments:
             $cacheRoot: '%app.covers_cache_path%'
+
+    App\Service\BeetsQueueService:
+        arguments:
+            $queuePath: '%beets.queue_path%'

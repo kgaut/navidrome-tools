@@ -39,6 +39,10 @@ services:
         LIDARR_METADATA_PROFILE_ID: 1
         LIDARR_MONITOR: all
         RUN_HISTORY_RETENTION_DAYS: '90'
+        # File de chemins consommée par un beets externe (cron côté hôte
+        # qui partage le même volume). Vide = bouton « pousser dans la
+        # queue beets » masqué sur /tagging/missing-mbid.
+        BEETS_QUEUE_PATH: ''
         # Last.fm API key — optional. Fallback for the /lastfm/import form
         # and the app:lastfm:import CLI when --api-key is not passed.
         # Get one at https://www.last.fm/api/account/create

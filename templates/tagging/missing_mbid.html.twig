@@ -25,6 +25,21 @@
         </form>
     </div>
 
+    {% if beets_queue_configured %}
+        <div class="mb-4 p-3 rounded bg-sky-50 border border-sky-200 text-sm flex items-center justify-between gap-3 flex-wrap">
+            <div class="text-sky-900">
+                Queue beets active —
+                {% if beets_queue_pending is null or beets_queue_pending == 0 %}
+                    file vide
+                {% else %}
+                    <strong>{{ beets_queue_pending|number_format(0, '.', ' ') }}</strong>
+                    chemin{{ beets_queue_pending > 1 ? 's' : '' }} en attente de traitement par le cron beets
+                {% endif %}
+                .
+            </div>
+        </div>
+    {% endif %}
+
     <form method="get" class="bg-white shadow rounded p-4 mb-4 grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
         <div>
             <label class="block text-xs uppercase text-slate-500">Artiste</label>
@@ -40,7 +55,7 @@
             <button type="submit" class="px-3 py-1.5 rounded bg-slate-900 text-white text-sm">Filtrer</button>
             <a href="{{ path('app_tagging_missing_mbid') }}" class="text-xs text-slate-500 hover:underline self-center">Reset</a>
         </div>
-        <div class="text-right">
+        <div class="text-right flex flex-col gap-1">
             <a href="{{ path('app_tagging_missing_mbid_export', filters|merge({limit: 5000})) }}"
                class="inline-block px-3 py-1.5 rounded bg-slate-700 text-white text-sm hover:bg-slate-800"
                title="Télécharge les 5 000 premiers chemins (filtres appliqués) au format CSV">
@@ -48,6 +63,23 @@
             </a>
         </div>
     </form>
+
+    {% if beets_queue_configured %}
+        <form method="post" action="{{ path('app_tagging_missing_mbid_queue') }}" class="mb-4 flex flex-wrap items-center gap-3"
+              onsubmit="return confirm('Pousser les chemins filtrés (jusqu\'à 5 000) dans la queue beets ?');">
+            <input type="hidden" name="_token" value="{{ csrf_token('missing_mbid_queue') }}">
+            <input type="hidden" name="artist" value="{{ filters.artist|default('') }}">
+            <input type="hidden" name="album" value="{{ filters.album|default('') }}">
+            <input type="hidden" name="limit" value="5000">
+            <button type="submit" class="px-3 py-1.5 rounded bg-indigo-600 text-white text-sm hover:bg-indigo-700">
+                📋 Pousser dans la queue beets
+            </button>
+            <span class="text-xs text-slate-500">
+                Append les chemins filtrés (max 5 000) dans <code>BEETS_QUEUE_PATH</code>.
+                Ton cron beets côté hôte les consomme.
+            </span>
+        </form>
+    {% endif %}
 
     {% if rows is empty %}
         <div class="bg-white shadow rounded p-6 text-center text-slate-500">

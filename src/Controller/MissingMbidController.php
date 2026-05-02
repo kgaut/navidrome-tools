@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use App\Navidrome\NavidromeRepository;
+use App\Service\BeetsQueueService;
 use App\Service\NavidromeRescanService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
@@ -29,6 +30,7 @@ class MissingMbidController extends AbstractController
     public function __construct(
         private readonly NavidromeRepository $navidrome,
         private readonly NavidromeRescanService $rescan,
+        private readonly BeetsQueueService $beetsQueue,
     ) {
     }
 
@@ -61,6 +63,8 @@ class MissingMbidController extends AbstractController
             'page' => $page,
             'total_pages' => $totalPages,
             'filters' => array_filter($filters, static fn ($v) => $v !== null),
+            'beets_queue_configured' => $this->beetsQueue->isConfigured(),
+            'beets_queue_pending' => $this->beetsQueue->pendingCount(),
         ]);
     }
 
@@ -110,6 +114,55 @@ class MissingMbidController extends AbstractController
         ));
 
         return $response;
+    }
+
+    #[Route('/tagging/missing-mbid/queue', name: 'app_tagging_missing_mbid_queue', methods: ['POST'])]
+    public function queue(Request $request): Response
+    {
+        $token = (string) $request->request->get('_token', '');
+        if (!$this->isCsrfTokenValid('missing_mbid_queue', $token)) {
+            $this->addFlash('error', 'Jeton CSRF invalide.');
+
+            return $this->redirectToRoute('app_tagging_missing_mbid');
+        }
+
+        if (!$this->beetsQueue->isConfigured()) {
+            $this->addFlash('error', 'BEETS_QUEUE_PATH n\'est pas configuré.');
+
+            return $this->redirectToRoute('app_tagging_missing_mbid');
+        }
+
+        $artistFilter = trim((string) $request->request->get('artist', '')) ?: null;
+        $albumFilter = trim((string) $request->request->get('album', '')) ?: null;
+        $limit = max(1, min(5000, (int) $request->request->get('limit', 1000)));
+
+        $rows = $this->navidrome->findMediaFilesWithoutMbid(
+            artistFilter: $artistFilter,
+            albumFilter: $albumFilter,
+            limit: $limit,
+            offset: 0,
+        );
+
+        $paths = array_values(array_filter(
+            array_map(static fn (array $r) => (string) $r['path'], $rows),
+            static fn (string $p) => $p !== '',
+        ));
+
+        try {
+            $run = $this->beetsQueue->push($paths, reason: 'missing-mbid-page');
+            $submitted = (int) ($run->getMetrics()['submitted'] ?? 0);
+            $this->addFlash(
+                $submitted > 0 ? 'success' : 'info',
+                sprintf('%d chemin%s ajouté%s à la queue beets.', $submitted, $submitted > 1 ? 's' : '', $submitted > 1 ? 's' : ''),
+            );
+        } catch (\Throwable $e) {
+            $this->addFlash('error', 'Erreur push beets queue : ' . $e->getMessage());
+        }
+
+        return $this->redirectToRoute('app_tagging_missing_mbid', array_filter([
+            'artist' => $artistFilter,
+            'album' => $albumFilter,
+        ]));
     }
 
     #[Route('/tagging/missing-mbid/rescan', name: 'app_tagging_missing_mbid_rescan', methods: ['POST'])]
