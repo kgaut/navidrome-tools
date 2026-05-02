@@ -40,6 +40,7 @@ l'ordre d'attaque recommandé.
 |-----|--------------------------------------------------------------------|--------|
 | [#3]  | Sync incrémentale Last.fm → Navidrome                           | M      |
 | [#4]  | Page permanente : diff Last.fm vs lib Navidrome                 | M      |
+| [#47] | Synthèse d'un import Last.fm sur la page détail (totaux + %)    | M      |
 
 ### Stats / Curation
 
@@ -124,3 +125,4 @@ quand on tagge des releases) :
 [#29]: https://github.com/kgaut/navidrome-playlist-generator/issues/29
 [#30]: https://github.com/kgaut/navidrome-playlist-generator/issues/30
 [#31]: https://github.com/kgaut/navidrome-playlist-generator/issues/31
+[#47]: https://github.com/kgaut/navidrome-playlist-generator/issues/47
