@@ -6,6 +6,7 @@ use App\Entity\LastFmAlias;
 use App\Entity\LastFmArtistAlias;
 use App\Entity\LastFmMatchCacheEntry;
 use App\LastFm\LastFmScrobble;
+use App\LastFm\LastFmTrackInfo;
 use App\LastFm\MatchResult;
 use App\LastFm\ScrobbleMatcher;
 use App\Navidrome\NavidromeRepository;
@@ -268,6 +269,87 @@ class ScrobbleMatcherTest extends TestCase
         $r = $matcher->match(new LastFmScrobble('Artist', 'Track', '', null, new \DateTimeImmutable()));
         $this->assertSame(MatchResult::STATUS_UNMATCHED, $r->status);
         $this->assertSame(MatchResult::CACHE_HIT_NEGATIVE, $r->cacheStatus);
+    }
+
+    public function testGetInfoStepRecoversMissingMbid(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: true);
+        // The scrobble has no MBID and the artist/title in the lib don't
+        // match by text either — but Last.fm knows the canonical MBID.
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-mbid', 'Random Title', 'Random Artist', mbzTrackId: 'abc-mbid');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $client = new FakeLastFmClient([]);
+        $client->programTrackInfo('Whatever', 'Track', new LastFmTrackInfo(
+            mbid: 'abc-mbid',
+            correctedArtist: null,
+            correctedTitle: null,
+        ));
+
+        $matcher = new ScrobbleMatcher($repo, null, 0, null, null, 30, $client, 'apikey');
+        $r = $matcher->match(new LastFmScrobble('Whatever', 'Track', '', null, new \DateTimeImmutable()));
+
+        $this->assertSame('mf-mbid', $r->mediaFileId);
+        $this->assertSame(LastFmMatchCacheEntry::STRATEGY_LASTFM_CORRECTION, $r->strategy);
+        $this->assertCount(1, $client->lookupCalls);
+    }
+
+    public function testGetInfoStepUsesAutocorrectedSpellingToMatch(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: true);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', 'Take Me to Church', 'Hozier');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $client = new FakeLastFmClient([]);
+        // Last.fm corrects the typo on the title but has no MBID.
+        $client->programTrackInfo('Hozier', 'Take Me to Chruch', new LastFmTrackInfo(
+            mbid: null,
+            correctedArtist: null,
+            correctedTitle: 'Take Me to Church',
+        ));
+
+        $matcher = new ScrobbleMatcher($repo, null, 0, null, null, 30, $client, 'apikey');
+        $r = $matcher->match(new LastFmScrobble('Hozier', 'Take Me to Chruch', '', null, new \DateTimeImmutable()));
+
+        $this->assertSame('mf-1', $r->mediaFileId);
+        $this->assertSame(LastFmMatchCacheEntry::STRATEGY_LASTFM_CORRECTION, $r->strategy);
+    }
+
+    public function testGetInfoStepGivesUpAndPersistsNegativeCacheEntry(): void
+    {
+        NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: true);
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $cache = new InMemoryLastFmMatchCacheRepository();
+        // Last.fm knows nothing — empty info, no MBID, no correction.
+        $client = new FakeLastFmClient([]);
+        $client->programTrackInfo('Unknown', 'Nothing', LastFmTrackInfo::empty());
+
+        $matcher = new ScrobbleMatcher($repo, null, 0, null, $cache, 30, $client, 'apikey');
+        $r = $matcher->match(new LastFmScrobble('Unknown', 'Nothing', '', null, new \DateTimeImmutable()));
+
+        $this->assertSame(MatchResult::STATUS_UNMATCHED, $r->status);
+        $this->assertSame(LastFmMatchCacheEntry::STRATEGY_NEGATIVE, $cache->findByCouple('Unknown', 'Nothing')?->getStrategy());
+        $this->assertCount(1, $client->lookupCalls, 'getInfo called exactly once on miss');
+
+        // Re-running with the same scrobble must NOT re-call Last.fm —
+        // the negative cache short-circuits before the cascade.
+        $matcher->match(new LastFmScrobble('Unknown', 'Nothing', '', null, new \DateTimeImmutable()));
+        $this->assertCount(1, $client->lookupCalls, 'no extra getInfo call on cache hit');
+    }
+
+    public function testGetInfoIsSkippedWhenApiKeyMissing(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: true);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', 'Track', 'Artist');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $client = new FakeLastFmClient([]);
+        // Empty API key: Last.fm step must be skipped entirely.
+        $matcher = new ScrobbleMatcher($repo, null, 0, null, null, 30, $client, '');
+        $r = $matcher->match(new LastFmScrobble('Other', 'Other', '', null, new \DateTimeImmutable()));
+
+        $this->assertSame(MatchResult::STATUS_UNMATCHED, $r->status);
+        $this->assertCount(0, $client->lookupCalls);
     }
 
     public function testCascadeStrategyMbidIsPersistedInCache(): void
