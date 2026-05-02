@@ -8,6 +8,41 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### Added
+- **Cache de résolution Last.fm match (positif + négatif)** : nouvelle
+  table `lastfm_match_cache` (`source_artist_norm`, `source_title_norm`
+  UNIQUE → `target_media_file_id` nullable + `strategy`
+  + `resolved_at`) qui mémorise le verdict de la cascade entre deux
+  imports. `App\LastFm\ScrobbleMatcher` consulte le cache **après**
+  les aliases (track + artiste) et **avant** la cascade : hit positif
+  → renvoyé tel quel ; hit négatif non-stale → unmatched, on saute la
+  cascade et l'API Last.fm. Les négatifs expirent au bout de
+  `LASTFM_MATCH_CACHE_TTL_DAYS` jours (défaut 30, 0 = jamais) — purge
+  automatique au démarrage de chaque `app:lastfm:import` /
+  `app:lastfm:rematch`. Les positifs sont éternels et invalidés par
+  les mutations d'alias (création/édition/suppression d'un track-alias
+  → `purgeByCouple` ; création/édition d'un artist-alias →
+  `purgeByArtist`). `MatchResult` expose 3 compteurs
+  (`cacheHitsPositive` / `cacheHitsNegative` / `cacheMisses`) propagés
+  dans `RunHistory.metrics`. CLI `bin/console app:lastfm:cache:clear`
+  (option `--negative-only`) pour vider à la main. Closes #20.
+- **Récupération MBID via Last.fm `track.getInfo`** : nouvelle étape
+  dans la cascade de matching (`ScrobbleMatcher::runCascade`), placée
+  après le couple 4 paliers et avant le fuzzy. Pour les scrobbles dont
+  les heuristiques locales ont échoué, on appelle
+  `track.getInfo?artist=…&track=…&autocorrect=1` côté Last.fm pour
+  récupérer (a) le MBID officiel quand il manque dans le scrobble,
+  (b) une graphie corrigée du couple `(artist, title)`. Si le MBID
+  retourné matche dans Navidrome → match. Sinon, on retente la
+  cascade DB locale (MBID/triplet/couple) sur la version corrigée.
+  Le résultat est mémorisé dans le cache (#20) sous strategy
+  `lastfm-correction` ; les négatifs sont également cachés pour
+  éviter de re-taper l'API au prochain run. `LastFmClient` gagne
+  `trackGetInfo()` et `trackGetCorrection()` qui retournent un
+  `LastFmTrackInfo` immuable. Le helper `correctionOrNull()` collapse
+  les corrections « identiques au trim+lower près » en `null` —
+  Last.fm renvoie le terme corrigé même quand l'input était déjà
+  canonique. Réutilise `LASTFM_API_KEY` existant (pas de nouvelle
+  variable). Closes #17.
 - **Plugins custom en déploiement Docker** : nouveau namespace
   `App\Plugin\` mappé sur `plugins/`, bind-mountable sur `/app/plugins`
   pour ajouter ses propres générateurs de playlists sans rebuilder

@@ -334,13 +334,30 @@ la variable d'environnement `LASTFM_API_KEY`. De même, le username peut
       `lastfm_alias` (page `/lastfm/aliases`) pour le couple
       `(artist, title)` normalisé, elle court-circuite tout. Cible
       vide = scrobble compté en `skipped` (utile pour les podcasts).
+   0bis. **Cache de résolution** (`lastfm_match_cache`) : avant de
+      relancer la cascade, le matcher consulte une table de
+      mémoïsation. Hit positif → réponse immédiate. Hit négatif
+      non-stale → unmatched immédiat (on évite l'API Last.fm). Les
+      négatifs expirent au bout de `LASTFM_MATCH_CACHE_TTL_DAYS` jours
+      (défaut 30, 0 = jamais), purgés au démarrage de chaque import
+      / rematch. Les positifs sont éternels et invalidés par les
+      mutations d'alias (track ou artiste). CLI
+      `bin/console app:lastfm:cache:clear [--negative-only]` pour
+      vider à la main.
    1. **MusicBrainz ID** si Last.fm le fournit (le plus fiable) ;
    2. **Triplet** `(artist, title, album)` normalisé — départage les
       morceaux qui existent sur plusieurs albums (single + version
       album + compilation) ;
    3. **Couple** `(artist, title)` normalisé, avec tie-break
       `album_artist = artist` puis `id ASC` ;
-   4. **Fallback fuzzy** Levenshtein artist+title (opt-in via
+   4. **Last.fm `track.getInfo`** : si la cascade locale échoue, on
+      interroge Last.fm pour récupérer (a) un MBID officiel quand le
+      scrobble n'en avait pas, (b) une graphie corrigée du couple
+      `(artist, title)` via `autocorrect=1`. Réutilise `LASTFM_API_KEY`.
+      Les résultats — positifs comme négatifs — passent par le cache
+      de résolution, donc on n'appelle l'API qu'**une fois** par
+      couple distinct.
+   5. **Fallback fuzzy** Levenshtein artist+title (opt-in via
       `LASTFM_FUZZY_MAX_DISTANCE`, défaut 0 = désactivé). **Recommandé
       pour les imports one-shot** : passer à `2` rattrape les typos
       type `Du riiechst so gut` → `Du riechst so gut` ou
