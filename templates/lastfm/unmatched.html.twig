@@ -101,6 +101,9 @@
                             <a href="{{ path('app_lastfm_alias_new', {source_artist: row.artist, source_title: row.title}) }}"
                                class="text-xs px-2 py-0.5 rounded bg-slate-700 text-white hover:bg-slate-800 mr-1"
                                title="Créer un alias manuel pour ce scrobble">✏️ Mapper</a>
+                            <a href="{{ path('app_lastfm_artist_alias_new', {source_artist: row.artist}) }}"
+                               class="text-xs px-2 py-0.5 rounded bg-indigo-600 text-white hover:bg-indigo-700 mr-1"
+                               title="Aliaser ce nom d'artiste vers son nom canonique côté Navidrome">🎭 Aliaser artiste</a>
                             {% if lidarr_configured and lidarr_reachable and not row.lidarr_url %}
                                 <form method="post" action="{{ path('app_lidarr_add_artist') }}"
                                       class="inline"

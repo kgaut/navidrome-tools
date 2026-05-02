@@ -402,6 +402,29 @@ lando symfony app:lastfm:import myuser --api-key=XXX \
 lando symfony app:lastfm:import myuser --api-key=XXX --show-unmatched=all
 ```
 
+## Alias d'artistes (synonymes)
+
+Quand un artiste a été **renommé** (« La Ruda Salska » → « La Ruda »),
+ou existe sous plusieurs **variantes** (romanisations, conventions
+« The X » / « X, The »), Last.fm peut envoyer le nom historique alors
+que Navidrome utilise le nom canonique. Plutôt que de créer un alias
+manuel par track, la page **`/lastfm/artist-aliases`** (menu Last.fm
+→ Alias artistes) gère ces synonymes au niveau artiste : un seul
+alias `source → cible` couvre tous les morceaux.
+
+Le matcher (`App\LastFm\ScrobbleMatcher`) consulte la table
+**après** l'alias track-level (qui garde la priorité absolue) mais
+**avant** la cascade MBID / triplet / couple : il réécrit le nom
+d'artiste dans le `LastFmScrobble` puis laisse les heuristiques
+habituelles tourner.
+
+Un bouton « 🎭 Aliaser artiste » apparaît sur `/lastfm/unmatched`
+pour créer rapidement un alias depuis un scrobble non matché.
+
+Une fois l'alias créé, lancez **« Re-tenter le matching cumulé »**
+(cf. ci-dessous) pour ré-essayer rétrospectivement tous les
+scrobbles concernés.
+
 ## Liste cumulée des unmatched
 
 La page **`/lastfm/unmatched`** (menu Last.fm → Unmatched) liste tous

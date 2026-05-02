@@ -3,6 +3,7 @@
 namespace App\Tests\LastFm;
 
 use App\Entity\LastFmAlias;
+use App\Entity\LastFmArtistAlias;
 use App\LastFm\LastFmScrobble;
 use App\LastFm\MatchResult;
 use App\LastFm\ScrobbleMatcher;
@@ -105,5 +106,81 @@ class ScrobbleMatcherTest extends TestCase
         $r = $matcher->match(new LastFmScrobble('Some Podcast', 'Episode 42', '', null, new \DateTimeImmutable()));
         $this->assertSame(MatchResult::STATUS_SKIPPED, $r->status);
         $this->assertNull($r->mediaFileId);
+    }
+
+    public function testArtistAliasRewritesNameAndCascadeMatches(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: true);
+        // Lib only has tracks under the canonical name "La Ruda".
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', 'L\'instinct du meilleur', 'La Ruda');
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-2', 'Le prix du silence', 'La Ruda');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $artistAliasRepo = new InMemoryArtistAliasRepository([
+            new LastFmArtistAlias('La Ruda Salska', 'La Ruda'),
+        ]);
+        $matcher = new ScrobbleMatcher($repo, null, 0, $artistAliasRepo);
+
+        // Last.fm scrobble uses the old name → strict match would fail, alias rewrites it.
+        $r = $matcher->match(new LastFmScrobble('La Ruda Salska', 'L\'instinct du meilleur', '', null, new \DateTimeImmutable()));
+        $this->assertSame(MatchResult::STATUS_MATCHED, $r->status);
+        $this->assertSame('mf-1', $r->mediaFileId);
+
+        // Same alias covers ANOTHER track of the same artist.
+        $r = $matcher->match(new LastFmScrobble('La Ruda Salska', 'Le prix du silence', '', null, new \DateTimeImmutable()));
+        $this->assertSame('mf-2', $r->mediaFileId);
+    }
+
+    public function testArtistAliasSkippedWhenNotConfigured(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: true);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', 'Track', 'La Ruda');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        // No artist alias repo → "La Ruda Salska" stays as-is, strict match fails.
+        $matcher = new ScrobbleMatcher($repo);
+
+        $r = $matcher->match(new LastFmScrobble('La Ruda Salska', 'Track', '', null, new \DateTimeImmutable()));
+        $this->assertSame(MatchResult::STATUS_UNMATCHED, $r->status);
+    }
+
+    public function testTrackAliasTakesPriorityOverArtistAlias(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: true);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-canonical', 'Track', 'La Ruda');
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-track-override', 'Track', 'Other Artist');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        // Track-level alias forces this scrobble to mf-track-override.
+        $trackAliasRepo = new InMemoryAliasRepository([
+            new LastFmAlias('La Ruda Salska', 'Track', 'mf-track-override'),
+        ]);
+        // Artist-level alias would rewrite to "La Ruda" → mf-canonical.
+        $artistAliasRepo = new InMemoryArtistAliasRepository([
+            new LastFmArtistAlias('La Ruda Salska', 'La Ruda'),
+        ]);
+
+        $matcher = new ScrobbleMatcher($repo, $trackAliasRepo, 0, $artistAliasRepo);
+        $r = $matcher->match(new LastFmScrobble('La Ruda Salska', 'Track', '', null, new \DateTimeImmutable()));
+
+        // Track-level wins.
+        $this->assertSame('mf-track-override', $r->mediaFileId);
+    }
+
+    public function testArtistAliasIsCaseAndAccentInsensitive(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: true);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', 'Track', 'Tchaikovsky');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $artistAliasRepo = new InMemoryArtistAliasRepository([
+            // Stored with accent + capitalization.
+            new LastFmArtistAlias('Tchaïkovski', 'Tchaikovsky'),
+        ]);
+        $matcher = new ScrobbleMatcher($repo, null, 0, $artistAliasRepo);
+
+        // Lookup with different casing AND missing accent (matches via np_normalize).
+        $r = $matcher->match(new LastFmScrobble('TCHAIKOVSKI', 'Track', '', null, new \DateTimeImmutable()));
+        $this->assertSame('mf-1', $r->mediaFileId);
     }
 }

@@ -8,6 +8,22 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### Added
+- **Alias d'artistes (synonymes)** : nouvelle table
+  `lastfm_artist_alias` (id, source_artist, source_artist_norm UNIQUE,
+  target_artist, created_at) qui mappe un nom source Last.fm → nom
+  canonique côté Navidrome — utile pour les renommages
+  (« La Ruda Salska » → « La Ruda »), variantes de romanisation,
+  conventions « The X » / « X, The ». Consulté par
+  `App\LastFm\ScrobbleMatcher` **après** l'alias track-level
+  (`lastfm_alias`) mais **avant** la cascade : réécrit l'artiste du
+  `LastFmScrobble` puis laisse les heuristiques tourner. Un seul
+  alias couvre tous les morceaux d'un artiste renommé. CRUD complet
+  sur `/lastfm/artist-aliases` (menu Last.fm → Alias artistes) avec
+  recherche paginée. Bouton « 🎭 Aliaser artiste » sur
+  `/lastfm/unmatched`. Combo avec le rematch (#21) pour récupérer
+  rétrospectivement tous les scrobbles concernés. Comparaison via
+  `NavidromeRepository::normalize()` (case/accents/ponctuation
+  insensitive). Closes #65.
 - Page `/tagging/missing-mbid` : audit des morceaux Navidrome dont
   `mbz_track_id` ET `mbz_recording_id` sont vides. Filtres
   artiste/album, pagination, export CSV (id, path, artist,
