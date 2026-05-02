@@ -8,6 +8,16 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### Added
+- Matching Last.fm : suppression élargie des décorations de titre.
+  `stripVersionMarkers()` retire désormais aussi `Live` (avec ou sans
+  qualificatif « Live at Reading 1992 »), `Acoustic`, `Acoustic
+  Version`, `Instrumental`, `Demo`, `Deluxe`, `Deluxe Edition`,
+  `Deluxe Version` quand ils apparaissent entre parenthèses,
+  crochets ou après un tiret. Nouveau helper
+  `stripFeaturingFromTitle()` qui retire `(feat. X)` / `(ft. X)` /
+  `(featuring X)` / `(with X)` (parens ou brackets) du titre, en
+  parallèle de `stripFeaturedArtists()` côté artiste. `Remix` reste
+  volontairement non-strippé (recordings distincts). Closes #14.
 - Matching Last.fm : normalisation de la ponctuation et des caractères
   spéciaux. Tout ce qui n'est ni lettre, ni chiffre, ni espace est
   désormais strippé avant le lookup, puis les espaces multiples sont
