@@ -3,7 +3,13 @@ set -eu
 
 cd /app
 
-mkdir -p var
+mkdir -p var plugins
+
+# Refresh autoload + DI cache so plugins dropped in /app/plugins are picked up.
+composer dump-autoload --no-dev --optimize --working-dir=/app --no-interaction --quiet
+rm -rf /app/var/cache/prod
+php bin/console cache:warmup --env="${APP_ENV:-prod}"
+
 # Apply Doctrine migrations on every boot (idempotent).
 php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration --env="${APP_ENV:-prod}" || {
     echo "Migration failed" >&2

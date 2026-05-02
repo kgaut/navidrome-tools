@@ -44,6 +44,9 @@ services:
       - navidrome-tools-data:/app/var
       # Dedicated volume for the cover-art cache (can grow to ~MBs).
       - navidrome-tools-covers:/app/var/covers
+      # Optional: bind-mount custom playlist generators (App\Plugin\ namespace).
+      # See docs/PLUGINS.md. Mount the SAME path on the cron service below.
+      # - ./plugins:/app/plugins:ro
 
   navidrome-tools-cron:
     image: ghcr.io/kgaut/navidrome-tools:latest
@@ -85,6 +88,9 @@ services:
       - ${NAVIDROME_DATA_DIR:-/srv/navidrome/data}/navidrome.db:/data/navidrome.db:ro
       - navidrome-tools-data:/app/var
       - navidrome-tools-covers:/app/var/covers
+      # Optional: bind-mount custom playlist generators (App\Plugin\ namespace).
+      # MUST match the mount on the web service above so cron runs see the same plugins.
+      # - ./plugins:/app/plugins:ro
 
 volumes:
   navidrome-tools-data:
