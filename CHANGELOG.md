@@ -21,6 +21,14 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
   helper statique testable `queryUnmatchedAggregated()`. Lien depuis
   la carte « Re-tenter le matching cumulé » sur `/lastfm/import`.
   Closes #56.
+- Bloc **« Derniers runs »** sur le dashboard (`/`) : tableau des 10
+  derniers `RunHistory` (tous types confondus), affiché juste après les
+  cards de santé. Reprend les colonnes et badges de `/history`
+  (type, label, statut emerald/rose/amber, démarré, durée, métriques)
+  + lien « Détails » par ligne et lien « Voir tout l'historique → »
+  vers `/history`. Donne un coup d'œil immédiat sur l'activité récente
+  du tool (imports Last.fm, rematches, recalculs de stats, runs de
+  playlists, sync love) sans avoir à quitter l'accueil. Closes #58.
 - Commande **`app:lastfm:rematch`** (+ UI sur `/history/{id}` et
   `/lastfm/import`, + cron via `LASTFM_REMATCH_SCHEDULE`) qui ré-applique
   la cascade de matching courante sur les rows `lastfm_import_track`

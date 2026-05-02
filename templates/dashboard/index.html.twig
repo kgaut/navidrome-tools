@@ -38,6 +38,58 @@
         </div>
     </div>
 
+    {# ---------- Recent runs ---------- #}
+    <div class="bg-white shadow rounded overflow-hidden mb-6">
+        <div class="flex items-center justify-between px-3 py-2 bg-slate-100 border-b">
+            <h2 class="text-sm font-semibold text-slate-700">Derniers runs</h2>
+            <a href="{{ path('app_history') }}" class="text-xs text-sky-700 hover:underline">Voir tout l'historique →</a>
+        </div>
+        {% if recent_runs is empty %}
+            <div class="px-3 py-4 text-sm text-slate-500 text-center">Aucun run pour l'instant.</div>
+        {% else %}
+            <table class="w-full text-sm">
+                <thead class="bg-slate-50 text-slate-600 text-left text-xs uppercase">
+                <tr>
+                    <th class="px-3 py-1.5">Type</th>
+                    <th class="px-3 py-1.5">Label</th>
+                    <th class="px-3 py-1.5">Statut</th>
+                    <th class="px-3 py-1.5">Démarré</th>
+                    <th class="px-3 py-1.5 text-right">Durée</th>
+                    <th class="px-3 py-1.5">Métriques</th>
+                    <th class="px-3 py-1.5 text-right"></th>
+                </tr>
+                </thead>
+                <tbody class="divide-y">
+                {% for entry in recent_runs %}
+                    <tr>
+                        <td class="px-3 py-1.5 font-mono text-xs">{{ entry.type }}</td>
+                        <td class="px-3 py-1.5">{{ entry.label }}</td>
+                        <td class="px-3 py-1.5">
+                            {% set badge = entry.status == 'success' ? 'bg-emerald-100 text-emerald-800'
+                                : entry.status == 'error' ? 'bg-rose-100 text-rose-800'
+                                : 'bg-amber-100 text-amber-800' %}
+                            <span class="text-xs px-2 py-0.5 rounded {{ badge }}">{{ entry.status }}</span>
+                        </td>
+                        <td class="px-3 py-1.5 text-xs text-slate-500">{{ entry.startedAt|date('Y-m-d H:i:s') }}</td>
+                        <td class="px-3 py-1.5 text-right text-xs text-slate-500">
+                            {% if entry.durationMs is not null %}{{ (entry.durationMs / 1000)|number_format(2) }}s{% else %}—{% endif %}
+                        </td>
+                        <td class="px-3 py-1.5 text-xs text-slate-500">
+                            {% if entry.metrics %}
+                                {% for k, v in entry.metrics|filter(v => v is not null and v is not iterable and v != '') %}{{ k }}={{ v }} {% endfor %}
+                            {% endif %}
+                        </td>
+                        <td class="px-3 py-1.5 text-right">
+                            <a href="{{ path('app_history_detail', {id: entry.id}) }}"
+                               class="text-xs text-sky-700 hover:underline">Détails</a>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        {% endif %}
+    </div>
+
     {# ---------- Filters bar ---------- #}
     <form method="get" class="bg-white shadow rounded p-3 mb-4 flex flex-wrap items-end gap-3 text-sm">
         <div class="flex-1 min-w-[200px]">

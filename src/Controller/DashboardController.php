@@ -5,6 +5,7 @@ namespace App\Controller;
 use App\Generator\GeneratorRegistry;
 use App\Navidrome\NavidromeRepository;
 use App\Repository\PlaylistDefinitionRepository;
+use App\Repository\RunHistoryRepository;
 use App\Service\SettingsService;
 use App\Subsonic\SubsonicClient;
 use Cron\CronExpression;
@@ -25,6 +26,7 @@ class DashboardController extends AbstractController
         NavidromeRepository $navidrome,
         SubsonicClient $subsonic,
         SettingsService $settings,
+        RunHistoryRepository $runHistory,
     ): Response {
         $q = trim((string) $request->query->get('q', ''));
         $enabledRaw = $request->query->get('enabled');
@@ -64,9 +66,12 @@ class DashboardController extends AbstractController
             'subsonic' => $subsonic->ping(),
         ];
 
+        $recentRuns = $runHistory->findFilteredPaginated([], 1, 10)['items'];
+
         return $this->render('dashboard/index.html.twig', [
             'rows' => $rows,
             'health' => $health,
+            'recent_runs' => $recentRuns,
             'default_limit' => $settings->getDefaultLimit(),
             'default_template' => $settings->getDefaultNameTemplate(),
             'filters' => [

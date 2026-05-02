@@ -557,6 +557,11 @@ La page `/history` (lien dans la nav) liste les exécutions avec :
 
 Filtres par type/statut + recherche libre + pagination (50/page).
 
+Le dashboard (`/`) affiche en plus un bloc « Derniers runs » avec les
+10 dernières entrées (tous types confondus) pour repérer en un coup
+d'œil les erreurs récentes, avec un lien direct vers la page
+complète.
+
 Une commande `app:history:purge` supprime les entrées plus vieilles que
 `RUN_HISTORY_RETENTION_DAYS` (défaut 90). Elle est ajoutée
 automatiquement au crontab par `app:cron:dump` (1×/jour à 4h30).
