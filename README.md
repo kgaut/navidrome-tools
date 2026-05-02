@@ -393,6 +393,31 @@ lando symfony app:lastfm:import myuser --api-key=XXX \
 lando symfony app:lastfm:import myuser --api-key=XXX --show-unmatched=all
 ```
 
+## Connexion Last.fm authentifiée (optionnelle)
+
+Certaines actions vers Last.fm — notamment la future synchronisation
+loved ↔ starred (issue #23) — exigent une **session authentifiée**, pas
+juste l'API key publique utilisée par l'import.
+
+1. Récupérez la **API secret** sur la même page que la API key
+   (<https://www.last.fm/api/account/create>) et configurez-la :
+   ```env
+   LASTFM_API_KEY=votre-api-key
+   LASTFM_API_SECRET=votre-api-secret
+   ```
+2. Connectez-vous à Navidrome Tools puis allez sur `/lastfm/connect` :
+   l'app vous redirige vers Last.fm pour consentement, puis vous renvoie
+   sur `/settings` avec une session persistée localement (table
+   `setting`, clés `lastfm.session_key` / `lastfm.session_user`).
+3. La page `/settings` affiche un badge ✓/✗ et un bouton « Déconnecter »
+   pour révoquer la session locale (la révocation côté Last.fm se fait
+   sur <https://www.last.fm/settings/applications>).
+
+L'**URL de callback** que Last.fm appelle après consentement est
+construite automatiquement à partir de l'URL publique de votre instance.
+En prod, votre déploiement Docker doit donc être derrière un domaine
+résolvable par Last.fm (HTTPS recommandé).
+
 ## Intégration Lidarr (optionnelle)
 
 Sur la page d'import Last.fm, le tableau des morceaux non trouvés
