@@ -42,6 +42,51 @@ class LastFmImportTrackRepository extends ServiceEntityRepository
     }
 
     /**
+     * Iterate over unmatched tracks across all runs (or a single run when
+     * $runId is set). Returns a generator so callers can stream rows
+     * without buffering the whole table — useful for the rematch CLI which
+     * may iterate over tens of thousands of historical unmatched entries.
+     *
+     * @param int|null $runId Filter to a single run when non-null
+     * @param int      $limit Hard cap (set high for full sweeps; the cli
+     *                        passes its --limit flag through). 0 means no
+     *                        limit.
+     *
+     * @return iterable<LastFmImportTrack>
+     */
+    public function streamUnmatched(?int $runId = null, int $limit = 0): iterable
+    {
+        $qb = $this->createQueryBuilder('t')
+            ->andWhere('t.status = :s')
+            ->setParameter('s', LastFmImportTrack::STATUS_UNMATCHED)
+            ->orderBy('t.id', 'ASC');
+        if ($runId !== null) {
+            $qb->andWhere('IDENTITY(t.runHistory) = :run')->setParameter('run', $runId);
+        }
+        if ($limit > 0) {
+            $qb->setMaxResults($limit);
+        }
+
+        return $qb->getQuery()->toIterable();
+    }
+
+    /**
+     * Total unmatched tracks (optionally for a specific run).
+     */
+    public function countUnmatched(?int $runId = null): int
+    {
+        $qb = $this->createQueryBuilder('t')
+            ->select('COUNT(t.id)')
+            ->andWhere('t.status = :s')
+            ->setParameter('s', LastFmImportTrack::STATUS_UNMATCHED);
+        if ($runId !== null) {
+            $qb->andWhere('IDENTITY(t.runHistory) = :run')->setParameter('run', $runId);
+        }
+
+        return (int) $qb->getQuery()->getSingleScalarResult();
+    }
+
+    /**
      * @return array<string, int> status → count
      */
     public function countByStatusForRun(RunHistory $run): array

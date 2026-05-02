@@ -20,6 +20,7 @@ class DumpCronCommand extends Command
         private readonly string $projectDir,
         private readonly string $statsRefreshSchedule,
         private readonly string $loveSyncSchedule = '',
+        private readonly string $rematchSchedule = '',
     ) {
         parent::__construct();
     }
@@ -79,6 +80,21 @@ class DumpCronCommand extends Command
                 ));
             } catch (\Throwable $e) {
                 $output->writeln('# SKIP love-sync: invalid LASTFM_LOVE_SYNC_SCHEDULE (' . $e->getMessage() . ')');
+            }
+        }
+
+        if ($this->rematchSchedule !== '') {
+            try {
+                new CronExpression($this->rematchSchedule);
+                $output->writeln('');
+                $output->writeln('# Re-match Last.fm unmatched scrobbles (LASTFM_REMATCH_SCHEDULE)');
+                $output->writeln(sprintf(
+                    '%s php %s app:lastfm:rematch',
+                    $this->rematchSchedule,
+                    $bin,
+                ));
+            } catch (\Throwable $e) {
+                $output->writeln('# SKIP rematch: invalid LASTFM_REMATCH_SCHEDULE (' . $e->getMessage() . ')');
             }
         }
 

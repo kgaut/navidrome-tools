@@ -8,6 +8,19 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### Added
+- Commande **`app:lastfm:rematch`** (+ UI sur `/history/{id}` et
+  `/lastfm/import`, + cron via `LASTFM_REMATCH_SCHEDULE`) qui ré-applique
+  la cascade de matching courante sur les rows `lastfm_import_track`
+  en status `unmatched` et insère les scrobbles trouvés dans Navidrome.
+  Utile après ajout de morceaux dans la lib ou déploiement d'une
+  nouvelle heuristique : permet de récupérer les unmatched stales sans
+  retélécharger l'historique Last.fm. Idempotent (garde-fou
+  `scrobbleExistsNear`). Un run rematch est tracé dans `/history` avec
+  le nouveau type `lastfm-rematch`. Sur le dataset local : 134/200
+  unmatched récupérés au premier essai. Closes #21.
+- La cascade de matching est désormais factorisée dans
+  `App\LastFm\ScrobbleMatcher` (utilisée à la fois par `LastFmImporter`
+  et `LastFmRematchService`). Pas de changement comportemental.
 - Encart **« Synthèse »** sur la page `/history/{id}` d'un run
   `lastfm-import` : nombre absolu de scrobbles récupérés depuis Last.fm
   + valeur absolue ET pourcentage rapporté à `fetched` pour chaque

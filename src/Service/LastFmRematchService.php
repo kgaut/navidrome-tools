@@ -1,0 +1,112 @@
+<?php
+
+namespace App\Service;
+
+use App\Entity\LastFmImportTrack;
+use App\LastFm\LastFmScrobble;
+use App\LastFm\MatchResult;
+use App\LastFm\RematchReport;
+use App\LastFm\ScrobbleMatcher;
+use App\Navidrome\NavidromeRepository;
+use App\Repository\LastFmImportTrackRepository;
+use Doctrine\ORM\EntityManagerInterface;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
+
+/**
+ * Re-applies the matching cascade ({@see ScrobbleMatcher}) on rows of
+ * `lastfm_import_track` previously stored as `unmatched`. When a row finds
+ * a match, the corresponding scrobble is inserted in Navidrome (with the
+ * usual ±N seconds dedup) and the row's status flips to `inserted` /
+ * `duplicate` / `skipped`.
+ *
+ * Idempotent: calling rematch twice in a row is a no-op past the first
+ * call. Garde-fou via {@see NavidromeRepository::scrobbleExistsNear()}.
+ */
+class LastFmRematchService
+{
+    private LoggerInterface $logger;
+
+    public function __construct(
+        private readonly LastFmImportTrackRepository $trackRepo,
+        private readonly ScrobbleMatcher $matcher,
+        private readonly NavidromeRepository $navidrome,
+        private readonly EntityManagerInterface $em,
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->logger = $logger ?? new NullLogger();
+    }
+
+    public function rematch(?int $runId = null, int $limit = 0, bool $dryRun = false, int $toleranceSeconds = 60): RematchReport
+    {
+        if (!$this->navidrome->hasScrobblesTable()) {
+            throw new \RuntimeException(
+                'The Navidrome scrobbles table does not exist. Upgrade Navidrome to >= 0.55.',
+            );
+        }
+        $userId = $this->navidrome->resolveUserId();
+
+        $report = new RematchReport();
+        $batch = 0;
+        foreach ($this->trackRepo->streamUnmatched($runId, $limit) as $track) {
+            /** @var LastFmImportTrack $track */
+            $report->considered++;
+
+            $scrobble = new LastFmScrobble(
+                artist: $track->getArtist(),
+                title: $track->getTitle(),
+                album: $track->getAlbum() ?? '',
+                mbid: $track->getMbid(),
+                playedAt: $track->getPlayedAt(),
+            );
+
+            $result = $this->matcher->match($scrobble);
+
+            if ($result->status === MatchResult::STATUS_SKIPPED) {
+                $report->skipped++;
+                if (!$dryRun) {
+                    $track->setStatus(LastFmImportTrack::STATUS_SKIPPED);
+                }
+                $this->logger->debug('Rematch skipped (alias): {artist} — {title}', [
+                    'artist' => $track->getArtist(),
+                    'title' => $track->getTitle(),
+                ]);
+            } elseif ($result->mediaFileId === null) {
+                $report->stillUnmatched++;
+            } elseif ($this->navidrome->scrobbleExistsNear($userId, $result->mediaFileId, $track->getPlayedAt(), $toleranceSeconds)) {
+                $report->matchedAsDuplicate++;
+                if (!$dryRun) {
+                    $track->setStatus(LastFmImportTrack::STATUS_DUPLICATE);
+                    $track->setMatchedMediaFileId($result->mediaFileId);
+                }
+                $this->logger->debug('Rematch found duplicate: {artist} — {title}', [
+                    'artist' => $track->getArtist(),
+                    'title' => $track->getTitle(),
+                ]);
+            } else {
+                $report->matchedAsInserted++;
+                if (!$dryRun) {
+                    $this->navidrome->insertScrobble($userId, $result->mediaFileId, $track->getPlayedAt());
+                    $track->setStatus(LastFmImportTrack::STATUS_INSERTED);
+                    $track->setMatchedMediaFileId($result->mediaFileId);
+                }
+                $this->logger->debug('Rematch inserted: {artist} — {title}', [
+                    'artist' => $track->getArtist(),
+                    'title' => $track->getTitle(),
+                ]);
+            }
+
+            // Flush periodically so memory does not grow unbounded on big sweeps.
+            if (!$dryRun && ++$batch >= 100) {
+                $this->em->flush();
+                $batch = 0;
+            }
+        }
+
+        if (!$dryRun) {
+            $this->em->flush();
+        }
+
+        return $report;
+    }
+}

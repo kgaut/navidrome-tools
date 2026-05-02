@@ -52,6 +52,19 @@ Fonctionnalités livrées :
   (table `lastfm_import_track`, FK CASCADE) avec filtre par statut
   (inserted / duplicate / unmatched, défaut « non matchés »
   s'il y en a) et recherche full-text artiste/titre.
+- **Re-match des unmatched** (`app:lastfm:rematch`,
+  `POST /lastfm/rematch`) : ré-applique la cascade de matching
+  (`App\LastFm\ScrobbleMatcher`, extraite pour mutualisation avec
+  `LastFmImporter`) sur les rows `lastfm_import_track` en status
+  `unmatched`. Utile quand on ajoute des morceaux à Navidrome ou
+  qu'on déploie une nouvelle heuristique : pas besoin de re-télécharger
+  l'historique Last.fm. Insère dans `scrobbles` Navidrome (avec
+  `scrobbleExistsNear` pour dédup), bascule la row en
+  `inserted` / `duplicate` / `skipped`. Wrappé par `RunHistoryRecorder`
+  (type `lastfm-rematch`). Bouton sur `/history/{id}` (par run) et
+  `/lastfm/import` (cumul global). Cron via `LASTFM_REMATCH_SCHEDULE`.
+  Idempotent. Navidrome doit être arrêté (mêmes contraintes que
+  `app:lastfm:import`).
 - **Page `/stats/lastfm-history`** : 100 derniers scrobbles cachés en
   local pour le user Last.fm, refresh manuel (table `lastfm_history`).
 - **Page `/stats/navidrome-history`** : pendant symétrique, snapshot
@@ -104,7 +117,8 @@ Fonctionnalités livrées :
 ```
 src/
 ├── Command/          CLI Symfony (app:playlist:run, app:stats:compute,
-│                     app:lastfm:import, app:cron:dump, app:history:purge…)
+│                     app:lastfm:import, app:lastfm:rematch, app:cron:dump,
+│                     app:history:purge…)
 ├── Controller/       Dashboard, PlaylistDefinition CRUD, Stats (index/compare/
 │                     charts/heatmap/wrapped/lastfm-history/navidrome-history),
 │                     LastFmImport, Lidarr, History, Settings, Security
@@ -319,6 +333,7 @@ Le push du tag déclenche `docker-publish` (cf. `.github/workflows/ci.yml`).
 | `LASTFM_API_KEY`               | Optionnel, fallback du formulaire et de la CLI              |
 | `LASTFM_USER`                  | Optionnel, pré-remplit le champ user / fallback CLI         |
 | `LASTFM_PAGE_DELAY_SECONDS`    | Pause entre 2 pages de l'API (default 10, 0 pour désactiver)|
+| `LASTFM_REMATCH_SCHEDULE`      | Cron expr pour `app:lastfm:rematch` (vide = désactivé)      |
 
 Wirées dans : `.env` (dev), `.env.dist` (template), `phpunit.xml.dist`
 (test), `.lando.yml.dist` (Lando), `docker-compose.example.yml`,

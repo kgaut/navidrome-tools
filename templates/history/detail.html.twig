@@ -86,6 +86,33 @@
         </div>
     {% endif %}
 
+    {# ---------- Rematch action for runs with unmatched ---------- #}
+    {% if entry.type == 'lastfm-import' and (status_counts.unmatched ?? 0) > 0 %}
+        <div class="bg-white shadow rounded p-6 mt-6 max-w-3xl">
+            <h2 class="text-lg font-semibold mb-1">Re-tenter le matching</h2>
+            <p class="text-sm text-slate-500 mb-3">
+                {{ status_counts.unmatched }} scrobble{{ status_counts.unmatched > 1 ? 's' : '' }}
+                non matché{{ status_counts.unmatched > 1 ? 's' : '' }} dans ce run. Un re-essai applique
+                les heuristiques courantes (incl. nouveaux alias, nouveaux morceaux ajoutés à Navidrome
+                depuis l'import) et insère les scrobbles trouvés.
+            </p>
+            <div class="mb-4 p-3 rounded bg-rose-50 border border-rose-200 text-sm text-rose-800">
+                ⚠️ <strong>Navidrome doit être arrêté</strong> pendant l'opération
+                (l'import écrit dans la table <code>scrobbles</code>, qui est montée en lecture seule
+                tant que Navidrome tourne).
+            </div>
+            <form method="post" action="{{ path('app_lastfm_rematch') }}"
+                  onsubmit="return confirm('Lancer le rematch sur les {{ status_counts.unmatched }} scrobbles non matchés de ce run ?');">
+                <input type="hidden" name="_token" value="{{ csrf_token('lastfm_rematch') }}">
+                <input type="hidden" name="run_id" value="{{ entry.id }}">
+                <button type="submit"
+                        class="px-4 py-2 rounded bg-emerald-600 text-white text-sm hover:bg-emerald-700">
+                    🔁 Re-tenter le matching de ce run
+                </button>
+            </form>
+        </div>
+    {% endif %}
+
     {# ---------- Per-track section for Last.fm imports ---------- #}
     {% if entry.type == 'lastfm-import' and (status_counts|default({})) is not empty %}
         <div class="bg-white shadow rounded p-6 mt-6 max-w-5xl">

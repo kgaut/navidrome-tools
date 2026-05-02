@@ -10,6 +10,7 @@ use App\LastFm\LastFmImporter;
 use App\LastFm\LastFmScrobble;
 use App\Lidarr\LidarrConfig;
 use App\Navidrome\NavidromeRepository;
+use App\Repository\LastFmImportTrackRepository;
 use App\Service\RunHistoryRecorder;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -25,6 +26,7 @@ class LastFmImportController extends AbstractController
         private readonly NavidromeRepository $navidrome,
         private readonly RunHistoryRecorder $recorder,
         private readonly EntityManagerInterface $em,
+        private readonly LastFmImportTrackRepository $trackRepo,
         private readonly string $navidromeUrl,
     ) {
     }
@@ -127,6 +129,7 @@ class LastFmImportController extends AbstractController
             'report' => $report,
             'error' => $error,
             'unmatched' => $unmatched,
+            'unmatched_cumulative' => $this->trackRepo->countUnmatched(),
             'lidarr_configured' => $this->lidarrConfig->isConfigured(),
             'navidrome_url' => rtrim($this->navidromeUrl, '/'),
         ]);

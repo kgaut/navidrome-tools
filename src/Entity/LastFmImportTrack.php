@@ -113,8 +113,20 @@ class LastFmImportTrack
         return $this->status;
     }
 
+    public function setStatus(string $status): self
+    {
+        $this->status = $status;
+        return $this;
+    }
+
     public function getMatchedMediaFileId(): ?string
     {
         return $this->matchedMediaFileId;
+    }
+
+    public function setMatchedMediaFileId(?string $mediaFileId): self
+    {
+        $this->matchedMediaFileId = $mediaFileId;
+        return $this;
     }
 }

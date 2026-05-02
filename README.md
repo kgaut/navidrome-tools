@@ -395,6 +395,41 @@ lando symfony app:lastfm:import myuser --api-key=XXX \
 lando symfony app:lastfm:import myuser --api-key=XXX --show-unmatched=all
 ```
 
+## Re-match des unmatched
+
+Quand on ajoute des morceaux à Navidrome après un import (ou qu'on
+déploie une nouvelle heuristique de matching), les scrobbles déjà
+marqués `unmatched` dans `lastfm_import_track` peuvent être ré-essayés
+**sans retélécharger l'historique Last.fm**. La cascade de matching
+courante (alias → MBID → triplet → couple 4-paliers → fuzzy) est
+ré-appliquée et les scrobbles trouvés sont insérés dans Navidrome
+(idempotent : `scrobbleExistsNear` évite les doublons).
+
+### CLI
+
+```bash
+php bin/console app:lastfm:rematch [--dry-run] [--run-id=N] [--limit=N]
+```
+
+`--dry-run` montre le rapport sans écrire. `--run-id=N` limite le
+rematch aux unmatched du run #N. `--limit=0` (défaut) = pas de limite.
+
+### Web
+
+- Sur `/history/{id}` d'un run `lastfm-import` : bouton « 🔁 Re-tenter
+  le matching de ce run » si le run a au moins 1 unmatched.
+- Sur `/lastfm/import` : carte « Re-tenter le matching cumulé » avec
+  le compteur global d'unmatched et un bouton de re-match global.
+
+### Cron
+
+Définissez `LASTFM_REMATCH_SCHEDULE` pour ajouter une ligne cron
+automatiquement (ex. `0 5 * * 0` pour tourner chaque dimanche à 05:00).
+Vide par défaut.
+
+⚠️ **Navidrome doit être arrêté** pendant le rematch (mêmes contraintes
+que `app:lastfm:import` : écriture dans la table `scrobbles`).
+
 ## Connexion Last.fm authentifiée (optionnelle)
 
 Certaines actions vers Last.fm — notamment la future synchronisation
