@@ -178,6 +178,13 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
   tronqué.
 
 ### Changed
+- Menu : « Historique Last.fm » et « Historique Navidrome » sortent
+  du dropdown **Statistiques** et rejoignent un nouveau dropdown
+  **Historique** (libellés `Last.fm` / `Navidrome`), aux côtés de
+  l'entrée **Runs** (anciennement le lien « Historique » plat). Les
+  routes (`app_stats_lastfm_history`, `app_stats_navidrome_history`,
+  `app_history`) sont inchangées — c'est purement de la
+  réorganisation de navigation.
 - `RunHistoryRecorder::record()` passe maintenant la `RunHistory`
   fraîchement persistée à l'action callback en premier argument —
   permet aux callers d'attacher des entités enfants au run via FK
