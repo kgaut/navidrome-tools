@@ -437,4 +437,57 @@ class NavidromeRepositoryTest extends TestCase
         $repo = new NavidromeRepository($this->dbPath, 'admin');
         $this->assertNull($repo->findMediaFileByArtistTitleAlbum('Daft Punk', 'One More Time', ''));
     }
+
+    public function testFindMediaFileFuzzyMatchesSmallTypos(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: false);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', 'Take Me to Church', 'Hozier');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        // 1 typo on artist + 1 typo on title = distance 2, under threshold 3.
+        $this->assertSame('mf-1', $repo->findMediaFileFuzzy('Hosier', 'Take Me to Chruch', 3));
+    }
+
+    public function testFindMediaFileFuzzyReturnsNullWhenDisabled(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: false);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', 'Take Me to Church', 'Hozier');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        // 0 → fuzzy is off, returns null even on a near-perfect typo.
+        $this->assertNull($repo->findMediaFileFuzzy('Hosier', 'Take Me to Church', 0));
+        $this->assertNull($repo->findMediaFileFuzzy('Hosier', 'Take Me to Church', -1));
+    }
+
+    public function testFindMediaFileFuzzyReturnsNullWhenAboveThreshold(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: false);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', 'Take Me to Church', 'Hozier');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        // Distance way above 3 → null.
+        $this->assertNull($repo->findMediaFileFuzzy('Completely Different Artist', 'Some Other Song', 3));
+    }
+
+    public function testFindMediaFileFuzzyPicksClosestMatch(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: false);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-far', 'Some Song', 'Far Artist');
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-near', 'Some Sang', 'Far Artist'); // distance 1
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-exact', 'Some Song', 'Far Artist'); // distance 0 (exact)
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        // Should pick the lowest-distance candidate.
+        $this->assertSame('mf-far', $repo->findMediaFileFuzzy('Far Artist', 'Some Song', 3));
+    }
+
+    public function testFindMediaFileFuzzyOnEmptyInputs(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: false);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', 'Track', 'Artist');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $this->assertNull($repo->findMediaFileFuzzy('', 'Track', 3));
+        $this->assertNull($repo->findMediaFileFuzzy('Artist', '', 3));
+    }
 }

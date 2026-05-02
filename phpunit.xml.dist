@@ -29,6 +29,7 @@
         <env name="LASTFM_API_KEY" value=""/>
         <env name="LASTFM_USER" value=""/>
         <env name="LASTFM_PAGE_DELAY_SECONDS" value="0"/>
+        <env name="LASTFM_FUZZY_MAX_DISTANCE" value="0"/>
     </php>
 
     <testsuites>

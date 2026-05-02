@@ -322,9 +322,26 @@ la variable d'environnement `LASTFM_API_KEY`. De même, le username peut
    (`LASTFM_PAGE_DELAY_SECONDS`, défaut 10s) sépare deux pages
    consécutives pour éviter de surcharger l'API ; passez à 0 pour
    désactiver.
-2. **Matching** sur la lib Navidrome :
-   - d'abord par MusicBrainz ID si Last.fm le fournit ;
-   - sinon par couple `(artist, title)` normalisé (lowercase + trim).
+2. **Matching** sur la lib Navidrome (essais successifs jusqu'à
+   succès) :
+   1. **MusicBrainz ID** si Last.fm le fournit (le plus fiable) ;
+   2. **Triplet** `(artist, title, album)` normalisé — départage les
+      morceaux qui existent sur plusieurs albums (single + version
+      album + compilation) ;
+   3. **Couple** `(artist, title)` normalisé, avec tie-break
+      `album_artist = artist` puis `id ASC` ;
+   4. **Fallback fuzzy** Levenshtein artist+title (opt-in via
+      `LASTFM_FUZZY_MAX_DISTANCE`, défaut 0 = désactivé, 3 = seuil
+      raisonnable). Coûteux : ne s'active que sur les scrobbles qui
+      ont échoué aux 3 paliers précédents.
+
+   La normalisation utilisée à toutes les étapes : lowercase + trim
+   + décomposition Unicode NFKD + strip des diacritiques (Beyoncé ↔
+   Beyonce) + strip de la ponctuation (AC/DC ↔ ACDC) + collapse des
+   espaces. Les helpers `stripFeaturedArtists()` /
+   `stripFeaturingFromTitle()` / `stripVersionMarkers()` retirent en
+   plus les suffixes parasites côté Last.fm (`feat. X`, `(Radio
+   Edit)`, `- Remastered 2011`, `(Live at …)`, `(Acoustic)`, etc.).
 3. **Déduplication** : un scrobble n'est pas réinséré s'il existe déjà
    dans la table `scrobbles` une ligne avec le même `media_file_id` et
    un `submission_time` à ±`--tolerance` secondes (60 par défaut). Cela

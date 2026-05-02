@@ -8,6 +8,14 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### Added
+- Matching Last.fm : fallback **fuzzy Levenshtein** sur (artist,
+  title) en dernier recours, après les paliers MBID / triplet /
+  couple. Pré-filtre les candidats sur le préfixe 3 chars (artist
+  ou title) pour éviter de scanner toute la lib. Opt-in via la
+  nouvelle env var `LASTFM_FUZZY_MAX_DISTANCE` (défaut `0` =
+  désactivé, `3` = seuil raisonnable). Permet de matcher
+  `Hozier / Take Me to Chruch` ↔ `Hozier / Take Me to Church`,
+  `Tchaïkovski` ↔ `Tchaikovsky`, etc. Closes #16.
 - Matching Last.fm : désambiguation par triplet
   `(artist, title, album)`. Nouvelle méthode
   `NavidromeRepository::findMediaFileByArtistTitleAlbum()` qui

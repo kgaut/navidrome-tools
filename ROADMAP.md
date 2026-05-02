@@ -30,9 +30,7 @@ l'ordre d'attaque recommandé.
 |-----|--------------------------------------------------------------------|--------|
 | [#20] | Cache de résolution (positif + négatif)                         | S      |
 | [#22] | Profil strict / default / lax configurable                      | S      |
-| [#16] | Fuzzy match Levenshtein avec seuil                              | M      |
 | [#17] | MBID manquant via `track.getInfo` / `track.getCorrection`       | M      |
-| [#18] | Table d'alias manuels Last.fm → media_file                      | M      |
 | [#21] | Re-tenter les unmatched cumulés sans re-télécharger l'historique | M      |
 | [#19] | Suggestions automatiques + apprentissage par confirmation       | L      |
 
@@ -120,9 +118,7 @@ quand on tagge des releases) :
 [#9]: https://github.com/kgaut/navidrome-playlist-generator/issues/9
 [#10]: https://github.com/kgaut/navidrome-playlist-generator/issues/10
 [#11]: https://github.com/kgaut/navidrome-playlist-generator/issues/11
-[#16]: https://github.com/kgaut/navidrome-playlist-generator/issues/16
 [#17]: https://github.com/kgaut/navidrome-playlist-generator/issues/17
-[#18]: https://github.com/kgaut/navidrome-playlist-generator/issues/18
 [#19]: https://github.com/kgaut/navidrome-playlist-generator/issues/19
 [#20]: https://github.com/kgaut/navidrome-playlist-generator/issues/20
 [#21]: https://github.com/kgaut/navidrome-playlist-generator/issues/21

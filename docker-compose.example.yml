@@ -27,6 +27,7 @@ services:
       LASTFM_API_KEY: ${LASTFM_API_KEY:-}
       LASTFM_USER: ${LASTFM_USER:-}
       LASTFM_PAGE_DELAY_SECONDS: ${LASTFM_PAGE_DELAY_SECONDS:-10}
+      LASTFM_FUZZY_MAX_DISTANCE: ${LASTFM_FUZZY_MAX_DISTANCE:-0}
     volumes:
       # Mount Navidrome's SQLite DB read-only.
       - ${NAVIDROME_DATA_DIR:-/srv/navidrome/data}/navidrome.db:/data/navidrome.db:ro
@@ -59,6 +60,7 @@ services:
       LASTFM_API_KEY: ${LASTFM_API_KEY:-}
       LASTFM_USER: ${LASTFM_USER:-}
       LASTFM_PAGE_DELAY_SECONDS: ${LASTFM_PAGE_DELAY_SECONDS:-10}
+      LASTFM_FUZZY_MAX_DISTANCE: ${LASTFM_FUZZY_MAX_DISTANCE:-0}
     volumes:
       - ${NAVIDROME_DATA_DIR:-/srv/navidrome/data}/navidrome.db:/data/navidrome.db:ro
       - navidrome-tools-data:/app/var

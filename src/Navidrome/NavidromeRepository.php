@@ -951,6 +951,64 @@ class NavidromeRepository
      * "Bicycle Race - Remastered 2011" while Navidrome stores the bare form.
      */
     /**
+     * Last-resort fuzzy match by Levenshtein distance on (artist, title).
+     * Pulls candidate rows whose normalized artist or title shares the same
+     * 3-char prefix to avoid scanning the whole library, then picks the row
+     * with the smallest combined edit distance under $maxDistance.
+     *
+     * Off when $maxDistance <= 0 (returns null without querying). Returns
+     * null when no candidate is within range.
+     */
+    public function findMediaFileFuzzy(string $artist, string $title, int $maxDistance): ?string
+    {
+        if ($maxDistance <= 0) {
+            return null;
+        }
+
+        $artistN = self::normalize($artist);
+        $titleN = self::normalize($title);
+        // PHP's levenshtein() is capped at 255 chars; bail out on longer
+        // strings rather than crash. (Real-world artist/title rarely exceed
+        // 100 chars; this is a safety net.)
+        if ($artistN === '' || $titleN === '' || strlen($artistN) > 255 || strlen($titleN) > 255) {
+            return null;
+        }
+
+        $artistPrefix = mb_substr($artistN, 0, 3);
+        $titlePrefix = mb_substr($titleN, 0, 3);
+        if ($artistPrefix === '' && $titlePrefix === '') {
+            return null;
+        }
+
+        $rows = $this->connection()->fetchAllAssociative(
+            'SELECT id, artist, title FROM media_file
+             WHERE substr(np_normalize(artist), 1, 3) = :ap
+                OR substr(np_normalize(title), 1, 3) = :tp',
+            ['ap' => $artistPrefix, 'tp' => $titlePrefix],
+        );
+
+        $bestId = null;
+        $bestScore = PHP_INT_MAX;
+        foreach ($rows as $row) {
+            $candArtist = self::normalize((string) ($row['artist'] ?? ''));
+            $candTitle = self::normalize((string) ($row['title'] ?? ''));
+            if (
+                $candArtist === '' || $candTitle === ''
+                || strlen($candArtist) > 255 || strlen($candTitle) > 255
+            ) {
+                continue;
+            }
+            $score = levenshtein($candArtist, $artistN) + levenshtein($candTitle, $titleN);
+            if ($score <= $maxDistance && $score < $bestScore) {
+                $bestId = (string) $row['id'];
+                $bestScore = $score;
+            }
+        }
+
+        return $bestId;
+    }
+
+    /**
      * Disambiguate a (artist, title) lookup with the album. Used as a
      * tighter pre-step to {@see findMediaFileByArtistTitle()} when the
      * scrobble carries a non-empty album: the same song can be present on

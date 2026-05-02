@@ -14,6 +14,7 @@ class LastFmImporter
         private readonly LastFmClient $client,
         private readonly NavidromeRepository $navidrome,
         ?LoggerInterface $logger = null,
+        private readonly int $fuzzyMaxDistance = 0,
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
@@ -68,6 +69,14 @@ class LastFmImporter
             }
             if ($mediaFileId === null) {
                 $mediaFileId = $this->navidrome->findMediaFileByArtistTitle($scrobble->artist, $scrobble->title);
+            }
+            // Last resort: fuzzy Levenshtein, opt-in via LASTFM_FUZZY_MAX_DISTANCE.
+            if ($mediaFileId === null && $this->fuzzyMaxDistance > 0) {
+                $mediaFileId = $this->navidrome->findMediaFileFuzzy(
+                    $scrobble->artist,
+                    $scrobble->title,
+                    $this->fuzzyMaxDistance,
+                );
             }
 
             if ($mediaFileId === null) {

@@ -113,6 +113,29 @@ class LastFmImporterTest extends TestCase
         ], $events);
     }
 
+    public function testFuzzyFallbackKicksInOnlyWhenEnabled(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: true);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', 'Take Me to Church', 'Hozier');
+
+        // Typo on artist name, no MBID, no album → exact heuristics all fail.
+        $client = new FakeLastFmClient([
+            new LastFmScrobble('Hosier', 'Take Me to Church', '', null, new \DateTimeImmutable('2024-06-01 10:00:00')),
+        ]);
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+
+        // Without fuzzy: unmatched.
+        $report = (new LastFmImporter($client, $repo))->import('k', 'u', dryRun: true);
+        $this->assertSame(1, $report->unmatched);
+        $this->assertSame(0, $report->inserted);
+
+        // With fuzzy max distance 2: matched.
+        $report = (new LastFmImporter($client, $repo, null, 2))->import('k', 'u', dryRun: true);
+        $this->assertSame(0, $report->unmatched);
+        $this->assertSame(1, $report->inserted);
+    }
+
     public function testOnScrobbleCallbackFiresWithStatusAndMediaFileId(): void
     {
         $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: true);

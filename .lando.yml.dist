@@ -47,6 +47,8 @@ services:
         # Pause (in seconds) between two consecutive Last.fm API page
         # fetches. Default 10, set to 0 to disable.
         LASTFM_PAGE_DELAY_SECONDS: '10'
+        # Maximum Levenshtein distance for the fuzzy fallback. 0 = disabled.
+        LASTFM_FUZZY_MAX_DISTANCE: '0'
 
   cron:
     type: php:8.3

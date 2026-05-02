@@ -8,6 +8,7 @@ parameters:
     app.stats_refresh_schedule: '%env(STATS_REFRESH_SCHEDULE)%'
     app.run_history_retention_days: '%env(int:RUN_HISTORY_RETENTION_DAYS)%'
     lastfm.page_delay_seconds: '%env(int:LASTFM_PAGE_DELAY_SECONDS)%'
+    lastfm.fuzzy_max_distance: '%env(int:LASTFM_FUZZY_MAX_DISTANCE)%'
     lidarr.url: '%env(LIDARR_URL)%'
     lidarr.api_key: '%env(LIDARR_API_KEY)%'
     lidarr.root_folder_path: '%env(LIDARR_ROOT_FOLDER_PATH)%'
@@ -82,3 +83,7 @@ services:
     App\LastFm\LastFmClient:
         arguments:
             $pageDelaySeconds: '%lastfm.page_delay_seconds%'
+
+    App\LastFm\LastFmImporter:
+        arguments:
+            $fuzzyMaxDistance: '%lastfm.fuzzy_max_distance%'
