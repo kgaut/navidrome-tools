@@ -6,6 +6,16 @@
     <title>{% block title %}Navidrome Tools{% endblock %}</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Album/artist cover thumbnails — used by templates/_macros/cover.html.twig.
+           Tailwind via CDN doesn't include these utility classes by default. */
+        .cover { display: inline-block; border-radius: 0.25rem; background: #e2e8f0; }
+        .cover-fallback {
+            display: inline-flex; align-items: center; justify-content: center;
+            color: #fff; font-weight: 600; font-size: 0.7em;
+            border-radius: 0.25rem; user-select: none;
+        }
+    </style>
     {% block stylesheets %}{% endblock %}
 </head>
 <body class="h-full text-slate-800">

@@ -103,6 +103,77 @@ class SubsonicClientTest extends TestCase
         $this->assertStringContainsString('id=mf-1', $captured);
     }
 
+    public function testFetchCoverArtReturnsBinary(): void
+    {
+        $bytes = "\xFF\xD8\xFF\xE0" . str_repeat("\x00", 32); // JPEG magic + filler
+        $client = new MockHttpClient([
+            new MockResponse($bytes, [
+                'response_headers' => ['content-type: image/jpeg'],
+                'http_code' => 200,
+            ]),
+        ]);
+
+        $sub = new SubsonicClient($client, 'http://navi.test', 'admin', 'changeme');
+        $this->assertSame($bytes, $sub->fetchCoverArt('mf-123', 128));
+    }
+
+    public function testFetchCoverArtClampsHugeSizeTo1024(): void
+    {
+        $captured = null;
+        $client = new MockHttpClient(function (string $method, string $url) use (&$captured): MockResponse {
+            $captured = $url;
+
+            return new MockResponse("\xFF\xD8\xFF", [
+                'response_headers' => ['content-type: image/jpeg'],
+                'http_code' => 200,
+            ]);
+        });
+
+        $sub = new SubsonicClient($client, 'http://navi.test', 'admin', 'changeme');
+        $sub->fetchCoverArt('mf-123', 99999);
+
+        $this->assertNotNull($captured);
+        $this->assertStringContainsString('size=1024', (string) $captured);
+        $this->assertStringNotContainsString('size=99999', (string) $captured);
+    }
+
+    public function testFetchCoverArtRejectsHttpError(): void
+    {
+        $client = new MockHttpClient([
+            new MockResponse('', ['http_code' => 404]),
+        ]);
+
+        $sub = new SubsonicClient($client, 'http://navi.test', 'admin', 'changeme');
+        $this->expectException(\RuntimeException::class);
+        $sub->fetchCoverArt('does-not-exist', 128);
+    }
+
+    public function testFetchCoverArtRejectsJsonErrorPayload(): void
+    {
+        // Navidrome occasionally answers 200 + JSON error envelope when
+        // the id is unknown — we must not write that to the cache.
+        $client = new MockHttpClient([
+            new MockResponse('{"error":{"code":70,"message":"not found"}}', [
+                'response_headers' => ['content-type: application/json'],
+                'http_code' => 200,
+            ]),
+        ]);
+
+        $sub = new SubsonicClient($client, 'http://navi.test', 'admin', 'changeme');
+        $this->expectException(\RuntimeException::class);
+        $sub->fetchCoverArt('weird-id', 128);
+    }
+
+    public function testFetchCoverArtRejectsEmptyId(): void
+    {
+        $sub = new SubsonicClient(new MockHttpClient(static function () {
+            throw new \RuntimeException('Should not perform HTTP for empty id.');
+        }), 'http://navi.test', 'admin', 'changeme');
+
+        $this->expectException(\RuntimeException::class);
+        $sub->fetchCoverArt('', 128);
+    }
+
     /**
      * @param array<string, mixed> $payload
      */

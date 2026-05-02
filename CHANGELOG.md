@@ -14,6 +14,20 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
   stockés en UTC ; la conversion ne se fait qu'à l'affichage. Une
   valeur invalide retombe silencieusement sur UTC. Exemples :
   `Europe/Paris`, `America/New_York`, `Asia/Tokyo`.
+- Infra **miniatures album/artiste** : proxy + cache disque local des
+  covers servies par l'API Subsonic `getCoverArt`. Nouveau endpoint
+  `/cover/{type}/{id}.jpg?size=128` (`type ∈ album|artist|song`),
+  cache miss → appel Subsonic + persist dans
+  `COVERS_CACHE_PATH/<type>/<id>-<size>.jpg`, cache hit →
+  `BinaryFileResponse` avec `Cache-Control: public, max-age=86400`.
+  Erreur Subsonic = `404` (le template tombera sur le fallback
+  initiales). `size` clampé à `[1, 1024]` (CVE DoS Navidrome).
+  Helper Twig `cover_url(type, id, size)` + macro
+  `cover_with_fallback` (`templates/_macros/cover.html.twig`) qui
+  affiche soit `<img>` soit un `<div>` initiales coloré (couleur
+  hash-stable du nom). Volume Docker dédié `navidrome-tools-covers`.
+  Nouvelle env var `COVERS_CACHE_PATH` (défaut
+  `var/covers`). Closes #27.
 - Sync **bidirectionnelle Last.fm loved ↔ Navidrome starred**
   (adds-only, idempotent). Le morceau ❤ sur Last.fm devient ★ dans
   Navidrome (et inversement). Aucun morceau n'est jamais déstarré ni

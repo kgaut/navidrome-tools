@@ -31,11 +31,14 @@ services:
       LASTFM_PAGE_DELAY_SECONDS: ${LASTFM_PAGE_DELAY_SECONDS:-10}
       LASTFM_FUZZY_MAX_DISTANCE: ${LASTFM_FUZZY_MAX_DISTANCE:-0}
       LASTFM_LOVE_SYNC_SCHEDULE: ${LASTFM_LOVE_SYNC_SCHEDULE:-}
+      COVERS_CACHE_PATH: /app/var/covers
     volumes:
       # Mount Navidrome's SQLite DB read-only.
       - ${NAVIDROME_DATA_DIR:-/srv/navidrome/data}/navidrome.db:/data/navidrome.db:ro
       # Persistent volume for the tool's own DB (playlist definitions, settings).
       - navidrome-tools-data:/app/var
+      # Dedicated volume for the cover-art cache (can grow to ~MBs).
+      - navidrome-tools-covers:/app/var/covers
 
   navidrome-tools-cron:
     image: ghcr.io/kgaut/navidrome-tools:latest
@@ -67,9 +70,12 @@ services:
       LASTFM_PAGE_DELAY_SECONDS: ${LASTFM_PAGE_DELAY_SECONDS:-10}
       LASTFM_FUZZY_MAX_DISTANCE: ${LASTFM_FUZZY_MAX_DISTANCE:-0}
       LASTFM_LOVE_SYNC_SCHEDULE: ${LASTFM_LOVE_SYNC_SCHEDULE:-}
+      COVERS_CACHE_PATH: /app/var/covers
     volumes:
       - ${NAVIDROME_DATA_DIR:-/srv/navidrome/data}/navidrome.db:/data/navidrome.db:ro
       - navidrome-tools-data:/app/var
+      - navidrome-tools-covers:/app/var/covers
 
 volumes:
   navidrome-tools-data:
+  navidrome-tools-covers:

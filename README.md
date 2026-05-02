@@ -94,6 +94,7 @@ pouvez les éditer puis les activer.
 | `APP_AUTH_PASSWORD`  | oui         | Mot de passe pour se connecter à l'UI du tool.                           |
 | `DATABASE_URL`       | non         | DSN Doctrine pour la DB locale du tool. Défaut : SQLite dans `var/data.db`. |
 | `CRON_REGEN_INTERVAL`| non (`300`) | Intervalle en secondes entre 2 régénérations du crontab (mode cron).     |
+| `COVERS_CACHE_PATH`  | non         | Cache disque des miniatures album/artiste. Défaut : `/app/var/covers` (volume Docker dédié dans le compose). |
 
 ### Mise à jour
 

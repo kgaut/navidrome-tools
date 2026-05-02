@@ -148,6 +148,74 @@ class SubsonicClient
     }
 
     /**
+     * Fetch the raw cover art binary for a Navidrome id (album, artist, or
+     * media_file id). Subsonic returns the image bytes directly — no JSON
+     * envelope — so we can't reuse {@see call()}.
+     *
+     * `$size` is in pixels; clamped to [1, 1024] to dodge a known DoS on
+     * unbounded resize. 0 (default) means « native size » per the spec.
+     */
+    public function fetchCoverArt(string $id, int $size = 0): string
+    {
+        if ($id === '') {
+            throw new \RuntimeException('fetchCoverArt requires a non-empty id.');
+        }
+        if ($size < 0) {
+            $size = 0;
+        }
+        if ($size > 1024) {
+            $size = 1024;
+        }
+
+        $params = ['id' => $id];
+        if ($size > 0) {
+            $params['size'] = $size;
+        }
+
+        return $this->callBinary('getCoverArt', $params);
+    }
+
+    /**
+     * @param array<string, scalar> $params
+     */
+    private function callBinary(string $method, array $params): string
+    {
+        $salt = bin2hex(random_bytes(8));
+        $token = md5($this->password . $salt);
+
+        $auth = [
+            'u' => $this->user,
+            't' => $token,
+            's' => $salt,
+            'v' => self::API_VERSION,
+            'c' => self::CLIENT_ID,
+        ];
+
+        $url = rtrim($this->baseUrl, '/') . '/rest/' . $method . '.view?' . http_build_query(array_merge($auth, $params));
+
+        try {
+            $response = $this->httpClient->request('GET', $url, ['timeout' => 30]);
+            $status = $response->getStatusCode();
+            if ($status < 200 || $status >= 300) {
+                throw new \RuntimeException(sprintf('Subsonic %s returned HTTP %d', $method, $status));
+            }
+            $contentType = $response->getHeaders(false)['content-type'][0] ?? '';
+            // Navidrome can answer with a JSON error wrapped in 200 when the
+            // id is unknown. Detect and reject so the caller can serve a
+            // fallback rather than write garbage to the cache.
+            if (str_starts_with($contentType, 'application/json') || str_starts_with($contentType, 'text/')) {
+                throw new \RuntimeException(sprintf('Subsonic %s returned non-binary payload (Content-Type: %s)', $method, $contentType));
+            }
+
+            return $response->getContent();
+        } catch (\RuntimeException $e) {
+            throw $e;
+        } catch (\Throwable $e) {
+            throw new \RuntimeException(sprintf('Subsonic call %s failed: %s', $method, $e->getMessage()), 0, $e);
+        }
+    }
+
+    /**
      * @param array<string, scalar> $params
      *
      * @return array<string, mixed>

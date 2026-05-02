@@ -1,0 +1,30 @@
+{#
+  Render an album/artist cover with a graceful initials fallback when:
+    - the upstream id is missing/empty (no round trip),
+    - the proxy returns 404 (browser swaps the <img> for the fallback div
+      via onerror).
+
+  Usage:
+    {% from "_macros/cover.html.twig" import cover_with_fallback %}
+    {{ cover_with_fallback('artist', row.artist_id, row.artist, 32) }}
+    {{ cover_with_fallback('album', row.album_id, row.album, 64, 'rounded') }}
+#}
+
+{% macro cover_with_fallback(type, id, name, size = 128, classes = '') %}
+    {% set url = cover_url(type, id, size) %}
+    {% set initials = name|default('?')|slice(0, 2)|upper %}
+    {# Stable pseudo-random hue keyed on the name so the same artist/album
+       always falls back to the same colour. #}
+    {% set hue = ((name|default('?')|length * 47) % 360) %}
+    {% set bg = 'hsl(' ~ hue ~ ', 45%, 55%)' %}
+    {% set inline = 'width:' ~ size ~ 'px;height:' ~ size ~ 'px' %}
+    {% if url %}
+        <img src="{{ url }}" alt="{{ name }}"
+             class="cover {{ classes }}"
+             style="{{ inline }};object-fit:cover"
+             loading="lazy"
+             onerror="this.outerHTML='<div class=&quot;cover-fallback {{ classes }}&quot; style=&quot;{{ inline }};background:{{ bg }}&quot;>{{ initials }}</div>'">
+    {% else %}
+        <div class="cover-fallback {{ classes }}" style="{{ inline }};background:{{ bg }}">{{ initials }}</div>
+    {% endif %}
+{% endmacro %}

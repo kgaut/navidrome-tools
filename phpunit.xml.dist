@@ -33,6 +33,7 @@
         <env name="LASTFM_PAGE_DELAY_SECONDS" value="0"/>
         <env name="LASTFM_FUZZY_MAX_DISTANCE" value="0"/>
         <env name="LASTFM_LOVE_SYNC_SCHEDULE" value=""/>
+        <env name="COVERS_CACHE_PATH" value="%kernel.project_dir%/var/covers_test"/>
     </php>
 
     <testsuites>

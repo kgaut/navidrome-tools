@@ -7,6 +7,7 @@ parameters:
     app.auth_password: '%env(APP_AUTH_PASSWORD)%'
     app.stats_refresh_schedule: '%env(STATS_REFRESH_SCHEDULE)%'
     app.run_history_retention_days: '%env(int:RUN_HISTORY_RETENTION_DAYS)%'
+    app.covers_cache_path: '%env(resolve:COVERS_CACHE_PATH)%'
     lastfm.api_key: '%env(LASTFM_API_KEY)%'
     lastfm.api_secret: '%env(LASTFM_API_SECRET)%'
     lastfm.page_delay_seconds: '%env(int:LASTFM_PAGE_DELAY_SECONDS)%'
@@ -101,3 +102,7 @@ services:
         arguments:
             $apiKey: '%lastfm.api_key%'
             $apiSecret: '%lastfm.api_secret%'
+
+    App\Service\CoverArtCache:
+        arguments:
+            $cacheRoot: '%app.covers_cache_path%'

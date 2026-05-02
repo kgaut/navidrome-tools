@@ -57,6 +57,8 @@ services:
         # Cron schedule for the loved↔starred sync (app:lastfm:sync-loved).
         # Empty = no cron line. Set e.g. '0 4 * * *' for nightly at 04:00.
         LASTFM_LOVE_SYNC_SCHEDULE: ''
+        # Local on-disk cache for album/artist cover art (proxy + cache).
+        COVERS_CACHE_PATH: '/app/var/covers'
 
   cron:
     type: php:8.3
