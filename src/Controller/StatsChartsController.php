@@ -14,6 +14,14 @@ class StatsChartsController extends AbstractController
 
     private const DAY_LABELS = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 
+    /**
+     * Stable 5-color palette for the top-artists chart. Shared between
+     * the JS dataset config (canvas line colors) and the custom HTML
+     * legend so the dot next to each artist photo always matches the
+     * line on the chart.
+     */
+    private const TOP_ARTISTS_PALETTE = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'];
+
     #[Route('/stats/charts', name: 'app_stats_charts', methods: ['GET'])]
     public function index(Request $request, NavidromeRepository $navidrome): Response
     {
@@ -46,6 +54,7 @@ class StatsChartsController extends AbstractController
             'allowed_months' => self::ALLOWED_MONTHS,
             'plays_by_month' => $playsByMonth,
             'top_artists' => $topArtists,
+            'top_artists_palette' => self::TOP_ARTISTS_PALETTE,
             'day_labels' => $dayLabels,
             'day_values' => $dayValues,
         ]);

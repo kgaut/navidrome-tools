@@ -508,7 +508,7 @@ class NavidromeRepository
      * Top $topN artists by total plays over the last $monthsBack months,
      * with a per-month timeseries for each.
      *
-     * @return list<array{artist: string, total: int, series: list<array{month: string, plays: int}>}>
+     * @return list<array{artist: string, artist_id: ?string, total: int, series: list<array{month: string, plays: int}>}>
      */
     public function getTopArtistsTimeline(int $monthsBack, int $topN): array
     {
@@ -521,9 +521,11 @@ class NavidromeRepository
         $from = $now->modify('first day of this month')->setTime(0, 0)
             ->modify(sprintf('-%d months', max(0, $monthsBack - 1)));
 
-        // Top artists in window
+        // Top artists in window. MAX(artist_id) picks one stable id when
+        // the same artist name maps to multiple media_file.artist_id rows
+        // (rare). Used by the cover proxy to fetch the artist photo.
         $topRows = $this->connection()->fetchAllAssociative(
-            "SELECT mf.artist AS artist, COUNT(*) AS plays
+            "SELECT mf.artist AS artist, MAX(mf.artist_id) AS artist_id, COUNT(*) AS plays
              FROM scrobbles s
              JOIN media_file mf ON mf.id = s.media_file_id
              WHERE s.user_id = :uid AND s.submission_time >= :from AND mf.artist != ''
@@ -571,11 +573,12 @@ class NavidromeRepository
         $out = [];
         foreach ($topRows as $top) {
             $artist = (string) $top['artist'];
+            $artistId = isset($top['artist_id']) && $top['artist_id'] !== '' ? (string) $top['artist_id'] : null;
             $series = [];
             foreach ($months as $m) {
                 $series[] = ['month' => $m, 'plays' => $byArtistMonth[$artist][$m] ?? 0];
             }
-            $out[] = ['artist' => $artist, 'total' => (int) $top['plays'], 'series' => $series];
+            $out[] = ['artist' => $artist, 'artist_id' => $artistId, 'total' => (int) $top['plays'], 'series' => $series];
         }
 
         return $out;

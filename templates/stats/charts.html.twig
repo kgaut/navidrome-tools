@@ -1,4 +1,5 @@
 {% extends 'base.html.twig' %}
+{% from "_macros/cover.html.twig" import cover_with_fallback %}
 
 {% block title %}Graphiques d'écoute{% endblock %}
 
@@ -39,8 +40,23 @@
 
         <div class="bg-white shadow rounded p-5">
             <h2 class="font-semibold text-sm mb-3">Top 5 artistes au fil du temps</h2>
-            <div class="h-72">
-                <canvas id="chart-top-artists"></canvas>
+            <div class="grid grid-cols-1 md:grid-cols-[1fr,200px] gap-4 items-center">
+                <div class="h-72">
+                    <canvas id="chart-top-artists"></canvas>
+                </div>
+                <ul class="text-sm space-y-2">
+                    {% for a in top_artists %}
+                        <li class="flex items-center gap-2">
+                            <span class="inline-block w-3 h-3 rounded-full flex-shrink-0"
+                                  style="background:{{ top_artists_palette[loop.index0 % top_artists_palette|length] }}"></span>
+                            {{ cover_with_fallback('artist', a.artist_id, a.artist, 28) }}
+                            <span class="truncate">
+                                <span class="font-medium">{{ a.artist }}</span>
+                                <span class="text-xs text-slate-500">({{ a.total }})</span>
+                            </span>
+                        </li>
+                    {% endfor %}
+                </ul>
             </div>
         </div>
 
@@ -84,8 +100,12 @@
                 },
             });
 
-            // Chart 2: top artists timeline (line, multi-series)
-            const palette = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'];
+            // Chart 2: top artists timeline (line, multi-series). Native
+            // legend disabled — we render a custom HTML legend with artist
+            // photos next to the canvas (sub-issue #32). The palette is
+            // shared with PHP (top_artists_palette) so the dot beside each
+            // artist photo always matches the line on the chart.
+            const palette = {{ top_artists_palette|json_encode|raw }};
             new Chart(document.getElementById('chart-top-artists'), {
                 type: 'line',
                 data: {
@@ -103,6 +123,7 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     interaction: { mode: 'index', intersect: false },
+                    plugins: { legend: { display: false } },
                 },
             });
 

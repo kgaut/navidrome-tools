@@ -73,12 +73,10 @@ d'attaque (A est prérequis pour B-F).
 
 | #   | Titre                                                              | Effort |
 |-----|--------------------------------------------------------------------|--------|
-| [#27] | A. Infra : proxy + cache disque + Twig extension + volume Docker | M      |
 | [#28] | B. Miniatures sur /stats (index + compare)                      | S      |
 | [#29] | C. Miniatures sur /wrapped/{year}                               | S      |
 | [#30] | D. Miniatures sur les histories (Last.fm, Navidrome, run detail)| S      |
 | [#31] | E. Miniatures sur la preview de playlist                        | S      |
-| [#32] | F. Miniatures sur /stats/charts (légende top artistes)          | S      |
 
 ---
 
@@ -122,9 +120,7 @@ quand on tagge des releases) :
 [#22]: https://github.com/kgaut/navidrome-playlist-generator/issues/22
 [#25]: https://github.com/kgaut/navidrome-playlist-generator/issues/25
 [#26]: https://github.com/kgaut/navidrome-playlist-generator/issues/26
-[#27]: https://github.com/kgaut/navidrome-playlist-generator/issues/27
 [#28]: https://github.com/kgaut/navidrome-playlist-generator/issues/28
 [#29]: https://github.com/kgaut/navidrome-playlist-generator/issues/29
 [#30]: https://github.com/kgaut/navidrome-playlist-generator/issues/30
 [#31]: https://github.com/kgaut/navidrome-playlist-generator/issues/31
-[#32]: https://github.com/kgaut/navidrome-playlist-generator/issues/32

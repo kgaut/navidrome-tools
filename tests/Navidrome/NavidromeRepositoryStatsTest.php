@@ -152,4 +152,31 @@ class NavidromeRepositoryStatsTest extends TestCase
         $this->assertSame(12, $tracks[0]['plays']);
         $this->assertSame(3, $tracks[1]['plays']);
     }
+
+    public function testTopArtistsTimelineExposesArtistIdForCovers(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: true);
+        // The fixture sets media_file.artist_id = 'artist-' . md5($artist).
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', 'Song A', 'Daft Punk');
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-2', 'Song B', 'Aphex Twin');
+        for ($i = 0; $i < 5; $i++) {
+            NavidromeFixtureFactory::insertScrobble($conn, 'user-1', 'mf-1', date('Y-m-d H:i:s', strtotime("-{$i} day - 1 hour")));
+        }
+        for ($i = 0; $i < 2; $i++) {
+            NavidromeFixtureFactory::insertScrobble($conn, 'user-1', 'mf-2', date('Y-m-d H:i:s', strtotime("-{$i} day - 2 hour")));
+        }
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $top = $repo->getTopArtistsTimeline(12, 5);
+
+        $this->assertCount(2, $top);
+        $this->assertSame('Daft Punk', $top[0]['artist']);
+        $this->assertSame('artist-' . md5('Daft Punk'), $top[0]['artist_id']);
+        $this->assertSame(5, $top[0]['total']);
+        $this->assertNotEmpty($top[0]['series']);
+
+        $this->assertSame('Aphex Twin', $top[1]['artist']);
+        $this->assertSame('artist-' . md5('Aphex Twin'), $top[1]['artist_id']);
+        $this->assertSame(2, $top[1]['total']);
+    }
 }

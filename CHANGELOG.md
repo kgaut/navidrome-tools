@@ -14,6 +14,16 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
   stockés en UTC ; la conversion ne se fait qu'à l'affichage. Une
   valeur invalide retombe silencieusement sur UTC. Exemples :
   `Europe/Paris`, `America/New_York`, `Asia/Tokyo`.
+- Photos d'artistes dans la **légende du chart « top 5 artistes
+  timeline »** sur `/stats/charts`. La légende native Chart.js est
+  désactivée et remplacée par une `<ul>` HTML qui affiche pour chaque
+  artiste : pastille couleur (cohérente avec la ligne du chart),
+  miniature 28×28 (fallback initiales si `artist_id` manquant ou
+  cover non disponible côté Navidrome), nom, total scrobbles. La
+  palette 5-couleurs est centralisée dans
+  `StatsChartsController::TOP_ARTISTS_PALETTE` et passée au template
+  pour synchronisation JS/Twig. `getTopArtistsTimeline()` expose
+  désormais `artist_id` (via `MAX(mf.artist_id)`). Closes #32.
 - Infra **miniatures album/artiste** : proxy + cache disque local des
   covers servies par l'API Subsonic `getCoverArt`. Nouveau endpoint
   `/cover/{type}/{id}.jpg?size=128` (`type ∈ album|artist|song`),
