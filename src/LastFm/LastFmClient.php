@@ -151,6 +151,84 @@ class LastFmClient
         $this->writeAction('track.unlove', $apiKey, $apiSecret, $sk, $artist, $title);
     }
 
+    /**
+     * Look up track metadata at Last.fm. Returns the official MBID (when
+     * present) plus any spelling correction the `autocorrect=1` flag
+     * suggests. Used by the matching cascade to recover scrobbles whose
+     * MBID was stripped at scrobble time and whose text matching failed.
+     *
+     * Last.fm always echoes back the artist / title in the response —
+     * even when the input was already canonical. We collapse a
+     * trim+lower-equal correction back to null so callers can test
+     * « did Last.fm correct the spelling? » with a simple `!== null`.
+     */
+    public function trackGetInfo(string $apiKey, string $artist, string $title): LastFmTrackInfo
+    {
+        return $this->lookup('track.getInfo', $apiKey, $artist, $title, 'track');
+    }
+
+    /**
+     * Cheaper sibling of {@see trackGetInfo()} : returns only the
+     * canonical artist / track names suggested by Last.fm, no MBID. Same
+     * autocorrect normalization as `trackGetInfo`.
+     */
+    public function trackGetCorrection(string $apiKey, string $artist, string $title): LastFmTrackInfo
+    {
+        return $this->lookup('track.getCorrection', $apiKey, $artist, $title, 'correction.track');
+    }
+
+    /**
+     * Shared HTTP path for {@see trackGetInfo()} / {@see trackGetCorrection()}.
+     * The two endpoints expose the same `{ artist: { name }, name, mbid }`
+     * shape under different roots ; `$bodyKey` selects the root.
+     *
+     * @param string $bodyKey Either "track" (track.getInfo) or
+     *                        "correction.track" (track.getCorrection,
+     *                        nested under `correction`).
+     */
+    private function lookup(string $method, string $apiKey, string $artist, string $title, string $bodyKey): LastFmTrackInfo
+    {
+        $payload = $this->call([
+            'method' => $method,
+            'artist' => $artist,
+            'track' => $title,
+            'api_key' => $apiKey,
+            'autocorrect' => 1,
+            'format' => 'json',
+        ]);
+
+        $node = $payload;
+        foreach (explode('.', $bodyKey) as $segment) {
+            if (!isset($node[$segment]) || !is_array($node[$segment])) {
+                return LastFmTrackInfo::empty();
+            }
+            $node = $node[$segment];
+        }
+
+        $mbid = isset($node['mbid']) && $node['mbid'] !== '' ? (string) $node['mbid'] : null;
+        $rawArtist = (string) ($node['artist']['name'] ?? $node['artist'] ?? '');
+        $rawTitle = (string) ($node['name'] ?? '');
+
+        return new LastFmTrackInfo(
+            mbid: $mbid,
+            correctedArtist: $this->correctionOrNull($artist, $rawArtist),
+            correctedTitle: $this->correctionOrNull($title, $rawTitle),
+        );
+    }
+
+    private function correctionOrNull(string $input, string $candidate): ?string
+    {
+        $candidate = trim($candidate);
+        if ($candidate === '') {
+            return null;
+        }
+        if (mb_strtolower(trim($input)) === mb_strtolower($candidate)) {
+            return null;
+        }
+
+        return $candidate;
+    }
+
     private function writeAction(
         string $method,
         string $apiKey,
