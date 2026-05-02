@@ -94,6 +94,7 @@ class LastFmImportController extends AbstractController
                             'inserted' => $r->inserted,
                             'duplicates' => $r->duplicates,
                             'unmatched' => $r->unmatched,
+                            'skipped' => $r->skipped,
                             'unmatched_artists' => $r->unmatchedArtistsRanking(100),
                             'dry_run' => $isDry,
                             'date_min' => $dateMin?->format('Y-m-d'),

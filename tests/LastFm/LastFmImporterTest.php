@@ -2,6 +2,7 @@
 
 namespace App\Tests\LastFm;
 
+use App\Entity\LastFmAlias;
 use App\LastFm\LastFmImporter;
 use App\LastFm\LastFmScrobble;
 use App\Navidrome\NavidromeRepository;
@@ -111,6 +112,55 @@ class LastFmImporterTest extends TestCase
             ['Discovery', 'mf-album'],
             ['One More Time', 'mf-single'],
         ], $events);
+    }
+
+    public function testManualAliasOverridesAllHeuristics(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: true);
+        // The « real » match by heuristics would be mf-real, but the user
+        // has explicitly mapped (Bad Spelling, Track) → mf-target.
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-real', 'Track', 'Bad Spelling');
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-target', 'Track', 'Other Artist');
+
+        $alias = new LastFmAlias('Bad Spelling', 'Track', 'mf-target');
+        $aliasRepo = new InMemoryAliasRepository([$alias]);
+
+        $client = new FakeLastFmClient([
+            new LastFmScrobble('Bad Spelling', 'Track', '', null, new \DateTimeImmutable('2024-06-01 12:00:00')),
+        ]);
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $events = [];
+        (new LastFmImporter($client, $repo, null, 0, $aliasRepo))->import(
+            'k',
+            'u',
+            dryRun: true,
+            onScrobble: function (LastFmScrobble $s, string $status, ?string $mfid) use (&$events): void {
+                $events[] = [$status, $mfid];
+            },
+        );
+
+        $this->assertSame([['inserted', 'mf-target']], $events);
+    }
+
+    public function testManualAliasWithNullTargetSkipsScrobble(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: true);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-real', 'My Podcast Episode 42', 'Some Podcast');
+
+        $alias = new LastFmAlias('Some Podcast', 'My Podcast Episode 42', null);
+        $aliasRepo = new InMemoryAliasRepository([$alias]);
+
+        $client = new FakeLastFmClient([
+            new LastFmScrobble('Some Podcast', 'My Podcast Episode 42', '', null, new \DateTimeImmutable('2024-06-01 12:00:00')),
+        ]);
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $report = (new LastFmImporter($client, $repo, null, 0, $aliasRepo))->import('k', 'u', dryRun: true);
+
+        $this->assertSame(0, $report->inserted);
+        $this->assertSame(0, $report->unmatched);
+        $this->assertSame(1, $report->skipped);
     }
 
     public function testFuzzyFallbackKicksInOnlyWhenEnabled(): void

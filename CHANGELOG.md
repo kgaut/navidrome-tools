@@ -8,6 +8,16 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### Added
+- Matching Last.fm : table d'**alias manuels** Last.fm → media_file
+  Navidrome (`lastfm_alias`). Consultée en priorité absolue avant
+  toutes les heuristiques (MBID, triplet, couple, fuzzy). Une cible
+  vide signifie « ignorer ce scrobble silencieusement » (compté en
+  `skipped` plutôt qu'en `unmatched`, utile pour les podcasts ou le
+  bruit). Page CRUD `/lastfm/aliases` (liste paginée + recherche +
+  formulaire). Bouton « ✏️ Mapper » à côté de chaque scrobble non
+  matché sur `/history/{id}` qui pré-remplit le formulaire.
+  Lookup case/accent/ponctuation-insensitive via la même
+  normalisation que `findMediaFileByArtistTitle()`. Closes #18.
 - Matching Last.fm : fallback **fuzzy Levenshtein** sur (artist,
   title) en dernier recours, après les paliers MBID / triplet /
   couple. Pré-filtre les candidats sur le préfixe 3 chars (artist

@@ -8,6 +8,7 @@ class ImportReport
     public int $inserted = 0;
     public int $duplicates = 0;
     public int $unmatched = 0;
+    public int $skipped = 0;
 
     /** @var array<string, array{artist: string, title: string, album: string, count: int}> */
     private array $unmatchedAggregate = [];
