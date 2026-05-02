@@ -7,6 +7,7 @@ use App\Form\PlaylistDefinitionType;
 use App\Generator\GeneratorRegistry;
 use App\Navidrome\NavidromeRepository;
 use App\Repository\PlaylistDefinitionRepository;
+use App\Service\M3uExporter;
 use App\Service\PlaylistRunner;
 use App\Service\SettingsService;
 use Doctrine\ORM\EntityManagerInterface;
@@ -144,6 +145,37 @@ class PlaylistDefinitionController extends AbstractController
             'limit' => $limit,
             'error' => $error,
             'window' => $window,
+        ]);
+    }
+
+    #[Route('/playlist/{id}/preview.m3u', name: 'app_playlist_preview_export_m3u', methods: ['GET'])]
+    public function previewExportM3u(
+        PlaylistDefinition $def,
+        GeneratorRegistry $registry,
+        NavidromeRepository $navidrome,
+        SettingsService $settings,
+        M3uExporter $exporter,
+    ): Response {
+        if (!$registry->has($def->getGeneratorKey())) {
+            $this->addFlash('error', sprintf('Générateur inconnu : "%s"', $def->getGeneratorKey()));
+            return $this->redirectToRoute('app_dashboard');
+        }
+        $generator = $registry->get($def->getGeneratorKey());
+        $limit = $def->getLimitOverride() ?? $settings->getDefaultLimit();
+        $window = $generator->getActiveWindow($def->getParameters());
+
+        $ids = $generator->generate($def->getParameters(), $limit);
+        $tracks = $navidrome->summarize(
+            $ids,
+            $window['from'] ?? null,
+            $window['to'] ?? null,
+        );
+
+        $body = $exporter->export($tracks);
+
+        return new Response($body, Response::HTTP_OK, [
+            'Content-Type' => 'audio/x-mpegurl; charset=utf-8',
+            'Content-Disposition' => sprintf('attachment; filename="%s"', $exporter->filenameFor($def->getName())),
         ]);
     }
 

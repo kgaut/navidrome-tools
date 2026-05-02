@@ -1,0 +1,213 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ playlist.name }} — Playlist{% endblock %}
+
+{% block body %}
+    <div class="mb-4">
+        <a href="{{ path('app_playlists_index') }}" class="text-xs text-sky-700 hover:underline">← Toutes les playlists</a>
+    </div>
+
+    <div class="flex items-start justify-between mb-6 gap-4">
+        <div class="flex-1">
+            <h1 class="text-2xl font-semibold">{{ playlist.name }}</h1>
+            <p class="text-sm text-slate-500">
+                {{ playlist.songCount }} morceau{{ playlist.songCount > 1 ? 'x' : '' }} —
+                {{ (playlist.duration // 60) }} min —
+                {{ playlist.public ? 'Publique' : 'Privée' }}
+                {% if playlist.owner %} — owner <strong>{{ playlist.owner }}</strong>{% endif %}
+            </p>
+            <p class="text-xs text-slate-400">
+                {% if playlist.created %}Créée le {{ playlist.created|slice(0, 10) }}{% endif %}
+                {% if playlist.changed %} — modifiée le {{ playlist.changed|slice(0, 10) }}{% endif %}
+            </p>
+            {% if playlist.comment %}
+                <p class="text-sm text-slate-600 mt-2 italic">« {{ playlist.comment }} »</p>
+            {% endif %}
+        </div>
+        <div class="flex items-center gap-2">
+            <a href="{{ path('app_playlists_export_m3u', {id: playlist.id}) }}"
+               class="text-sm bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded">Exporter M3U</a>
+            <form method="post" action="{{ path('app_playlists_duplicate', {id: playlist.id}) }}" class="inline">
+                <input type="hidden" name="_token" value="{{ csrf_token('duplicate' ~ playlist.id) }}">
+                <button type="submit" class="text-sm bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded">Dupliquer</button>
+            </form>
+        </div>
+    </div>
+
+    {# Stats card #}
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6 text-sm">
+        <div class="rounded border bg-white p-3">
+            <div class="text-xs text-slate-500">Durée totale</div>
+            <div class="text-lg font-semibold">{{ (stats.totalDuration // 60) }} min</div>
+        </div>
+        <div class="rounded border bg-white p-3">
+            <div class="text-xs text-slate-500">Morceaux starrés</div>
+            <div class="text-lg font-semibold">{{ stats.starredCount }} / {{ stats.trackCount }}</div>
+        </div>
+        <div class="rounded border bg-white p-3">
+            <div class="text-xs text-slate-500">Jamais joués</div>
+            <div class="text-lg font-semibold">
+                {{ stats.neverPlayedCount }}
+                <span class="text-xs text-slate-400 font-normal">
+                    ({{ (stats.neverPlayedRatio * 100)|number_format(0) }}%)
+                </span>
+            </div>
+        </div>
+        <div class="rounded border bg-white p-3 {{ missingIds is not empty ? 'border-amber-300 bg-amber-50' : '' }}">
+            <div class="text-xs text-slate-500">Morceaux morts</div>
+            <div class="text-lg font-semibold {{ missingIds is not empty ? 'text-amber-700' : '' }}">
+                {{ missingIds|length }}
+            </div>
+            {% if missingIds is not empty %}
+                <form method="post" action="{{ path('app_playlists_purge_dead', {id: playlist.id}) }}"
+                      onsubmit="return confirm('Retirer {{ missingIds|length }} morceau(x) absent(s) de la library ?');"
+                      class="mt-1">
+                    <input type="hidden" name="_token" value="{{ csrf_token('purge-dead' ~ playlist.id) }}">
+                    <button type="submit" class="text-xs text-amber-700 hover:underline">Purger</button>
+                </form>
+            {% endif %}
+        </div>
+    </div>
+
+    {# Top artists / albums + year distribution side-by-side #}
+    {% if stats.topArtists is not empty or stats.yearDistribution is not empty %}
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 text-sm">
+            <div class="rounded border bg-white p-3">
+                <div class="font-medium mb-2">Top artistes</div>
+                {% if stats.topArtists is empty %}
+                    <div class="text-xs text-slate-400">—</div>
+                {% else %}
+                    <ul class="space-y-1">
+                        {% for a in stats.topArtists|slice(0, 5) %}
+                            <li class="flex justify-between"><span>{{ a.artist }}</span><span class="text-slate-500">{{ a.count }}</span></li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+            </div>
+            <div class="rounded border bg-white p-3">
+                <div class="font-medium mb-2">Top albums</div>
+                {% if stats.topAlbums is empty %}
+                    <div class="text-xs text-slate-400">—</div>
+                {% else %}
+                    <ul class="space-y-1">
+                        {% for al in stats.topAlbums|slice(0, 5) %}
+                            <li class="flex justify-between">
+                                <span>{{ al.album }} <span class="text-slate-400 text-xs">— {{ al.artist }}</span></span>
+                                <span class="text-slate-500">{{ al.count }}</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+            </div>
+            <div class="rounded border bg-white p-3">
+                <div class="font-medium mb-2">Distribution par année</div>
+                {% if stats.yearDistribution is empty %}
+                    <div class="text-xs text-slate-400">—</div>
+                {% else %}
+                    {% set maxCount = max(stats.yearDistribution) %}
+                    <ul class="space-y-1 text-xs">
+                        {% for year, count in stats.yearDistribution %}
+                            <li class="flex items-center gap-2">
+                                <span class="w-12 text-slate-500">{{ year }}</span>
+                                <span class="h-2 bg-sky-400 rounded" style="width: {{ (count / maxCount * 100)|round }}%"></span>
+                                <span class="text-slate-500">{{ count }}</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                    {% if stats.missingYearCount > 0 %}
+                        <div class="text-xs text-slate-400 mt-2">{{ stats.missingYearCount }} morceau(x) sans année.</div>
+                    {% endif %}
+                {% endif %}
+            </div>
+        </div>
+    {% endif %}
+
+    {# Rename + delete + bulk star toolbar #}
+    <div class="bg-white border border-slate-200 rounded p-3 mb-4 flex flex-wrap gap-3 items-center">
+        <form method="post" action="{{ path('app_playlists_rename', {id: playlist.id}) }}"
+              class="flex items-center gap-2 flex-1 min-w-0">
+            <input type="hidden" name="_token" value="{{ csrf_token('rename' ~ playlist.id) }}">
+            <input type="text" name="name" value="{{ playlist.name }}" required maxlength="200"
+                   class="border rounded px-2 py-1 text-sm flex-1 min-w-0">
+            <button type="submit" class="text-sm bg-sky-600 hover:bg-sky-700 text-white px-3 py-1.5 rounded">Renommer</button>
+        </form>
+
+        <form method="post" action="{{ path('app_playlists_star_all', {id: playlist.id}) }}"
+              onsubmit="return {{ playlist.songCount > 50 ? 'confirm(\'Starrer ' ~ playlist.songCount ~ ' morceaux ?\')' : 'true' }};">
+            <input type="hidden" name="_token" value="{{ csrf_token('star-all' ~ playlist.id) }}">
+            <button type="submit" class="text-sm bg-amber-100 hover:bg-amber-200 text-amber-800 px-3 py-1.5 rounded">★ Tout starrer</button>
+        </form>
+        <form method="post" action="{{ path('app_playlists_star_all', {id: playlist.id}) }}">
+            <input type="hidden" name="_token" value="{{ csrf_token('star-all' ~ playlist.id) }}">
+            <input type="hidden" name="unstar" value="1">
+            <button type="submit" class="text-sm bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded">☆ Tout dé-starrer</button>
+        </form>
+
+        <form method="post" action="{{ path('app_playlists_delete', {id: playlist.id}) }}"
+              onsubmit="return confirm('Supprimer définitivement « {{ playlist.name }} » côté Navidrome ?');">
+            <input type="hidden" name="_token" value="{{ csrf_token('delete' ~ playlist.id) }}">
+            <button type="submit" class="text-sm bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 rounded">Supprimer</button>
+        </form>
+    </div>
+
+    {# Tracks table #}
+    {% if playlist.tracks is empty %}
+        <div class="bg-slate-50 border border-slate-200 text-slate-700 rounded p-6 text-center text-sm">
+            Cette playlist est vide.
+        </div>
+    {% else %}
+        <table class="w-full text-sm bg-white border border-slate-200 rounded overflow-hidden">
+            <thead class="bg-slate-100 text-slate-600">
+                <tr>
+                    <th class="px-3 py-2 w-8 text-center">★</th>
+                    <th class="px-3 py-2 w-12 text-right">#</th>
+                    <th class="px-3 py-2 text-left">Titre</th>
+                    <th class="px-3 py-2 text-left">Artiste</th>
+                    <th class="px-3 py-2 text-left">Album</th>
+                    <th class="px-3 py-2 text-right">Plays</th>
+                    <th class="px-3 py-2 text-right">Durée</th>
+                    <th class="px-3 py-2 text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in playlist.tracks %}
+                    {% set isStarred = t.starred is not null and t.starred is not empty %}
+                    {% set isDead = missingIds[t.id] is defined %}
+                    <tr class="border-t hover:bg-slate-50 {{ isDead ? 'bg-rose-50' : '' }}">
+                        <td class="px-3 py-2 text-center">
+                            <form method="post" action="{{ path('app_playlists_toggle_star', {id: playlist.id, songId: t.id}) }}" class="inline">
+                                <input type="hidden" name="_token" value="{{ csrf_token('toggle-star' ~ t.id) }}">
+                                {% if isStarred %}<input type="hidden" name="unstar" value="1">{% endif %}
+                                <button type="submit"
+                                        title="{{ isStarred ? 'Dé-starrer' : 'Starrer' }}"
+                                        class="text-base {{ isStarred ? 'text-amber-500' : 'text-slate-300 hover:text-amber-400' }}">
+                                    {{ isStarred ? '★' : '☆' }}
+                                </button>
+                            </form>
+                        </td>
+                        <td class="px-3 py-2 text-right text-xs text-slate-400">{{ loop.index }}</td>
+                        <td class="px-3 py-2">
+                            {{ t.title }}
+                            {% if isDead %}<span class="text-xs text-rose-700 ml-1">[absent de la library]</span>{% endif %}
+                        </td>
+                        <td class="px-3 py-2 text-slate-600">{{ t.artist }}</td>
+                        <td class="px-3 py-2 text-slate-500 text-xs">{{ t.album }}{% if t.year %} <span class="text-slate-400">({{ t.year }})</span>{% endif %}</td>
+                        <td class="px-3 py-2 text-right">{{ t.playCount }}</td>
+                        <td class="px-3 py-2 text-right text-xs text-slate-500">
+                            {% set m = (t.duration // 60) %}{% set s = (t.duration % 60) %}
+                            {{ m }}:{{ s|format('%02d') }}
+                        </td>
+                        <td class="px-3 py-2 text-right">
+                            <form method="post" action="{{ path('app_playlists_remove_track', {id: playlist.id, position: loop.index0}) }}"
+                                  onsubmit="return confirm('Retirer ce morceau de la playlist ?');"
+                                  class="inline">
+                                <input type="hidden" name="_token" value="{{ csrf_token('remove-track' ~ playlist.id ~ ':' ~ loop.index0) }}">
+                                <button type="submit" class="text-xs text-rose-600 hover:underline">Retirer</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+{% endblock %}

@@ -20,12 +20,16 @@
             {% endif %}
             <p class="text-sm mt-2">Limite : <strong>{{ limit }}</strong></p>
         </div>
-        <form method="post" action="{{ path('app_playlist_run', {id: def.id}) }}">
-            <input type="hidden" name="_token" value="{{ csrf_token('run' ~ def.id) }}">
-            <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded text-sm">
-                Créer dans Navidrome
-            </button>
-        </form>
+        <div class="flex items-center gap-2">
+            <a href="{{ path('app_playlist_preview_export_m3u', {id: def.id}) }}"
+               class="text-sm bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded">Exporter M3U</a>
+            <form method="post" action="{{ path('app_playlist_run', {id: def.id}) }}">
+                <input type="hidden" name="_token" value="{{ csrf_token('run' ~ def.id) }}">
+                <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded text-sm">
+                    Créer dans Navidrome
+                </button>
+            </form>
+        </div>
     </div>
 
     {% if error %}

@@ -47,7 +47,11 @@ class SubsonicClient
     }
 
     /**
-     * @return array<int, array{id: string, name: string, owner: string}>
+     * @return array<int, array{
+     *     id: string, name: string, owner: string,
+     *     songCount: int, duration: int, public: bool,
+     *     created: ?string, changed: ?string, comment: string
+     * }>
      */
     public function getPlaylists(): array
     {
@@ -60,6 +64,12 @@ class SubsonicClient
                 'id' => (string) ($p['id'] ?? ''),
                 'name' => (string) ($p['name'] ?? ''),
                 'owner' => (string) ($p['owner'] ?? ''),
+                'songCount' => (int) ($p['songCount'] ?? 0),
+                'duration' => (int) ($p['duration'] ?? 0),
+                'public' => (bool) ($p['public'] ?? false),
+                'created' => isset($p['created']) ? (string) $p['created'] : null,
+                'changed' => isset($p['changed']) ? (string) $p['changed'] : null,
+                'comment' => (string) ($p['comment'] ?? ''),
             ];
         }
 
@@ -75,6 +85,106 @@ class SubsonicClient
         }
 
         return null;
+    }
+
+    /**
+     * Fetch a single playlist with its tracks. Throws if the id is unknown.
+     *
+     * @return array{
+     *     id: string, name: string, owner: string,
+     *     songCount: int, duration: int, public: bool,
+     *     created: ?string, changed: ?string, comment: string,
+     *     tracks: array<int, array{
+     *         id: string, title: string, artist: string, album: string,
+     *         duration: int, playCount: int, year: ?int, starred: ?string,
+     *         path: string
+     *     }>
+     * }
+     */
+    public function getPlaylist(string $id): array
+    {
+        if ($id === '') {
+            throw new \RuntimeException('getPlaylist requires a non-empty id.');
+        }
+
+        $data = $this->call('getPlaylist', ['id' => $id]);
+        $p = $data['playlist'] ?? null;
+        if (!is_array($p)) {
+            throw new \RuntimeException('getPlaylist did not return a playlist node. Raw response: ' . json_encode($data));
+        }
+
+        $tracks = [];
+        foreach (($p['entry'] ?? []) as $e) {
+            $tracks[] = [
+                'id' => (string) ($e['id'] ?? ''),
+                'title' => (string) ($e['title'] ?? ''),
+                'artist' => (string) ($e['artist'] ?? ''),
+                'album' => (string) ($e['album'] ?? ''),
+                'duration' => (int) ($e['duration'] ?? 0),
+                'playCount' => (int) ($e['playCount'] ?? 0),
+                'year' => isset($e['year']) ? (int) $e['year'] : null,
+                'starred' => isset($e['starred']) ? (string) $e['starred'] : null,
+                'path' => (string) ($e['path'] ?? ''),
+            ];
+        }
+
+        return [
+            'id' => (string) ($p['id'] ?? $id),
+            'name' => (string) ($p['name'] ?? ''),
+            'owner' => (string) ($p['owner'] ?? ''),
+            'songCount' => (int) ($p['songCount'] ?? count($tracks)),
+            'duration' => (int) ($p['duration'] ?? 0),
+            'public' => (bool) ($p['public'] ?? false),
+            'created' => isset($p['created']) ? (string) $p['created'] : null,
+            'changed' => isset($p['changed']) ? (string) $p['changed'] : null,
+            'comment' => (string) ($p['comment'] ?? ''),
+            'tracks' => $tracks,
+        ];
+    }
+
+    /**
+     * Mutate a playlist via Subsonic's `updatePlaylist.view`. Pass only the
+     * fields you want to change; null arguments are not transmitted, so the
+     * server keeps the existing value.
+     *
+     * @param string[] $songIdToAdd      Track ids to append at the end.
+     * @param int[]    $songIndexToRemove Zero-based track positions to drop.
+     */
+    public function updatePlaylist(
+        string $id,
+        ?string $name = null,
+        ?string $comment = null,
+        ?bool $public = null,
+        array $songIdToAdd = [],
+        array $songIndexToRemove = [],
+    ): void {
+        if ($id === '') {
+            throw new \RuntimeException('updatePlaylist requires a non-empty id.');
+        }
+
+        $params = ['playlistId' => $id];
+        if ($name !== null) {
+            $params['name'] = $name;
+        }
+        if ($comment !== null) {
+            $params['comment'] = $comment;
+        }
+        if ($public !== null) {
+            $params['public'] = $public ? 'true' : 'false';
+        }
+
+        $extra = [];
+        foreach ($songIdToAdd as $songId) {
+            $songId = (string) $songId;
+            if ($songId !== '') {
+                $extra[] = 'songIdToAdd=' . rawurlencode($songId);
+            }
+        }
+        foreach ($songIndexToRemove as $idx) {
+            $extra[] = 'songIndexToRemove=' . (int) $idx;
+        }
+
+        $this->call('updatePlaylist', $params, implode('&', $extra));
     }
 
     /**
