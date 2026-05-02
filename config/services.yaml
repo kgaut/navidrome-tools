@@ -102,6 +102,14 @@ services:
             $cacheTtlDays: '%lastfm.match_cache_ttl_days%'
             $lastFmApiKey: '%lastfm.api_key%'
 
+    App\LastFm\LastFmImporter:
+        arguments:
+            $cacheTtlDays: '%lastfm.match_cache_ttl_days%'
+
+    App\Service\LastFmRematchService:
+        arguments:
+            $cacheTtlDays: '%lastfm.match_cache_ttl_days%'
+
     App\LastFm\LastFmAuthService:
         arguments:
             $apiKey: '%lastfm.api_key%'

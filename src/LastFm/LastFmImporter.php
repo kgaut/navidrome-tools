@@ -3,6 +3,7 @@
 namespace App\LastFm;
 
 use App\Navidrome\NavidromeRepository;
+use App\Repository\LastFmMatchCacheRepository;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
@@ -15,6 +16,8 @@ class LastFmImporter
         private readonly NavidromeRepository $navidrome,
         private readonly ScrobbleMatcher $matcher,
         ?LoggerInterface $logger = null,
+        private readonly ?LastFmMatchCacheRepository $cacheRepository = null,
+        private readonly int $cacheTtlDays = 30,
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
@@ -46,6 +49,13 @@ class LastFmImporter
                 'The Navidrome scrobbles table does not exist. Upgrade Navidrome to >= 0.55.',
             );
         }
+
+        // Drop expired negative cache entries upfront so the cascade
+        // gets a fresh shot at scrobbles whose answer might have
+        // changed since they were first queried (new tracks added,
+        // new heuristic shipped). DQL DELETE hits the DB immediately —
+        // no flush needed. No-op when cacheTtlDays <= 0.
+        $this->cacheRepository?->purgeStale($this->cacheTtlDays);
 
         foreach ($this->client->streamRecentTracks($apiKey, $lastFmUser, $dateMin, $dateMax) as $scrobble) {
             if ($maxScrobbles !== null && $report->fetched >= $maxScrobbles) {
