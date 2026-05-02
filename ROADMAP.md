@@ -46,8 +46,14 @@ l'ordre d'attaque recommandé.
 |-----|--------------------------------------------------------------------|--------|
 | [#3]  | Sync incrémentale Last.fm → Navidrome                           | M      |
 | [#4]  | Page permanente : diff Last.fm vs lib Navidrome                 | M      |
-| [#10] | Détail d'un run Last.fm import : actions Lidarr par artiste     | M      |
+| [#35] | Supprimer la contrainte d'arrêt de Navidrome pour l'import     | L      |
 | [#23] | Sync bidirectionnelle Last.fm loved ↔ Navidrome starred         | L      |
+
+### Stats
+
+| #   | Titre                                                              | Effort |
+|-----|--------------------------------------------------------------------|--------|
+| [#25] | Page « métadonnées incomplètes » (albums sans MBID)             | M      |
 
 ### Playlists
 
@@ -63,6 +69,18 @@ l'ordre d'attaque recommandé.
 |-----|--------------------------------------------------------------------|--------|
 | [#7]  | Notifications cron (Discord / Slack / Pushover)                 | M      |
 | [#9]  | Webhooks sortants génériques (POST JSON après chaque run)       | M      |
+
+### Intégrations / Sources externes
+
+| #   | Titre                                                              | Effort |
+|-----|--------------------------------------------------------------------|--------|
+| [#36] | Sources de scrobbles alternatives (Listenbrainz, Maloja, …)     | L      |
+
+### Maintenance / Backup
+
+| #   | Titre                                                              | Effort |
+|-----|--------------------------------------------------------------------|--------|
+| [#37] | Export/import de la DB locale du tool                           | M      |
 
 ### UI — Miniatures album/artiste (meta [#26])
 
@@ -116,7 +134,6 @@ quand on tagge des releases) :
 [#7]: https://github.com/kgaut/navidrome-playlist-generator/issues/7
 [#8]: https://github.com/kgaut/navidrome-playlist-generator/issues/8
 [#9]: https://github.com/kgaut/navidrome-playlist-generator/issues/9
-[#10]: https://github.com/kgaut/navidrome-playlist-generator/issues/10
 [#11]: https://github.com/kgaut/navidrome-playlist-generator/issues/11
 [#12]: https://github.com/kgaut/navidrome-playlist-generator/issues/12
 [#13]: https://github.com/kgaut/navidrome-playlist-generator/issues/13
@@ -130,6 +147,7 @@ quand on tagge des releases) :
 [#21]: https://github.com/kgaut/navidrome-playlist-generator/issues/21
 [#22]: https://github.com/kgaut/navidrome-playlist-generator/issues/22
 [#23]: https://github.com/kgaut/navidrome-playlist-generator/issues/23
+[#25]: https://github.com/kgaut/navidrome-playlist-generator/issues/25
 [#26]: https://github.com/kgaut/navidrome-playlist-generator/issues/26
 [#27]: https://github.com/kgaut/navidrome-playlist-generator/issues/27
 [#28]: https://github.com/kgaut/navidrome-playlist-generator/issues/28
@@ -137,3 +155,6 @@ quand on tagge des releases) :
 [#30]: https://github.com/kgaut/navidrome-playlist-generator/issues/30
 [#31]: https://github.com/kgaut/navidrome-playlist-generator/issues/31
 [#32]: https://github.com/kgaut/navidrome-playlist-generator/issues/32
+[#35]: https://github.com/kgaut/navidrome-playlist-generator/issues/35
+[#36]: https://github.com/kgaut/navidrome-playlist-generator/issues/36
+[#37]: https://github.com/kgaut/navidrome-playlist-generator/issues/37
