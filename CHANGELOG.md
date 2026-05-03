@@ -7,6 +7,27 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+### Added
+- **Endpoint JSON `/api/status` + widget Homepage (gethomepage)** :
+  nouveau controller `App\Controller\Api\StatusController` qui expose
+  les métriques clés du tool en JSON. Sert deux usages avec un seul
+  endpoint :
+  - **Healthcheck Docker** sans auth : `GET /api/status` retourne
+    `{status, navidrome_db}` avec code HTTP 200 (ok) ou 503 (degraded)
+    selon que la DB Navidrome est joignable ou non. Utilisable
+    directement dans un `HEALTHCHECK` compose.
+  - **Widget [Homepage](https://gethomepage.dev/widgets/services/customapi/)**
+    avec auth par bearer token (env `HOMEPAGE_API_TOKEN`, transmis via
+    `?token=…` ou header `Authorization: Bearer …`) : retourne un
+    payload enrichi avec `scrobbles_total`, `unmatched_total`,
+    `missing_mbid`, `navidrome_container` et le dernier `RunHistory`
+    (type/status/started_at/duration_ms). Token vide = mode enrichi
+    désactivé (404 sur les requêtes tokenisées) ; token erroné = 401.
+    Comparaison via `hash_equals` (timing-safe). Section dédiée dans
+    le README avec snippet `services.yaml` Homepage prêt à coller.
+    Ajout d'une exception `PUBLIC_ACCESS` sur `^/api/` dans
+    `config/packages/security.yaml`. Closes #106.
+
 ### Fixed
 - **Heures Last.fm history affichées dans `APP_TIMEZONE`** : la page
   `/stats/lastfm-history` affichait les heures de scrobble avec le

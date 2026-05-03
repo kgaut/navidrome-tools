@@ -43,6 +43,10 @@ services:
       LASTFM_LOVE_SYNC_SCHEDULE: ${LASTFM_LOVE_SYNC_SCHEDULE:-}
       LASTFM_REMATCH_SCHEDULE: ${LASTFM_REMATCH_SCHEDULE:-}
       COVERS_CACHE_PATH: /app/var/covers
+      # Bearer token for the Homepage (gethomepage.dev) /api/status
+      # endpoint. Empty = enriched mode disabled, only the no-auth
+      # healthcheck mode is served. Generate with `openssl rand -hex 32`.
+      HOMEPAGE_API_TOKEN: ${HOMEPAGE_API_TOKEN:-}
     volumes:
       # Mount Navidrome's SQLite DB read-only.
       - ${NAVIDROME_DATA_DIR:-/srv/navidrome/data}/navidrome.db:/data/navidrome.db:ro
@@ -97,6 +101,7 @@ services:
       LASTFM_LOVE_SYNC_SCHEDULE: ${LASTFM_LOVE_SYNC_SCHEDULE:-}
       LASTFM_REMATCH_SCHEDULE: ${LASTFM_REMATCH_SCHEDULE:-}
       COVERS_CACHE_PATH: /app/var/covers
+      HOMEPAGE_API_TOKEN: ${HOMEPAGE_API_TOKEN:-}
     volumes:
       - ${NAVIDROME_DATA_DIR:-/srv/navidrome/data}/navidrome.db:/data/navidrome.db:ro
       - navidrome-tools-data:/app/var

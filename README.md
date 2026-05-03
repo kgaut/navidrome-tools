@@ -100,6 +100,7 @@ pouvez les éditer puis les activer.
 | `CRON_REGEN_INTERVAL`| non (`300`) | Intervalle en secondes entre 2 régénérations du crontab (mode cron).     |
 | `COVERS_CACHE_PATH`  | non         | Cache disque des miniatures album/artiste. Défaut : `/app/var/covers` (volume Docker dédié dans le compose). |
 | `NAVIDROME_CONTAINER_NAME` | non   | Nom du conteneur Navidrome dans la même stack docker-compose. Quand renseigné, le dashboard affiche un statut UP/DOWN avec boutons Start/Stop, et les commandes d'import refusent de tourner si Navidrome est détecté UP (`--force` pour outrepasser). Requiert le mount `/var/run/docker.sock` (cf. `docker-compose.example.yml`). |
+| `HOMEPAGE_API_TOKEN` | non       | Bearer token pour le widget [Homepage](https://gethomepage.dev/widgets/services/customapi/) sur l'endpoint `/api/status`. Vide = mode enrichi désactivé (seul le mode healthcheck no-auth est servi). Voir la section [Widget Homepage](#widget-homepage-gethomepage). |
 
 ### Mise à jour
 
@@ -677,6 +678,97 @@ complète.
 Une commande `app:history:purge` supprime les entrées plus vieilles que
 `RUN_HISTORY_RETENTION_DAYS` (défaut 90). Elle est ajoutée
 automatiquement au crontab par `app:cron:dump` (1×/jour à 4h30).
+
+## Widget Homepage (gethomepage)
+
+Endpoint JSON `/api/status` consommable par le widget
+[Custom API](https://gethomepage.dev/widgets/services/customapi/) de
+[Homepage](https://gethomepage.dev/). Sert aussi de healthcheck Docker.
+
+Deux modes d'accès :
+
+| Sans token (no-auth)                                     | Avec token (`HOMEPAGE_API_TOKEN`)                                  |
+|----------------------------------------------------------|--------------------------------------------------------------------|
+| `GET /api/status`                                        | `GET /api/status?token=…` ou `Authorization: Bearer …`             |
+| Payload minimal `{status, navidrome_db}`                 | Payload enrichi : compteurs, dernier run, statut conteneur         |
+| Codes HTTP 200 (ok) / 503 (degraded) — Docker friendly   | Code HTTP 200 ; 401 si token erroné, 404 si feature désactivée     |
+
+### Activer le mode enrichi
+
+Générer un token et l'injecter dans l'environnement du conteneur web :
+
+```bash
+openssl rand -hex 32                  # copier dans HOMEPAGE_API_TOKEN
+```
+
+Puis configurer le widget Homepage (`services.yaml`) :
+
+```yaml
+- Navidrome Tools:
+    icon: navidrome.png
+    href: https://navidrome-tools.example.com
+    widget:
+      type: customapi
+      url: https://navidrome-tools.example.com/api/status?token={{HOMEPAGE_VAR_NAVIDROME_TOOLS_TOKEN}}
+      refreshInterval: 60000
+      mappings:
+        - field: scrobbles_total
+          label: Scrobbles
+          format: number
+        - field: unmatched_total
+          label: Unmatched
+          format: number
+        - field: { last_run: status }
+          label: Dernier run
+        - field: { last_run: started_at }
+          label: À
+          format: relativeDate
+```
+
+Et déclarer la variable Homepage côté docker-compose :
+
+```yaml
+environment:
+  HOMEPAGE_VAR_NAVIDROME_TOOLS_TOKEN: ${HOMEPAGE_VAR_NAVIDROME_TOOLS_TOKEN}
+```
+
+### Payload enrichi
+
+```json
+{
+  "status": "ok",
+  "navidrome_db": true,
+  "scrobbles_total": 142387,
+  "unmatched_total": 312,
+  "missing_mbid": 47,
+  "navidrome_container": "running",
+  "last_run": {
+    "type": "lastfm-import",
+    "reference": "me",
+    "label": "Last.fm import (me)",
+    "status": "success",
+    "started_at": "2026-05-03T08:00:01+00:00",
+    "finished_at": "2026-05-03T08:03:05+00:00",
+    "duration_ms": 184230
+  }
+}
+```
+
+`navidrome_container` reprend l'enum `ContainerStatus` :
+`disabled` / `running` / `stopped` / `notfound` / `unknown`. `last_run`
+vaut `null` quand `run_history` est vide.
+
+### Healthcheck Docker
+
+Sans HOMEPAGE_API_TOKEN, l'endpoint reste un healthcheck pratique :
+
+```yaml
+healthcheck:
+  test: ["CMD", "curl", "-fsS", "http://localhost:8080/api/status"]
+  interval: 30s
+  timeout: 5s
+  retries: 3
+```
 
 ## Configuration éditeur
 

@@ -23,6 +23,7 @@ parameters:
     lidarr.metadata_profile_id: '%env(int:LIDARR_METADATA_PROFILE_ID)%'
     lidarr.monitor: '%env(LIDARR_MONITOR)%'
     navidrome.container_name: '%env(NAVIDROME_CONTAINER_NAME)%'
+    app.homepage_api_token: '%env(HOMEPAGE_API_TOKEN)%'
 
 services:
     _defaults:
@@ -96,6 +97,10 @@ services:
     App\Controller\NavidromeHistoryController:
         arguments:
             $navidromeUrl: '%navidrome.url%'
+
+    App\Controller\Api\StatusController:
+        arguments:
+            $apiToken: '%app.homepage_api_token%'
 
     App\LastFm\LastFmClient:
         arguments:
