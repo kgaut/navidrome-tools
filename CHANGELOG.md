@@ -7,6 +7,22 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+### Changed
+- **Réorganisation du menu de navigation** : le top-level passe de
+  10 entrées à 5 (Dashboard, Playlists ▾, Statistiques ▾, Last.fm ▾,
+  Admin ▾). « Nouvelle playlist » rejoint le dropdown Playlists, les
+  dropdowns Stats et Last.fm sont sous-groupés visuellement (Vue &
+  analyse / Découverte / Historique des écoutes / Audit métadonnées
+  pour Stats ; Import / Unmatched / Aliases pour Last.fm). « Discover »
+  migre dans Stats > Découverte ; « Tagging » dans Stats > Audit
+  métadonnées (co-localisé avec « Métadonnées incomplètes » qui
+  audite la même chose). « Historique des runs » et « Réglages » sont
+  regroupés sous un nouveau dropdown « Admin ». Le menu est désormais
+  défini dans un partial unique `templates/_navbar.html.twig` (source
+  de vérité partagée desktop + mobile) — corrige au passage
+  l'asymétrie où 2 entrées Stats (« Artistes oubliés », « Métadonnées
+  incomplètes ») n'étaient accessibles que sur desktop. Closes #115.
+
 ### Added
 - **Endpoint JSON `/api/status` + widget Homepage (gethomepage)** :
   nouveau controller `App\Controller\Api\StatusController` qui expose

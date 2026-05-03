@@ -1,0 +1,128 @@
+{#
+    Main navigation tree. Single source of truth shared by the desktop bar
+    and the mobile burger drawer (variant = 'desktop' | 'mobile') so the
+    two cannot drift apart again. Each top-level entry is either a plain
+    `link` or a `dropdown` made of one or more `groups`. A group with a
+    null `heading` renders flat ; a group with a heading renders the
+    label as a small uppercase divider. Cf. issue #115.
+#}
+
+{% set sections = [
+    { type: 'link', label: 'Dashboard', route: 'app_dashboard' },
+    { type: 'dropdown', label: 'Playlists', width: 'w-56', groups: [
+        { heading: null, items: [
+            { label: 'Toutes les playlists', route: 'app_playlists_index' },
+            { label: 'Nouvelle playlist', route: 'app_playlist_new' },
+        ]},
+    ]},
+    { type: 'dropdown', label: 'Statistiques', width: 'w-64', groups: [
+        { heading: 'Vue & analyse', items: [
+            { label: 'Vue d\'ensemble', route: 'app_stats' },
+            { label: 'Comparer 2 périodes', route: 'app_stats_compare' },
+            { label: 'Graphiques', route: 'app_stats_charts' },
+            { label: 'Heatmap', route: 'app_stats_heatmap' },
+        ]},
+        { heading: 'Découverte', items: [
+            { label: 'Wrapped', route: 'app_wrapped_default' },
+            { label: 'Discover', route: 'app_discover_artists' },
+            { label: 'Artistes oubliés', route: 'app_stats_forgotten_artists' },
+        ]},
+        { heading: 'Historique des écoutes', items: [
+            { label: 'Historique Last.fm', route: 'app_stats_lastfm_history' },
+            { label: 'Historique Navidrome', route: 'app_stats_navidrome_history' },
+        ]},
+        { heading: 'Audit métadonnées', items: [
+            { label: 'Métadonnées incomplètes', route: 'app_stats_incomplete_metadata' },
+            { label: 'Tagging MBID', route: 'app_tagging_missing_mbid' },
+        ]},
+    ]},
+    { type: 'dropdown', label: 'Last.fm', width: 'w-56', groups: [
+        { heading: 'Import', items: [
+            { label: 'Import', route: 'app_lastfm_import' },
+            { label: 'Sync loved/star', route: 'app_lastfm_love_sync' },
+        ]},
+        { heading: 'Unmatched', items: [
+            { label: 'Par titre', route: 'app_lastfm_unmatched' },
+            { label: 'Par artiste', route: 'app_lastfm_unmatched_artists' },
+            { label: 'Par album', route: 'app_lastfm_unmatched_albums' },
+        ]},
+        { heading: 'Aliases', items: [
+            { label: 'Tracks', route: 'app_lastfm_alias_index' },
+            { label: 'Artistes', route: 'app_lastfm_artist_alias_index' },
+        ]},
+    ]},
+    { type: 'dropdown', label: 'Admin', width: 'w-56', groups: [
+        { heading: null, items: [
+            { label: 'Historique des runs', route: 'app_history' },
+            { label: 'Réglages', route: 'app_settings' },
+        ]},
+    ]},
+] %}
+
+{% if variant == 'desktop' %}
+    <nav class="hidden md:flex items-center gap-4 text-sm">
+        {% if app.user %}
+            {% for section in sections %}
+                {% if section.type == 'link' %}
+                    <a href="{{ path(section.route) }}" class="hover:underline">{{ section.label }}</a>
+                {% else %}
+                    <div class="relative group">
+                        <button type="button"
+                                class="hover:underline flex items-center gap-1 cursor-pointer"
+                                aria-haspopup="true">
+                            {{ section.label }} <span class="text-xs">▾</span>
+                        </button>
+                        <div class="absolute right-0 top-full mt-1 {{ section.width }} bg-slate-800 text-slate-100 rounded shadow-lg invisible opacity-0 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 transition py-1 z-30">
+                            {% for group in section.groups %}
+                                {% if group.heading %}
+                                    {% if not loop.first %}
+                                        <hr class="border-slate-700 my-1">
+                                    {% endif %}
+                                    <div class="px-4 pt-2 pb-1 text-xs uppercase tracking-wide text-slate-400">{{ group.heading }}</div>
+                                {% endif %}
+                                {% for item in group.items %}
+                                    <a href="{{ path(item.route) }}" class="block px-4 py-2 text-sm hover:bg-slate-700">{{ item.label }}</a>
+                                {% endfor %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endif %}
+            {% endfor %}
+            <span class="text-slate-400">{{ app.user.userIdentifier }}</span>
+            <a href="{{ path('app_logout') }}" class="hover:underline">Déconnexion</a>
+        {% endif %}
+    </nav>
+{% else %}
+    {% if app.user %}
+        <nav id="mobile-nav" class="md:hidden hidden border-t border-slate-800 bg-slate-900">
+            <div class="max-w-6xl mx-auto px-4 py-2 flex flex-col text-sm">
+                {% for section in sections %}
+                    {% if section.type == 'link' %}
+                        <a href="{{ path(section.route) }}" class="block py-2 hover:bg-slate-800 px-2 rounded">{{ section.label }}</a>
+                    {% else %}
+                        <details class="group">
+                            <summary class="py-2 px-2 rounded hover:bg-slate-800 cursor-pointer flex items-center justify-between list-none">
+                                <span>{{ section.label }}</span>
+                                <span class="text-xs transition group-open:rotate-180">▾</span>
+                            </summary>
+                            <div class="pl-4 flex flex-col">
+                                {% for group in section.groups %}
+                                    {% if group.heading %}
+                                        <div class="px-2 pt-2 pb-1 text-xs uppercase tracking-wide text-slate-400">{{ group.heading }}</div>
+                                    {% endif %}
+                                    {% for item in group.items %}
+                                        <a href="{{ path(item.route) }}" class="block py-2 px-2 rounded hover:bg-slate-800">{{ item.label }}</a>
+                                    {% endfor %}
+                                {% endfor %}
+                            </div>
+                        </details>
+                    {% endif %}
+                {% endfor %}
+                <div class="border-t border-slate-800 mt-2 pt-2 flex items-center justify-between px-2">
+                    <span class="text-slate-400">{{ app.user.userIdentifier }}</span>
+                    <a href="{{ path('app_logout') }}" class="hover:underline">Déconnexion</a>
+                </div>
+            </div>
+        </nav>
+    {% endif %}
+{% endif %}
