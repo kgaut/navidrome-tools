@@ -106,6 +106,15 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
   un état cohérent). En cas de double échec (import KO + restart KO), la
   `NavidromeContainerException` finale chaîne l'exception d'origine en
   `previous` pour tracer les deux problèmes.
+- **Générateur de playlist « anniversaire »** (key `anniversary`) :
+  agrège les top morceaux écoutés à la même date il y a N années
+  (souvenirs façon Spotify). Paramètres : `years_offsets` (liste
+  CSV, défaut « 1,2,5,10 ») et `window_days` (largeur de la fenêtre
+  en ± jours, défaut 3). Si un morceau a été écouté à la même date
+  il y a 2 ans ET il y a 5 ans, il est compté deux fois et remonte
+  en tête. Nouvelle méthode
+  `NavidromeRepository::topTracksInWindows()` qui prend une liste
+  de fenêtres et UNION-aggrège côté SQL. Closes #90.
 - **Dark theme par défaut** : passe en revue de
   `templates/base.html.twig` qui pose un thème sombre permanent
   via une overlay CSS qui re-cible les utilitaires Tailwind les
