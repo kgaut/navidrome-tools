@@ -46,6 +46,18 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
   Closes #102.
 
 ### Added
+- **Top artistes / albums unmatched** : deux nouvelles pages
+  `/lastfm/unmatched/artists` et `/lastfm/unmatched/albums` qui
+  agrègent les scrobbles non matchés (toutes runs confondues) par
+  artiste seul ou par couple `(artiste, album)`, triés par nombre de
+  scrobbles décroissant et accompagnés du nombre de titres distincts
+  + dernier joué. Bouton « + Lidarr » par ligne (Lidarr ne supporte
+  que l'ajout d'artistes : sur la vue albums le bouton ajoute donc
+  l'artiste de l'album, le téléchargement de l'album dépend de la
+  stratégie de monitoring Lidarr). Statut Lidarr (✓ déjà / ✗ absent)
+  affiché par ligne. Une barre d'onglets « Par titre / Par artiste /
+  Par album » relie les 3 vues. Liens ajoutés au menu Last.fm
+  (desktop + mobile).
 - **Menu burger mobile** : la navigation principale est désormais
   utilisable sur petit écran. En `< md` (768px), un bouton hamburger
   remplace la barre horizontale et déplie un menu vertical en

@@ -21,11 +21,17 @@ class LidarrController extends AbstractController
     public function addArtist(Request $request): Response
     {
         $redirectRunId = (int) $request->request->get('_redirect_run_id', 0);
-        $redirectUnmatched = (bool) $request->request->get('_redirect_unmatched', false);
+        $redirectUnmatched = (string) $request->request->get('_redirect_unmatched', '');
+        $unmatchedRoute = match ($redirectUnmatched) {
+            'artists' => 'app_lastfm_unmatched_artists',
+            'albums' => 'app_lastfm_unmatched_albums',
+            '1', 'tracks' => 'app_lastfm_unmatched',
+            default => null,
+        };
         if ($redirectRunId > 0) {
             $back = $this->redirectToRoute('app_history_detail', ['id' => $redirectRunId]);
-        } elseif ($redirectUnmatched) {
-            $back = $this->redirectToRoute('app_lastfm_unmatched');
+        } elseif ($unmatchedRoute !== null) {
+            $back = $this->redirectToRoute($unmatchedRoute);
         } else {
             $back = $this->redirectToRoute('app_lastfm_import');
         }

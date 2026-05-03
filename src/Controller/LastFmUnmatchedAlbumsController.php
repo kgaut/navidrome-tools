@@ -10,7 +10,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 
-class LastFmUnmatchedController extends AbstractController
+class LastFmUnmatchedAlbumsController extends AbstractController
 {
     private const PER_PAGE = 50;
 
@@ -21,19 +21,17 @@ class LastFmUnmatchedController extends AbstractController
     ) {
     }
 
-    #[Route('/lastfm/unmatched', name: 'app_lastfm_unmatched', methods: ['GET'])]
+    #[Route('/lastfm/unmatched/albums', name: 'app_lastfm_unmatched_albums', methods: ['GET'])]
     public function index(Request $request): Response
     {
         $filters = [
             'artist' => trim((string) $request->query->get('artist', '')) ?: null,
-            'title' => trim((string) $request->query->get('title', '')) ?: null,
             'album' => trim((string) $request->query->get('album', '')) ?: null,
         ];
         $page = max(1, (int) $request->query->get('page', 1));
 
-        $result = $this->trackRepo->findUnmatchedAggregated(
+        $result = $this->trackRepo->findUnmatchedAggregatedByAlbum(
             artist: $filters['artist'],
-            title: $filters['title'],
             album: $filters['album'],
             page: $page,
             perPage: self::PER_PAGE,
@@ -57,9 +55,9 @@ class LastFmUnmatchedController extends AbstractController
             $match = $lidarrIndex[$key] ?? null;
             $rows[] = [
                 'artist' => $r['artist'],
-                'title' => $r['title'],
                 'album' => $r['album'],
                 'scrobbles' => $r['scrobbles'],
+                'distinct_titles' => $r['distinct_titles'],
                 'last_played' => $r['last_played'],
                 'lidarr_url' => $match !== null && $match['foreignArtistId'] !== ''
                     ? $this->lidarrConfig->artistDetailUrl($match['foreignArtistId'])
@@ -67,7 +65,7 @@ class LastFmUnmatchedController extends AbstractController
             ];
         }
 
-        return $this->render('lastfm/unmatched.html.twig', [
+        return $this->render('lastfm/unmatched_albums.html.twig', [
             'rows' => $rows,
             'total' => $result['total'],
             'page' => $page,
@@ -75,7 +73,7 @@ class LastFmUnmatchedController extends AbstractController
             'filters' => $filters,
             'lidarr_configured' => $lidarrConfigured,
             'lidarr_reachable' => $lidarrReachable,
-            'current_tab' => 'tracks',
+            'current_tab' => 'albums',
         ]);
     }
 }

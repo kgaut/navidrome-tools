@@ -446,23 +446,40 @@ scrobbles concernés.
 
 ## Liste cumulée des unmatched
 
-La page **`/lastfm/unmatched`** (menu Last.fm → Unmatched) liste tous
-les scrobbles non matchés sur l'ensemble des imports passés, agrégés
-par `(artiste, titre, album)` avec compteur de scrobbles. Filtres en
-GET sur `artist`, `title`, `album` (substring case-insensitive) et
-pagination 50 par page.
+La page **`/lastfm/unmatched`** (menu Last.fm → Unmatched (titres))
+liste tous les scrobbles non matchés sur l'ensemble des imports
+passés, agrégés par `(artiste, titre, album)` avec compteur de
+scrobbles. Filtres en GET sur `artist`, `title`, `album` (substring
+case-insensitive) et pagination 50 par page.
 
 Pour chaque ligne :
 
 - **« ✏️ Mapper »** ouvre le formulaire d'alias manuel pré-rempli avec
   l'artiste et le titre.
+- **« 🎭 Aliaser artiste »** ouvre le formulaire d'alias d'artiste.
 - **« + Lidarr »** envoie l'artiste à Lidarr (si configuré) et
   redirige sur la page après ajout.
 - Le statut Lidarr (✓ déjà / ✗ absent / —) est affiché par ligne en
   cherchant l'artiste dans le catalogue Lidarr existant.
 
-Couplée à la commande `app:lastfm:rematch` (ci-dessous), ces deux
-pages forment le workflow de récupération : identifier ce qui manque
+Deux vues complémentaires reliées par une barre d'onglets en haut de
+chaque page :
+
+- **`/lastfm/unmatched/artists`** (Top artistes unmatched) — agrège
+  par artiste seul. Idéal pour repérer les artistes complètement
+  absents de la collection : un seul clic « + Lidarr » couvre tous
+  les morceaux manquants de l'artiste. Affiche pour chaque ligne le
+  nombre de titres distincts non matchés et le total de scrobbles.
+  Filtre GET sur `artist`.
+- **`/lastfm/unmatched/albums`** (Top albums unmatched) — agrège par
+  couple `(artiste, album)`. Les rows sans album renseigné sont
+  écartées. Lidarr ne supporte pas l'ajout d'un album hors contexte
+  artiste : le bouton « + Lidarr » ajoute donc l'artiste de l'album,
+  le téléchargement de l'album dépend de la stratégie de monitoring
+  Lidarr (`LIDARR_MONITOR`). Filtres GET sur `artist` et `album`.
+
+Couplée à la commande `app:lastfm:rematch` (ci-dessous), ces pages
+forment le workflow de récupération : identifier ce qui manque
 → créer alias / ajouter à Lidarr → relancer le rematch.
 
 ## Re-match des unmatched
