@@ -29,6 +29,19 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
     `config/packages/security.yaml`. Closes #106.
 
 ### Fixed
+- **`UNIQUE constraint failed: lastfm_match_cache.source_artist_norm,
+  lastfm_match_cache.source_title_norm` pendant `app:lastfm:import`** :
+  l'import ne flushe pas entre deux scrobbles, donc lorsque la même
+  couple `(artiste, titre)` revenait plusieurs fois (cas typique : un
+  morceau écouté plusieurs fois dans l'historique) ou que deux entrées
+  source distinctes se réduisaient à la même forme normalisée,
+  `LastFmMatchCacheRepository::upsert()` `persist()`-ait deux entités
+  différentes pour la même couple normalisée — l'index unique
+  `uniq_lastfm_match_cache_source_norm` les attrapait au flush final
+  et l'import s'arrêtait en erreur. Le repo maintient maintenant un
+  index en mémoire des entités persistées dans la même requête, qui
+  est consulté avant `findOneBy()` dans `findByCouple()`. Index purgé
+  en cohérence par `purgeByCouple` / `purgeByArtist` / `purgeAll`.
 - **Heures Last.fm history affichées dans `APP_TIMEZONE`** : la page
   `/stats/lastfm-history` affichait les heures de scrobble avec le
   décalage UTC (ex. `10:00` au lieu de `12:00` à Paris en été). Cause :
