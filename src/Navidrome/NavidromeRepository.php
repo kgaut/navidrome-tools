@@ -214,6 +214,79 @@ class NavidromeRepository
     }
 
     /**
+     * Top tracks aggregated across several disjoint windows. Identical
+     * semantics to {@see topTracksInWindow()} but the WHERE clause unions
+     * each `[from, to)` pair so a track played in multiple windows ranks
+     * higher (used by the anniversary generator that aggregates « same
+     * day of year, 1 / 2 / 5 / 10 years ago »).
+     *
+     * @param list<array{from: \DateTimeInterface, to: \DateTimeInterface}> $windows
+     *
+     * @return string[] media_file ids ordered by total play count DESC
+     */
+    public function topTracksInWindows(array $windows, int $limit): array
+    {
+        if ($windows === []) {
+            return [];
+        }
+        $userId = $this->resolveUserId();
+
+        if ($this->hasScrobblesTable()) {
+            $clauses = [];
+            $params = ['uid' => $userId, 'lim' => $limit];
+            $types = ['lim' => \Doctrine\DBAL\ParameterType::INTEGER];
+            foreach ($windows as $i => $w) {
+                $fromKey = "f{$i}";
+                $toKey = "t{$i}";
+                $clauses[] = "(s.submission_time >= :{$fromKey} AND s.submission_time < :{$toKey})";
+                $params[$fromKey] = $w['from']->getTimestamp();
+                $params[$toKey] = $w['to']->getTimestamp();
+                $types[$fromKey] = \Doctrine\DBAL\ParameterType::INTEGER;
+                $types[$toKey] = \Doctrine\DBAL\ParameterType::INTEGER;
+            }
+            $sql = sprintf(
+                "SELECT s.media_file_id AS id
+                 FROM scrobbles s
+                 WHERE s.user_id = :uid AND (%s)
+                 GROUP BY s.media_file_id
+                 ORDER BY COUNT(*) DESC, MAX(s.submission_time) DESC
+                 LIMIT :lim",
+                implode(' OR ', $clauses),
+            );
+
+            $rows = $this->connection()->fetchAllAssociative($sql, $params, $types);
+
+            return array_map(static fn (array $r): string => (string) $r['id'], $rows);
+        }
+
+        // Annotation fallback: only the LAST play matters, so we just match
+        // any window the row's play_date falls in. Less reliable but keeps
+        // the generator usable on Navidrome < 0.55.
+        $clauses = [];
+        $params = ['uid' => $userId, 'lim' => $limit];
+        $types = ['lim' => \Doctrine\DBAL\ParameterType::INTEGER];
+        foreach ($windows as $i => $w) {
+            $fromKey = "f{$i}";
+            $toKey = "t{$i}";
+            $clauses[] = "(a.play_date >= :{$fromKey} AND a.play_date < :{$toKey})";
+            $params[$fromKey] = $w['from']->format('Y-m-d H:i:s');
+            $params[$toKey] = $w['to']->format('Y-m-d H:i:s');
+        }
+        $sql = sprintf(
+            "SELECT a.item_id AS id
+             FROM annotation a
+             WHERE a.item_type = 'media_file' AND a.user_id = :uid AND (%s)
+             ORDER BY a.play_count DESC, a.play_date DESC
+             LIMIT :lim",
+            implode(' OR ', $clauses),
+        );
+
+        $rows = $this->connection()->fetchAllAssociative($sql, $params, $types);
+
+        return array_map(static fn (array $r): string => (string) $r['id'], $rows);
+    }
+
+    /**
      * All-time top: based on annotation.play_count (always available).
      *
      * @return string[]
