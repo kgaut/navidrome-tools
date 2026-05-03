@@ -2,6 +2,7 @@
 
 namespace App\Command;
 
+use App\Docker\NavidromeContainerConfig;
 use App\Repository\PlaylistDefinitionRepository;
 use Cron\CronExpression;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -17,6 +18,7 @@ class DumpCronCommand extends Command
 {
     public function __construct(
         private readonly PlaylistDefinitionRepository $repository,
+        private readonly NavidromeContainerConfig $containerConfig,
         private readonly string $projectDir,
         private readonly string $statsRefreshSchedule,
         private readonly string $loveSyncSchedule = '',
@@ -88,10 +90,12 @@ class DumpCronCommand extends Command
                 new CronExpression($this->rematchSchedule);
                 $output->writeln('');
                 $output->writeln('# Re-match Last.fm unmatched scrobbles (LASTFM_REMATCH_SCHEDULE)');
+                $autoStopFlag = $this->containerConfig->isConfigured() ? ' --auto-stop' : '';
                 $output->writeln(sprintf(
-                    '%s php %s app:lastfm:rematch',
+                    '%s php %s app:lastfm:rematch%s',
                     $this->rematchSchedule,
                     $bin,
+                    $autoStopFlag,
                 ));
             } catch (\Throwable $e) {
                 $output->writeln('# SKIP rematch: invalid LASTFM_REMATCH_SCHEDULE (' . $e->getMessage() . ')');

@@ -95,6 +95,17 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
   rouge devient un bandeau vert « écritures sûres » quand Navidrome est
   arrêté, et embarque un bouton « ⏸ Arrêter Navidrome » quand il
   tourne.
+- **Flag `--auto-stop`** sur `app:lastfm:import` et `app:lastfm:rematch` :
+  pilote tout le cycle automatiquement (stop Navidrome → import → restart
+  Navidrome, **toujours**, même en cas d'erreur de l'import via
+  try/finally). Active sur le cron `app:lastfm:rematch` généré par
+  `app:cron:dump` quand `NAVIDROME_CONTAINER_NAME` est renseigné — le job
+  tourne désormais entièrement non-attendu sans verrou WAL. No-op si la
+  feature est désactivée ou si Navidrome est déjà arrêté. Si le socket
+  Docker est `unknown`, refuse l'orchestration (impossible de garantir
+  un état cohérent). En cas de double échec (import KO + restart KO), la
+  `NavidromeContainerException` finale chaîne l'exception d'origine en
+  `previous` pour tracer les deux problèmes.
 - **`app:lastfm:rematch --random`** : nouveau flag qui mélange l'ordre
   des unmatched avant d'appliquer `--limit`. Utile pour échantillonner
   un sous-ensemble représentatif quand on debugge une nouvelle
