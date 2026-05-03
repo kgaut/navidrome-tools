@@ -75,6 +75,7 @@ l'ordre d'attaque recommandé.
 |-------|--------------------------------------------------------------------|--------|
 | [#95] | Backup automatique programmable de la DB locale                    | S      |
 | [#96] | Endpoint `/health` pour Docker healthcheck                         | S      |
+| [#106]| Widget Homepage (gethomepage), construit sur [#96]                 | S      |
 | [#92] | Suggestions d'artistes via Last.fm `artist.getSimilar`             | M      |
 | [#37] | Export/import de la DB locale du tool                              | M      |
 | [#69] | Permettre des générateurs custom en déploiement Docker             | M      |
@@ -168,3 +169,4 @@ quand on tagge des releases) :
 [#98]: https://github.com/kgaut/navidrome-playlist-generator/issues/98
 [#99]: https://github.com/kgaut/navidrome-playlist-generator/issues/99
 [#100]: https://github.com/kgaut/navidrome-playlist-generator/issues/100
+[#106]: https://github.com/kgaut/navidrome-playlist-generator/issues/106
