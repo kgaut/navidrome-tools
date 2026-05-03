@@ -211,6 +211,43 @@ class SubsonicClient
     }
 
     /**
+     * Full-text search via Subsonic's `search3.view`. Returns the songs
+     * matching `$query` (artists / albums omitted to keep the payload
+     * small — the playlist add-track UI only needs songs). `$count`
+     * caps the result list ; Subsonic clamps it server-side too.
+     *
+     * @return array{songs: array<int, array{id: string, title: string, artist: string, album: string, duration: int}>}
+     */
+    public function search3(string $query, int $count = 20): array
+    {
+        $query = trim($query);
+        if ($query === '') {
+            return ['songs' => []];
+        }
+
+        $data = $this->call('search3', [
+            'query' => $query,
+            'songCount' => $count,
+            'artistCount' => 0,
+            'albumCount' => 0,
+        ]);
+
+        $songs = $data['searchResult3']['song'] ?? [];
+        $out = [];
+        foreach ($songs as $s) {
+            $out[] = [
+                'id' => (string) ($s['id'] ?? ''),
+                'title' => (string) ($s['title'] ?? ''),
+                'artist' => (string) ($s['artist'] ?? ''),
+                'album' => (string) ($s['album'] ?? ''),
+                'duration' => (int) ($s['duration'] ?? 0),
+            ];
+        }
+
+        return ['songs' => $out];
+    }
+
+    /**
      * Star one or more songs by Subsonic media_file id. No-op when the
      * list is empty. Subsonic accepts repeated `id=` parameters in the
      * same call; we batch by 50 to avoid blowing up the URL length.
