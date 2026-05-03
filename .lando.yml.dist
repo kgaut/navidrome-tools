@@ -72,6 +72,10 @@ services:
         LASTFM_REMATCH_SCHEDULE: ''
         # Local on-disk cache for album/artist cover art (proxy + cache).
         COVERS_CACHE_PATH: '/app/var/covers'
+        # Homepage (gethomepage.dev) integration. Bearer token consumed
+        # by the JSON endpoint /api/status. Empty = enriched mode
+        # disabled, only the no-auth healthcheck mode is served.
+        HOMEPAGE_API_TOKEN: ''
 
   cron:
     type: php:8.3
