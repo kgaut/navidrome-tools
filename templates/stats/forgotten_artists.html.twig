@@ -1,0 +1,98 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Artistes oubliés{% endblock %}
+
+{% block body %}
+    <div class="flex flex-wrap items-center gap-3 text-xs mb-4">
+        <span class="text-slate-500">Voir aussi :</span>
+        <a href="{{ path('app_stats') }}" class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200">Vue d'ensemble</a>
+        <a href="{{ path('app_stats_charts') }}" class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200">Graphiques</a>
+        <a href="{{ path('app_stats_heatmap') }}" class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200">Heatmap</a>
+        <a href="{{ path('app_wrapped_default') }}" class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200">Wrapped</a>
+    </div>
+
+    <div class="flex items-start justify-between mb-4 flex-wrap gap-3">
+        <h1 class="text-2xl font-semibold">Artistes oubliés</h1>
+    </div>
+
+    <p class="text-sm text-slate-600 mb-6">
+        Artistes que tu as beaucoup écoutés et qui n'ont rien tourné depuis un moment.
+        Tri par <em>plays × ancienneté du dernier play</em> — plus c'est en haut, plus
+        ça fait longtemps qu'un favori dort.
+    </p>
+
+    {% if not has_scrobbles %}
+        <div class="bg-amber-50 border border-amber-300 text-amber-800 rounded p-4 mb-6 text-sm">
+            La table <code>scrobbles</code> de Navidrome est introuvable. Cette page nécessite Navidrome ≥ 0.55.
+        </div>
+    {% endif %}
+
+    <form method="get" class="bg-white shadow rounded p-4 mb-6 flex flex-wrap items-end gap-4">
+        <div>
+            <label class="block text-xs uppercase text-slate-500" for="min_plays">Plays minimum</label>
+            <input type="number" name="min_plays" id="min_plays" value="{{ min_plays }}" min="1"
+                   class="border rounded px-2 py-1 text-sm w-24">
+        </div>
+        <div>
+            <label class="block text-xs uppercase text-slate-500" for="idle_months">Inactif depuis</label>
+            <select name="idle_months" id="idle_months" class="border rounded px-2 py-1 text-sm">
+                {% for m in allowed_idle_months %}
+                    <option value="{{ m }}" {{ m == idle_months ? 'selected' : '' }}>{{ m }} mois</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded text-sm">
+            Filtrer
+        </button>
+    </form>
+
+    {% if has_scrobbles %}
+        <div class="bg-white shadow rounded overflow-hidden">
+            <div class="px-4 py-3 border-b bg-slate-50 flex items-center justify-between">
+                <h2 class="font-semibold text-sm">{{ artists|length }} artiste(s)</h2>
+            </div>
+            {% if artists is empty %}
+                <div class="p-4 text-sm text-slate-500">
+                    Aucun artiste ne correspond à ces filtres. Essaie d'abaisser le seuil de plays
+                    ou la durée d'inactivité.
+                </div>
+            {% else %}
+                <table class="w-full text-sm">
+                    <thead class="bg-slate-100 text-slate-600 text-left text-xs">
+                    <tr>
+                        <th class="px-3 py-2 w-10">#</th>
+                        <th class="px-3 py-2">Artiste</th>
+                        <th class="px-3 py-2 w-24 text-right">Plays</th>
+                        <th class="px-3 py-2 w-44">Dernier play</th>
+                        <th class="px-3 py-2 w-28 text-right">Idle</th>
+                        <th class="px-3 py-2 w-40 text-right">Liens</th>
+                    </tr>
+                    </thead>
+                    <tbody class="divide-y">
+                    {% for a in artists %}
+                        <tr>
+                            <td class="px-3 py-1.5 text-slate-400">{{ loop.index }}</td>
+                            <td class="px-3 py-1.5 font-medium">{{ a.artist }}</td>
+                            <td class="px-3 py-1.5 text-right">{{ a.plays|number_format(0, '.', ' ') }}</td>
+                            <td class="px-3 py-1.5 text-slate-600">{{ a.last_played_at|date('Y-m-d') }}</td>
+                            <td class="px-3 py-1.5 text-right text-slate-600">
+                                {{ (a.idle_days / 30)|round(1) }} mois
+                            </td>
+                            <td class="px-3 py-1.5 text-right text-xs space-x-2">
+                                {% if navidrome_url %}
+                                    <a href="{{ navidrome_url }}/app/#/library?searchType=artist&search={{ a.artist|url_encode }}"
+                                       target="_blank" rel="noopener"
+                                       class="text-sky-600 hover:underline">Navidrome</a>
+                                {% endif %}
+                                <a href="https://www.last.fm/music/{{ a.artist|url_encode }}"
+                                   target="_blank" rel="noopener"
+                                   class="text-sky-600 hover:underline">Last.fm</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            {% endif %}
+        </div>
+    {% endif %}
+{% endblock %}

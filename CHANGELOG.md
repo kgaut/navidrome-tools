@@ -106,6 +106,13 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
   un état cohérent). En cas de double échec (import KO + restart KO), la
   `NavidromeContainerException` finale chaîne l'exception d'origine en
   `previous` pour tracer les deux problèmes.
+- **Page « artistes oubliés »** sur `/stats/forgotten-artists` :
+  liste les artistes avec un historique de plays consistant
+  (`min_plays`, défaut 50) qui n'ont rien tourné depuis longtemps
+  (`idle_months`, défaut 12). Tri par `plays × idle_seconds` desc
+  (les gros favoris dormants montent en haut). Liens directs vers
+  Navidrome (recherche artiste) et Last.fm. Pendant à l'échelle
+  artiste du générateur `songs-you-used-to-love`. Closes #91.
 - **Split des stats par client Subsonic** sur `/stats` : nouveau select
   « Tous / DSub / Symfonium / web… » à côté du select période, alimenté
   par `SELECT DISTINCT client FROM scrobbles`. Filtre le total
