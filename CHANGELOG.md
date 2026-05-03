@@ -25,6 +25,23 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
   Closes #102.
 
 ### Added
+- **Pilotage du conteneur Navidrome depuis le dashboard** : nouvelle
+  variable `NAVIDROME_CONTAINER_NAME` (vide = feature désactivée). Quand
+  renseignée, le dashboard affiche une card « Conteneur Navidrome » avec
+  l'état UP/DOWN et des boutons Start/Stop POST CSRF
+  (`/navidrome/container/start|stop`). En parallèle, les commandes qui
+  écrivent dans la DB Navidrome (`app:lastfm:import`,
+  `app:lastfm:rematch`, leurs HTTP counterparts) refusent désormais de
+  tourner si le conteneur est détecté UP — flag CLI `--force` pour
+  outrepasser, flash error + redirect côté UI. Si le socket Docker n'est
+  pas joignable (mount manquant) le statut est `unknown` et les
+  écritures sont bloquées par défaut. Implémenté via `docker` CLI (le
+  paquet alpine `docker-cli` est installé dans l'image, le socket
+  `/var/run/docker.sock` à mounter manuellement — bloc commenté dans
+  `docker-compose.example.yml`). Page `/lastfm/import` : le bandeau
+  rouge devient un bandeau vert « écritures sûres » quand Navidrome est
+  arrêté, et embarque un bouton « ⏸ Arrêter Navidrome » quand il
+  tourne.
 - **`app:lastfm:rematch --random`** : nouveau flag qui mélange l'ordre
   des unmatched avant d'appliquer `--limit`. Utile pour échantillonner
   un sous-ensemble représentatif quand on debugge une nouvelle

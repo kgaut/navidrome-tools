@@ -22,6 +22,7 @@ parameters:
     lidarr.quality_profile_id: '%env(int:LIDARR_QUALITY_PROFILE_ID)%'
     lidarr.metadata_profile_id: '%env(int:LIDARR_METADATA_PROFILE_ID)%'
     lidarr.monitor: '%env(LIDARR_MONITOR)%'
+    navidrome.container_name: '%env(NAVIDROME_CONTAINER_NAME)%'
 
 services:
     _defaults:
@@ -83,6 +84,10 @@ services:
             $qualityProfileId: '%lidarr.quality_profile_id%'
             $metadataProfileId: '%lidarr.metadata_profile_id%'
             $monitor: '%lidarr.monitor%'
+
+    App\Docker\NavidromeContainerConfig:
+        arguments:
+            $containerName: '%navidrome.container_name%'
 
     App\Controller\LastFmImportController:
         arguments:

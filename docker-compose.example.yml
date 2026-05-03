@@ -24,6 +24,11 @@ services:
       LIDARR_QUALITY_PROFILE_ID: ${LIDARR_QUALITY_PROFILE_ID:-1}
       LIDARR_METADATA_PROFILE_ID: ${LIDARR_METADATA_PROFILE_ID:-1}
       LIDARR_MONITOR: ${LIDARR_MONITOR:-all}
+      # Navidrome container management — empty = feature disabled.
+      # Set to the actual container name (e.g. `navidrome` if you used
+      # `container_name: navidrome` in your compose file). Don't forget
+      # to also mount /var/run/docker.sock below.
+      NAVIDROME_CONTAINER_NAME: ${NAVIDROME_CONTAINER_NAME:-}
       RUN_HISTORY_RETENTION_DAYS: ${RUN_HISTORY_RETENTION_DAYS:-90}
       # File de chemins consommée par un beets externe (cron côté hôte
       # qui partage le même volume). Vide = bouton masqué sur
@@ -48,6 +53,11 @@ services:
       # Optional: bind-mount custom playlist generators (App\Plugin\ namespace).
       # See docs/PLUGINS.md. Mount the SAME path on the cron service below.
       # - ./plugins:/app/plugins:ro
+      # Uncomment to enable the Navidrome container management feature
+      # (start/stop buttons on the dashboard, automatic block of unsafe
+      # write commands when Navidrome is running). Requires
+      # NAVIDROME_CONTAINER_NAME to be set above.
+      # - /var/run/docker.sock:/var/run/docker.sock
 
   navidrome-tools-cron:
     image: ghcr.io/kgaut/navidrome-tools:latest
@@ -72,6 +82,7 @@ services:
       LIDARR_QUALITY_PROFILE_ID: ${LIDARR_QUALITY_PROFILE_ID:-1}
       LIDARR_METADATA_PROFILE_ID: ${LIDARR_METADATA_PROFILE_ID:-1}
       LIDARR_MONITOR: ${LIDARR_MONITOR:-all}
+      NAVIDROME_CONTAINER_NAME: ${NAVIDROME_CONTAINER_NAME:-}
       RUN_HISTORY_RETENTION_DAYS: ${RUN_HISTORY_RETENTION_DAYS:-90}
       # File de chemins consommée par un beets externe (cron côté hôte
       # qui partage le même volume). Vide = bouton masqué sur
@@ -93,6 +104,9 @@ services:
       # Optional: bind-mount custom playlist generators (App\Plugin\ namespace).
       # MUST match the mount on the web service above so cron runs see the same plugins.
       # - ./plugins:/app/plugins:ro
+      # Uncomment to allow CLI rematch cron jobs to inspect the Navidrome
+      # container before writing (NAVIDROME_CONTAINER_NAME must also be set).
+      # - /var/run/docker.sock:/var/run/docker.sock
 
 volumes:
   navidrome-tools-data:

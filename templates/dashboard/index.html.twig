@@ -36,6 +36,45 @@
             <div class="font-medium">API Subsonic</div>
             <div>{{ health.subsonic ? '✓ ping OK' : '✗ injoignable (vérifier NAVIDROME_URL/USER/PASSWORD)' }}</div>
         </div>
+        {% if health.container_configured %}
+            {% set ct = health.container_status %}
+            {% set ct_classes = ct == 'running' ? 'bg-emerald-50 border-emerald-300'
+                : ct == 'stopped' ? 'bg-slate-50 border-slate-300'
+                : ct == 'notfound' ? 'bg-rose-50 border-rose-300'
+                : 'bg-amber-50 border-amber-300' %}
+            <div class="rounded border p-3 {{ ct_classes }}">
+                <div class="font-medium">Conteneur Navidrome</div>
+                <div class="flex items-center justify-between gap-2 mt-1">
+                    <div>
+                        {% if ct == 'running' %}
+                            ▶ <strong>en cours</strong>
+                        {% elseif ct == 'stopped' %}
+                            ⏸ arrêté
+                        {% elseif ct == 'notfound' %}
+                            ✗ introuvable
+                        {% else %}
+                            ⚠ statut indéterminé
+                        {% endif %}
+                    </div>
+                    <div class="flex gap-1.5">
+                        {% if ct == 'running' %}
+                            <form method="post" action="{{ path('app_navidrome_container_stop') }}" class="inline"
+                                  onsubmit="return confirm('Arrêter le conteneur Navidrome ?');">
+                                <input type="hidden" name="_token" value="{{ csrf_token('navidrome_container') }}">
+                                <button type="submit" class="text-xs px-2 py-1 rounded bg-rose-600 hover:bg-rose-700 text-white">⏸ Stop</button>
+                            </form>
+                        {% elseif ct == 'stopped' or ct == 'notfound' %}
+                            <form method="post" action="{{ path('app_navidrome_container_start') }}" class="inline">
+                                <input type="hidden" name="_token" value="{{ csrf_token('navidrome_container') }}">
+                                <button type="submit" class="text-xs px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white">▶ Start</button>
+                            </form>
+                        {% else %}
+                            <span class="text-xs text-amber-700" title="Vérifier le mount /var/run/docker.sock">socket KO</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        {% endif %}
         <div class="rounded border p-3 {% if health.missing_mbid_count is null %}bg-slate-50 border-slate-300{% elseif health.missing_mbid_count == 0 %}bg-emerald-50 border-emerald-300{% else %}bg-amber-50 border-amber-300{% endif %}">
             <div class="font-medium">Tracks sans MBID</div>
             <div>

@@ -106,6 +106,19 @@ Fonctionnalités livrées :
 - **Création de playlists côté Navidrome** : **toujours via l'API
   Subsonic**, jamais d'écriture directe dans la DB Navidrome (sauf
   `app:lastfm:import` qui doit absolument tourner Navidrome arrêté).
+- **Pilotage du conteneur Navidrome** (optionnel, activé si
+  `NAVIDROME_CONTAINER_NAME` est renseigné) : card dashboard
+  affichant l'état UP/DOWN avec boutons Start/Stop, pré-flight
+  automatique sur `app:lastfm:import` / `app:lastfm:rematch` (CLI +
+  HTTP) qui bloque si Navidrome tourne (CLI : `--force` pour
+  outrepasser ; UI : flash error). Implémenté via `docker` CLI
+  (`apk add docker-cli` + mount `/var/run/docker.sock`). Statut
+  `unknown` (socket KO) = écritures bloquées par sécurité. Code dans
+  `src/Docker/` (`NavidromeContainerConfig`, `DockerCli`,
+  `NavidromeContainerManager`, enum `ContainerStatus`,
+  `NavidromeContainerException`), POST routes
+  `/navidrome/container/{start,stop}` avec CSRF
+  `navidrome_container`.
 
 ---
 
@@ -363,6 +376,7 @@ Le push du tag déclenche `docker-publish` (cf. `.github/workflows/ci.yml`).
 | `LASTFM_PAGE_DELAY_SECONDS`    | Pause entre 2 pages de l'API (default 10, 0 pour désactiver)|
 | `LASTFM_FUZZY_MAX_DISTANCE`    | Distance Levenshtein max pour le fallback fuzzy (default 0 = off, **2 recommandé pour les imports one-shot**) |
 | `LASTFM_REMATCH_SCHEDULE`      | Cron expr pour `app:lastfm:rematch` (vide = désactivé)      |
+| `NAVIDROME_CONTAINER_NAME`     | Nom du conteneur Navidrome dans la stack compose. Vide = card dashboard masquée + pré-flight désactivé. Requiert le mount `/var/run/docker.sock`. |
 
 Wirées dans : `.env` (dev), `.env.dist` (template), `phpunit.xml.dist`
 (test), `.lando.yml.dist` (Lando), `docker-compose.example.yml`,

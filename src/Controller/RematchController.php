@@ -2,6 +2,8 @@
 
 namespace App\Controller;
 
+use App\Docker\NavidromeContainerException;
+use App\Docker\NavidromeContainerManager;
 use App\Entity\RunHistory;
 use App\LastFm\RematchReport;
 use App\Service\LastFmRematchService;
@@ -17,6 +19,7 @@ class RematchController extends AbstractController
     public function __construct(
         private readonly LastFmRematchService $rematch,
         private readonly RunHistoryRecorder $recorder,
+        private readonly NavidromeContainerManager $containerManager,
     ) {
     }
 
@@ -31,6 +34,18 @@ class RematchController extends AbstractController
         $rawRunId = $request->request->get('run_id');
         $runId = ($rawRunId !== null && $rawRunId !== '') ? (int) $rawRunId : null;
         $reference = $runId !== null ? 'run-' . $runId : 'all';
+
+        try {
+            $this->containerManager->assertSafeToWrite();
+        } catch (NavidromeContainerException $e) {
+            $this->addFlash('error', $e->getMessage());
+
+            $back = $runId !== null
+                ? $this->generateUrl('app_history_detail', ['id' => $runId])
+                : $this->generateUrl('app_lastfm_import');
+
+            return new RedirectResponse($back);
+        }
 
         set_time_limit(0);
         ignore_user_abort(true);
