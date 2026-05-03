@@ -106,6 +106,17 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
   un état cohérent). En cas de double échec (import KO + restart KO), la
   `NavidromeContainerException` finale chaîne l'exception d'origine en
   `previous` pour tracer les deux problèmes.
+- **Split des stats par client Subsonic** sur `/stats` : nouveau select
+  « Tous / DSub / Symfonium / web… » à côté du select période, alimenté
+  par `SELECT DISTINCT client FROM scrobbles`. Filtre le total
+  d'écoutes, les morceaux distincts, le top 10 artistes et le top 50
+  morceaux. Détection auto via `NavidromeRepository::hasScrobbleClient()`
+  (PRAGMA `scrobbles`) — si la colonne est absente côté Navidrome
+  (installation très ancienne ou stripped-down), le select n'apparaît
+  pas. Le cache `stats_snapshot` clé dans (period, client) avec une
+  fonction `StatsService::cacheKey($period, $client)` qui préserve la
+  clé legacy `$period` quand le client est null. `computeAll()`
+  recalcule automatiquement chaque combo (period × client). Closes #97.
 - **Courbe de diversité d'écoute** sur `/stats/charts` : nouveau 4e
   Chart.js qui plotte le ratio artistes uniques / écoutes mois par
   mois (en pourcentage). Indicateur d'exploration vs. rabâchage.

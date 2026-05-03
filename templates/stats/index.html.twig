@@ -14,7 +14,7 @@
     <div class="flex items-start justify-between mb-6 flex-wrap gap-3">
         <h1 class="text-2xl font-semibold">Statistiques d'écoute</h1>
 
-        <form method="get" action="{{ path('app_stats') }}" class="flex items-center gap-2">
+        <form method="get" action="{{ path('app_stats') }}" class="flex items-center gap-2 flex-wrap">
             <label for="period" class="text-sm">Période :</label>
             <select name="period" id="period" onchange="this.form.submit()"
                     class="border rounded px-2 py-1 text-sm">
@@ -22,11 +22,24 @@
                     <option value="{{ key }}" {{ key == period ? 'selected' : '' }}>{{ label }}</option>
                 {% endfor %}
             </select>
+
+            {% if clients is not empty %}
+                <label for="client" class="text-sm">Client :</label>
+                <select name="client" id="client" onchange="this.form.submit()"
+                        class="border rounded px-2 py-1 text-sm">
+                    <option value="">Tous</option>
+                    {% for c in clients %}
+                        <option value="{{ c }}" {{ c == client ? 'selected' : '' }}>{{ c }}</option>
+                    {% endfor %}
+                </select>
+            {% endif %}
         </form>
 
+        {% set refreshKey = client ? period ~ '|' ~ client : period %}
         <form method="post" action="{{ path('app_stats_refresh') }}">
             <input type="hidden" name="period" value="{{ period }}">
-            <input type="hidden" name="_token" value="{{ csrf_token('stats_refresh_' ~ period) }}">
+            {% if client %}<input type="hidden" name="client" value="{{ client }}">{% endif %}
+            <input type="hidden" name="_token" value="{{ csrf_token('stats_refresh_' ~ refreshKey) }}">
             <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded text-sm">
                 ↻ Rafraîchir
             </button>

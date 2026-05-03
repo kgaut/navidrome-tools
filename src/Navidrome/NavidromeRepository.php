@@ -11,6 +11,8 @@ class NavidromeRepository
     private ?Connection $connection = null;
     private ?bool $hasScrobblesCache = null;
     private ?string $userIdCache = null;
+    /** @var array<string>|null */
+    private ?array $scrobbleColumnsCache = null;
 
     public function __construct(
         private readonly string $dbPath,
@@ -87,6 +89,56 @@ class NavidromeRepository
         );
 
         return $this->hasScrobblesCache = ($row !== false);
+    }
+
+    /**
+     * Columns of the scrobbles table (lower-cased), or [] when the table
+     * is missing. Used to feature-detect optional columns like `client`
+     * (Subsonic client name) which exist on Navidrome 0.55+ but not on
+     * older or stripped-down installs.
+     *
+     * @return array<string>
+     */
+    public function scrobbleColumns(): array
+    {
+        if ($this->scrobbleColumnsCache !== null) {
+            return $this->scrobbleColumnsCache;
+        }
+        if (!$this->hasScrobblesTable()) {
+            return $this->scrobbleColumnsCache = [];
+        }
+        $rows = $this->connection()->fetchAllAssociative('PRAGMA table_info(scrobbles)');
+
+        return $this->scrobbleColumnsCache = array_map(
+            static fn (array $r): string => strtolower((string) $r['name']),
+            $rows,
+        );
+    }
+
+    public function hasScrobbleClient(): bool
+    {
+        return in_array('client', $this->scrobbleColumns(), true);
+    }
+
+    /**
+     * Distinct non-empty Subsonic clients found in the scrobbles table.
+     * Returns [] when the column doesn't exist.
+     *
+     * @return list<string>
+     */
+    public function listScrobbleClients(): array
+    {
+        if (!$this->hasScrobbleClient()) {
+            return [];
+        }
+
+        $rows = $this->connection()->fetchAllAssociative(
+            'SELECT DISTINCT client FROM scrobbles
+             WHERE client IS NOT NULL AND client != \'\'
+             ORDER BY client ASC',
+        );
+
+        return array_map(static fn (array $r): string => (string) $r['client'], $rows);
     }
 
     public function resolveUserId(): string
@@ -228,7 +280,7 @@ class NavidromeRepository
      * fallback's "windowed" mode is only an approximation: it counts
      * tracks whose *last* play falls inside the window.
      */
-    public function getTotalPlays(?\DateTimeInterface $from, ?\DateTimeInterface $to): int
+    public function getTotalPlays(?\DateTimeInterface $from, ?\DateTimeInterface $to, ?string $client = null): int
     {
         $userId = $this->resolveUserId();
 
@@ -242,6 +294,10 @@ class NavidromeRepository
                 $params['t'] = $to->getTimestamp();
                 $types['f'] = \Doctrine\DBAL\ParameterType::INTEGER;
                 $types['t'] = \Doctrine\DBAL\ParameterType::INTEGER;
+            }
+            if ($client !== null && $client !== '' && $this->hasScrobbleClient()) {
+                $sql .= ' AND client = :client';
+                $params['client'] = $client;
             }
 
             return (int) $this->connection()->fetchOne($sql, $params, $types);
@@ -270,7 +326,7 @@ class NavidromeRepository
      * Number of distinct media files played at least once in [from, to).
      * Uses scrobbles when available (always accurate), annotation otherwise.
      */
-    public function getDistinctTracksPlayed(?\DateTimeInterface $from, ?\DateTimeInterface $to): int
+    public function getDistinctTracksPlayed(?\DateTimeInterface $from, ?\DateTimeInterface $to, ?string $client = null): int
     {
         $userId = $this->resolveUserId();
 
@@ -284,6 +340,10 @@ class NavidromeRepository
                 $params['t'] = $to->getTimestamp();
                 $types['f'] = \Doctrine\DBAL\ParameterType::INTEGER;
                 $types['t'] = \Doctrine\DBAL\ParameterType::INTEGER;
+            }
+            if ($client !== null && $client !== '' && $this->hasScrobbleClient()) {
+                $sql .= ' AND client = :client';
+                $params['client'] = $client;
             }
 
             return (int) $this->connection()->fetchOne($sql, $params, $types);
@@ -313,7 +373,7 @@ class NavidromeRepository
      *
      * @return list<array{artist: string, plays: int}>
      */
-    public function getTopArtists(?\DateTimeInterface $from, ?\DateTimeInterface $to, int $limit): array
+    public function getTopArtists(?\DateTimeInterface $from, ?\DateTimeInterface $to, int $limit, ?string $client = null): array
     {
         $userId = $this->resolveUserId();
 
@@ -331,6 +391,10 @@ class NavidromeRepository
                 $params['t'] = $to->getTimestamp();
                 $types['f'] = \Doctrine\DBAL\ParameterType::INTEGER;
                 $types['t'] = \Doctrine\DBAL\ParameterType::INTEGER;
+            }
+            if ($client !== null && $client !== '' && $this->hasScrobbleClient()) {
+                $sql .= ' AND s.client = :client';
+                $params['client'] = $client;
             }
             $sql .= ' GROUP BY mf.artist ORDER BY plays DESC, artist ASC LIMIT :lim';
 
@@ -385,7 +449,7 @@ class NavidromeRepository
      *
      * @return list<array{id: string, title: string, artist: string, album: string, plays: int}>
      */
-    public function getTopTracksWithDetails(?\DateTimeInterface $from, ?\DateTimeInterface $to, int $limit): array
+    public function getTopTracksWithDetails(?\DateTimeInterface $from, ?\DateTimeInterface $to, int $limit, ?string $client = null): array
     {
         $userId = $this->resolveUserId();
 
@@ -403,6 +467,10 @@ class NavidromeRepository
                 $params['t'] = $to->getTimestamp();
                 $types['f'] = \Doctrine\DBAL\ParameterType::INTEGER;
                 $types['t'] = \Doctrine\DBAL\ParameterType::INTEGER;
+            }
+            if ($client !== null && $client !== '' && $this->hasScrobbleClient()) {
+                $sql .= ' AND s.client = :client';
+                $params['client'] = $client;
             }
             $sql .= ' GROUP BY mf.id, mf.title, mf.artist, mf.album
                       ORDER BY plays DESC, title ASC LIMIT :lim';
