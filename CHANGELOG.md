@@ -25,6 +25,13 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
   Closes #102.
 
 ### Added
+- **Menu burger mobile** : la navigation principale est désormais
+  utilisable sur petit écran. En `< md` (768px), un bouton hamburger
+  remplace la barre horizontale et déplie un menu vertical en
+  dessous du header. Les sous-menus (Statistiques, Last.fm) sont
+  rendus en `<details>`/`<summary>` (tap-friendly, pas de hover).
+  Le menu desktop reste inchangé. ~15 lignes de JS vanilla pour le
+  toggle.
 - **Pilotage du conteneur Navidrome depuis le dashboard** : nouvelle
   variable `NAVIDROME_CONTAINER_NAME` (vide = feature désactivée). Quand
   renseignée, le dashboard affiche une card « Conteneur Navidrome » avec
