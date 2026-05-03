@@ -33,7 +33,24 @@
                           title="{{ tooltip }}"></span>
                 {% endif %}
             </a>
-            <nav class="flex items-center gap-4 text-sm">
+
+            {% if app.user %}
+                <button type="button"
+                        id="burger-toggle"
+                        class="md:hidden inline-flex items-center justify-center w-10 h-10 rounded hover:bg-slate-800"
+                        aria-label="Ouvrir le menu"
+                        aria-controls="mobile-nav"
+                        aria-expanded="false">
+                    <svg id="burger-icon-open" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                    </svg>
+                    <svg id="burger-icon-close" class="w-6 h-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            {% endif %}
+
+            <nav class="hidden md:flex items-center gap-4 text-sm">
                 {% if app.user %}
                     <a href="{{ path('app_dashboard') }}" class="hover:underline">Dashboard</a>
                     <a href="{{ path('app_playlists_index') }}" class="hover:underline">Playlists</a>
@@ -80,6 +97,54 @@
                 {% endif %}
             </nav>
         </div>
+
+        {% if app.user %}
+            <nav id="mobile-nav" class="md:hidden hidden border-t border-slate-800 bg-slate-900">
+                <div class="max-w-6xl mx-auto px-4 py-2 flex flex-col text-sm">
+                    <a href="{{ path('app_dashboard') }}" class="block py-2 hover:bg-slate-800 px-2 rounded">Dashboard</a>
+                    <a href="{{ path('app_playlists_index') }}" class="block py-2 hover:bg-slate-800 px-2 rounded">Playlists</a>
+                    <a href="{{ path('app_playlist_new') }}" class="block py-2 hover:bg-slate-800 px-2 rounded">Nouvelle playlist</a>
+
+                    <details class="group">
+                        <summary class="py-2 px-2 rounded hover:bg-slate-800 cursor-pointer flex items-center justify-between list-none">
+                            <span>Statistiques</span>
+                            <span class="text-xs transition group-open:rotate-180">▾</span>
+                        </summary>
+                        <div class="pl-4 flex flex-col">
+                            <a href="{{ path('app_stats') }}" class="block py-2 px-2 rounded hover:bg-slate-800">Vue d'ensemble</a>
+                            <a href="{{ path('app_stats_compare') }}" class="block py-2 px-2 rounded hover:bg-slate-800">Comparer 2 périodes</a>
+                            <a href="{{ path('app_stats_charts') }}" class="block py-2 px-2 rounded hover:bg-slate-800">Graphiques</a>
+                            <a href="{{ path('app_stats_heatmap') }}" class="block py-2 px-2 rounded hover:bg-slate-800">Heatmap</a>
+                            <a href="{{ path('app_wrapped_default') }}" class="block py-2 px-2 rounded hover:bg-slate-800">Wrapped</a>
+                            <a href="{{ path('app_stats_lastfm_history') }}" class="block py-2 px-2 rounded hover:bg-slate-800">Historique Last.fm</a>
+                            <a href="{{ path('app_stats_navidrome_history') }}" class="block py-2 px-2 rounded hover:bg-slate-800">Historique Navidrome</a>
+                        </div>
+                    </details>
+
+                    <details class="group">
+                        <summary class="py-2 px-2 rounded hover:bg-slate-800 cursor-pointer flex items-center justify-between list-none">
+                            <span>Last.fm</span>
+                            <span class="text-xs transition group-open:rotate-180">▾</span>
+                        </summary>
+                        <div class="pl-4 flex flex-col">
+                            <a href="{{ path('app_lastfm_import') }}" class="block py-2 px-2 rounded hover:bg-slate-800">Import</a>
+                            <a href="{{ path('app_lastfm_unmatched') }}" class="block py-2 px-2 rounded hover:bg-slate-800">Unmatched</a>
+                            <a href="{{ path('app_lastfm_love_sync') }}" class="block py-2 px-2 rounded hover:bg-slate-800">Sync loved/star</a>
+                            <a href="{{ path('app_lastfm_alias_index') }}" class="block py-2 px-2 rounded hover:bg-slate-800">Alias tracks</a>
+                            <a href="{{ path('app_lastfm_artist_alias_index') }}" class="block py-2 px-2 rounded hover:bg-slate-800">Alias artistes</a>
+                        </div>
+                    </details>
+
+                    <a href="{{ path('app_tagging_missing_mbid') }}" class="block py-2 px-2 rounded hover:bg-slate-800">Tagging</a>
+                    <a href="{{ path('app_history') }}" class="block py-2 px-2 rounded hover:bg-slate-800">Historique</a>
+                    <a href="{{ path('app_settings') }}" class="block py-2 px-2 rounded hover:bg-slate-800">Réglages</a>
+                    <div class="border-t border-slate-800 mt-2 pt-2 flex items-center justify-between px-2">
+                        <span class="text-slate-400">{{ app.user.userIdentifier }}</span>
+                        <a href="{{ path('app_logout') }}" class="hover:underline">Déconnexion</a>
+                    </div>
+                </div>
+            </nav>
+        {% endif %}
     </header>
 
     <main class="flex-1 max-w-6xl w-full mx-auto px-4 py-6">
@@ -101,6 +166,22 @@
         <a href="https://github.com/kgaut/navidrome-tools" class="hover:underline">Navidrome Tools — github.com/kgaut/navidrome-tools</a>
     </footer>
 </div>
+<script>
+    (function () {
+        var btn = document.getElementById('burger-toggle');
+        var nav = document.getElementById('mobile-nav');
+        var iconOpen = document.getElementById('burger-icon-open');
+        var iconClose = document.getElementById('burger-icon-close');
+        if (!btn || !nav) return;
+        btn.addEventListener('click', function () {
+            var willOpen = nav.classList.contains('hidden');
+            nav.classList.toggle('hidden', !willOpen);
+            iconOpen.classList.toggle('hidden', willOpen);
+            iconClose.classList.toggle('hidden', !willOpen);
+            btn.setAttribute('aria-expanded', String(willOpen));
+        });
+    })();
+</script>
 {% block javascripts %}{% endblock %}
 </body>
 </html>
