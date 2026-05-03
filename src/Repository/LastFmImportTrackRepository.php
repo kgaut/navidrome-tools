@@ -48,15 +48,27 @@ class LastFmImportTrackRepository extends ServiceEntityRepository
      * without buffering the whole table — useful for the rematch CLI which
      * may iterate over tens of thousands of historical unmatched entries.
      *
-     * @param int|null $runId Filter to a single run when non-null
-     * @param int      $limit Hard cap (set high for full sweeps; the cli
-     *                        passes its --limit flag through). 0 means no
-     *                        limit.
+     * When $random is true the candidates are shuffled in PHP before $limit
+     * is applied (DQL has no portable RANDOM() and adding a custom function
+     * for one feature is overkill). The memory cost is bounded by the
+     * number of unmatched IDs (integers, negligible even at 100k rows).
+     *
+     * @param int|null $runId  Filter to a single run when non-null
+     * @param int      $limit  Hard cap (set high for full sweeps; the cli
+     *                         passes its --limit flag through). 0 means no
+     *                         limit.
+     * @param bool     $random Shuffle candidates before applying $limit.
+     *                         Useful to sample a subset when debugging
+     *                         matching heuristics on a large backlog.
      *
      * @return iterable<LastFmImportTrack>
      */
-    public function streamUnmatched(?int $runId = null, int $limit = 0): iterable
+    public function streamUnmatched(?int $runId = null, int $limit = 0, bool $random = false): iterable
     {
+        if ($random) {
+            return $this->streamUnmatchedRandom($runId, $limit);
+        }
+
         $qb = $this->createQueryBuilder('t')
             ->andWhere('t.status = :s')
             ->setParameter('s', LastFmImportTrack::STATUS_UNMATCHED)
@@ -69,6 +81,35 @@ class LastFmImportTrackRepository extends ServiceEntityRepository
         }
 
         return $qb->getQuery()->toIterable();
+    }
+
+    /**
+     * @return \Generator<int, LastFmImportTrack>
+     */
+    private function streamUnmatchedRandom(?int $runId, int $limit): \Generator
+    {
+        $qb = $this->createQueryBuilder('t')
+            ->select('t.id')
+            ->andWhere('t.status = :s')
+            ->setParameter('s', LastFmImportTrack::STATUS_UNMATCHED);
+        if ($runId !== null) {
+            $qb->andWhere('IDENTITY(t.runHistory) = :run')->setParameter('run', $runId);
+        }
+
+        /** @var list<array{id: int}> $rows */
+        $rows = $qb->getQuery()->getArrayResult();
+        $ids = array_column($rows, 'id');
+        shuffle($ids);
+        if ($limit > 0 && count($ids) > $limit) {
+            $ids = array_slice($ids, 0, $limit);
+        }
+
+        foreach ($ids as $id) {
+            $entity = $this->find($id);
+            if ($entity !== null) {
+                yield $entity;
+            }
+        }
     }
 
     /**

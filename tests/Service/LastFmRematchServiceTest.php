@@ -156,6 +156,27 @@ class LastFmRematchServiceTest extends TestCase
         $this->assertSame(1, (int) $count);
     }
 
+    public function testRematchHonorsRandomFlagAndLimit(): void
+    {
+        // 5 unmatched rows, --random + --limit=2 should process exactly 2.
+        // We don't assert which 2 (shuffle is non-deterministic by design);
+        // the point is to validate the flag is wired through to the repo.
+        NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: true);
+        $run = $this->makeRun();
+        $tracks = [
+            $this->makeUnmatchedTrack($run, 'A1', 'T1', new \DateTimeImmutable('2026-04-01 10:00:00')),
+            $this->makeUnmatchedTrack($run, 'A2', 'T2', new \DateTimeImmutable('2026-04-02 10:00:00')),
+            $this->makeUnmatchedTrack($run, 'A3', 'T3', new \DateTimeImmutable('2026-04-03 10:00:00')),
+            $this->makeUnmatchedTrack($run, 'A4', 'T4', new \DateTimeImmutable('2026-04-04 10:00:00')),
+            $this->makeUnmatchedTrack($run, 'A5', 'T5', new \DateTimeImmutable('2026-04-05 10:00:00')),
+        ];
+
+        $service = $this->makeService($tracks);
+        $report = $service->rematch(limit: 2, dryRun: true, random: true);
+
+        $this->assertSame(2, $report->considered);
+    }
+
     /**
      * @param list<LastFmImportTrack> $tracks
      */
@@ -163,11 +184,21 @@ class LastFmRematchServiceTest extends TestCase
     {
         $repo = $this->createMock(LastFmImportTrackRepository::class);
         $repo->method('streamUnmatched')->willReturnCallback(
-            function (?int $runId = null, int $limit = 0) use ($tracks): \Generator {
+            function (?int $runId = null, int $limit = 0, bool $random = false) use ($tracks): \Generator {
+                $candidates = [];
                 foreach ($tracks as $t) {
                     if ($t->getStatus() !== LastFmImportTrack::STATUS_UNMATCHED) {
                         continue;
                     }
+                    $candidates[] = $t;
+                }
+                if ($random) {
+                    shuffle($candidates);
+                }
+                if ($limit > 0 && count($candidates) > $limit) {
+                    $candidates = array_slice($candidates, 0, $limit);
+                }
+                foreach ($candidates as $t) {
                     yield $t;
                 }
             }

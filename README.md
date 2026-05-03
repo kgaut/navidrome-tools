@@ -476,11 +476,15 @@ ré-appliquée et les scrobbles trouvés sont insérés dans Navidrome
 ### CLI
 
 ```bash
-php bin/console app:lastfm:rematch [--dry-run] [--run-id=N] [--limit=N]
+php bin/console app:lastfm:rematch [--dry-run] [--run-id=N] [--limit=N] [--random]
 ```
 
 `--dry-run` montre le rapport sans écrire. `--run-id=N` limite le
 rematch aux unmatched du run #N. `--limit=0` (défaut) = pas de limite.
+`--random` mélange l'ordre des unmatched avant d'appliquer `--limit`,
+utile pour échantillonner un sous-ensemble représentatif (par défaut
+les rows sont parcourues par id croissant, donc avec un `--limit` fixe
+on retraiterait toujours les mêmes morceaux en tête de table).
 
 ### Web
 
