@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="fr" class="h-full bg-slate-50">
+<html lang="fr" class="h-full bg-slate-900">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,16 +9,81 @@
     <style>
         /* Album/artist cover thumbnails — used by templates/_macros/cover.html.twig.
            Tailwind via CDN doesn't include these utility classes by default. */
-        .cover { display: inline-block; border-radius: 0.25rem; background: #e2e8f0; }
+        .cover { display: inline-block; border-radius: 0.25rem; background: #334155; }
         .cover-fallback {
             display: inline-flex; align-items: center; justify-content: center;
             color: #fff; font-weight: 600; font-size: 0.7em;
             border-radius: 0.25rem; user-select: none;
         }
+
+        /* === Dark theme overrides (#87) ===
+           App-wide dark mode without rewriting every template's class
+           names. Tailwind via CDN emits utility classes at runtime ; we
+           re-target the most common light-theme utilities used across
+           templates. !important wins over the JIT-emitted rules. The
+           palette stays Tailwind-slate ; we just shift the brightness:
+           - bg-white   #ffffff → slate-800 #1e293b
+           - bg-slate-50  → slate-900 #0f172a (page bg already)
+           - bg-slate-100 → slate-700 #334155
+           - bg-slate-200 → slate-600 #475569 (hover states)
+           - text-slate-800/700/600 lighten ; -500/-400 stay muted. */
+        body { color-scheme: dark; }
+        .bg-white { background-color: #1e293b !important; }
+        .bg-slate-50 { background-color: #0f172a !important; }
+        .bg-slate-100 { background-color: #334155 !important; }
+        .bg-slate-200 { background-color: #475569 !important; }
+        .hover\:bg-slate-100:hover { background-color: #334155 !important; }
+        .hover\:bg-slate-200:hover { background-color: #475569 !important; }
+
+        .text-slate-800 { color: #f1f5f9 !important; }
+        .text-slate-700 { color: #e2e8f0 !important; }
+        .text-slate-600 { color: #cbd5e1 !important; }
+        .text-slate-500 { color: #94a3b8 !important; }
+        .text-slate-400 { color: #64748b !important; }
+
+        .border, .border-slate-200, .border-slate-300, .border-b, .border-t {
+            border-color: #334155 !important;
+        }
+        .divide-y > :not([hidden]) ~ :not([hidden]) { border-color: #334155 !important; }
+
+        /* Table heads / striped rows: keep them tinted but darker */
+        thead.bg-slate-100 { background-color: #1e293b !important; }
+        thead.bg-slate-100 th { color: #94a3b8 !important; }
+
+        /* Flash message tints — keep the hue, drop the brightness so they
+           read on a dark background */
+        .bg-amber-50  { background-color: rgba(251, 191,  36, 0.10) !important; }
+        .bg-emerald-50{ background-color: rgba( 16, 185, 129, 0.10) !important; }
+        .bg-rose-50   { background-color: rgba(244,  63,  94, 0.10) !important; }
+        .bg-sky-50    { background-color: rgba( 14, 165, 233, 0.10) !important; }
+        .text-amber-800   { color: #fcd34d !important; }
+        .text-emerald-800 { color: #6ee7b7 !important; }
+        .text-rose-800    { color: #fda4af !important; }
+        .text-sky-800     { color: #7dd3fc !important; }
+        .border-amber-300   { border-color: rgba(251, 191,  36, 0.40) !important; }
+        .border-emerald-300 { border-color: rgba( 16, 185, 129, 0.40) !important; }
+        .border-rose-300    { border-color: rgba(244,  63,  94, 0.40) !important; }
+        .border-sky-300     { border-color: rgba( 14, 165, 233, 0.40) !important; }
+
+        /* Form inputs: native widgets default to white on dark, hard to read */
+        input[type=text], input[type=number], input[type=email], input[type=password],
+        input[type=search], input[type=date], input[type=url], textarea, select {
+            background-color: #0f172a !important;
+            color: #f1f5f9 !important;
+            border-color: #334155 !important;
+        }
+        input::placeholder, textarea::placeholder { color: #64748b !important; }
+
+        /* Code blocks and inline code */
+        code { background-color: #0f172a !important; color: #f1f5f9 !important;
+               padding: 1px 4px; border-radius: 3px; }
+
+        /* Shadow on dark needs a stronger contrast */
+        .shadow { box-shadow: 0 1px 3px 0 rgba(0,0,0,0.5), 0 1px 2px -1px rgba(0,0,0,0.5) !important; }
     </style>
     {% block stylesheets %}{% endblock %}
 </head>
-<body class="h-full text-slate-800">
+<body class="h-full text-slate-100">
 <div class="min-h-full flex flex-col">
     <header class="bg-slate-900 text-slate-100">
         <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
