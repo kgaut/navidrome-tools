@@ -505,6 +505,58 @@ class NavidromeRepository
     }
 
     /**
+     * Plays + distinct artists per month over the last $monthsBack months.
+     * Months without scrobbles return plays=0, uniques=0.
+     *
+     * @return list<array{month: string, plays: int, uniques: int}>
+     */
+    public function getDiversityByMonth(int $monthsBack): array
+    {
+        if (!$this->hasScrobblesTable()) {
+            return [];
+        }
+
+        $userId = $this->resolveUserId();
+        $now = new \DateTimeImmutable();
+        $from = $now->modify('first day of this month')->setTime(0, 0)
+            ->modify(sprintf('-%d months', max(0, $monthsBack - 1)));
+
+        $rows = $this->connection()->fetchAllAssociative(
+            "SELECT strftime('%Y-%m', s.submission_time, 'unixepoch') AS month,
+                    COUNT(*) AS plays,
+                    COUNT(DISTINCT mf.artist) AS uniques
+             FROM scrobbles s
+             JOIN media_file mf ON mf.id = s.media_file_id
+             WHERE s.user_id = :uid AND s.submission_time >= :from AND mf.artist != ''
+             GROUP BY month
+             ORDER BY month ASC",
+            ['uid' => $userId, 'from' => $from->getTimestamp()],
+            ['from' => \Doctrine\DBAL\ParameterType::INTEGER],
+        );
+        $byMonth = [];
+        foreach ($rows as $r) {
+            $byMonth[(string) $r['month']] = [
+                'plays' => (int) $r['plays'],
+                'uniques' => (int) $r['uniques'],
+            ];
+        }
+
+        $out = [];
+        $cursor = $from;
+        for ($i = 0; $i < $monthsBack; $i++) {
+            $key = $cursor->format('Y-m');
+            $out[] = [
+                'month' => $key,
+                'plays' => $byMonth[$key]['plays'] ?? 0,
+                'uniques' => $byMonth[$key]['uniques'] ?? 0,
+            ];
+            $cursor = $cursor->modify('+1 month');
+        }
+
+        return $out;
+    }
+
+    /**
      * Top $topN artists by total plays over the last $monthsBack months,
      * with a per-month timeseries for each.
      *

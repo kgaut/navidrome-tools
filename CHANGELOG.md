@@ -106,6 +106,12 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
   un état cohérent). En cas de double échec (import KO + restart KO), la
   `NavidromeContainerException` finale chaîne l'exception d'origine en
   `previous` pour tracer les deux problèmes.
+- **Courbe de diversité d'écoute** sur `/stats/charts` : nouveau 4e
+  Chart.js qui plotte le ratio artistes uniques / écoutes mois par
+  mois (en pourcentage). Indicateur d'exploration vs. rabâchage.
+  Méthode `NavidromeRepository::getDiversityByMonth($monthsBack)` qui
+  retourne `[{month, plays, uniques}]` avec remplissage des mois sans
+  scrobbles à zéro. Closes #93.
 - **`app:lastfm:rematch --random`** : nouveau flag qui mélange l'ordre
   des unmatched avant d'appliquer `--limit`. Utile pour échantillonner
   un sous-ensemble représentatif quand on debugge une nouvelle
