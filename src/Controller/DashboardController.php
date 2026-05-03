@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\Docker\NavidromeContainerManager;
 use App\Generator\GeneratorRegistry;
 use App\Navidrome\NavidromeRepository;
 use App\Repository\PlaylistDefinitionRepository;
@@ -27,6 +28,7 @@ class DashboardController extends AbstractController
         SubsonicClient $subsonic,
         SettingsService $settings,
         RunHistoryRepository $runHistory,
+        NavidromeContainerManager $container,
     ): Response {
         $q = trim((string) $request->query->get('q', ''));
         $enabledRaw = $request->query->get('enabled');
@@ -59,12 +61,16 @@ class DashboardController extends AbstractController
         }
 
         $hasScrobbles = $navidrome->isAvailable() && $navidrome->hasScrobblesTable();
+        $containerStatus = $container->getStatus();
         $health = [
             'navidrome_db' => $navidrome->isAvailable(),
             'has_scrobbles' => $hasScrobbles,
             'scrobbles_count' => $hasScrobbles ? $navidrome->getScrobblesCount() : null,
             'subsonic' => $subsonic->ping(),
             'missing_mbid_count' => $navidrome->isAvailable() ? $navidrome->countMediaFilesWithoutMbid() : null,
+            'container_configured' => $container->isConfigured(),
+            'container_status' => $containerStatus->value,
+            'container_label' => $containerStatus->label(),
         ];
 
         $recentRuns = $runHistory->findFilteredPaginated([], 1, 10)['items'];

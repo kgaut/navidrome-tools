@@ -2,6 +2,8 @@
 
 namespace App\Controller;
 
+use App\Docker\NavidromeContainerException;
+use App\Docker\NavidromeContainerManager;
 use App\Entity\LastFmImportTrack;
 use App\Entity\RunHistory;
 use App\Form\LastFmImportType;
@@ -27,6 +29,7 @@ class LastFmImportController extends AbstractController
         private readonly RunHistoryRecorder $recorder,
         private readonly EntityManagerInterface $em,
         private readonly LastFmImportTrackRepository $trackRepo,
+        private readonly NavidromeContainerManager $containerManager,
         private readonly string $navidromeUrl,
     ) {
     }
@@ -51,11 +54,22 @@ class LastFmImportController extends AbstractController
 
             if ($apiKey === '') {
                 $error = 'Aucune API key fournie (champ vide et LASTFM_API_KEY non défini).';
-            } else {
+            }
+
+            $user = (string) ($data['lastfm_user'] ?? '');
+            $isDry = (bool) ($data['dry_run'] ?? true);
+
+            if ($error === null && !$isDry) {
+                try {
+                    $this->containerManager->assertSafeToWrite();
+                } catch (NavidromeContainerException $e) {
+                    $error = $e->getMessage();
+                }
+            }
+
+            if ($error === null) {
                 set_time_limit(0);
                 ignore_user_abort(true);
-                $user = (string) $data['lastfm_user'];
-                $isDry = (bool) ($data['dry_run'] ?? true);
                 $dateMin = $data['date_min'] instanceof \DateTimeInterface
                     ? \DateTimeImmutable::createFromInterface($data['date_min'])
                     : null;
@@ -124,6 +138,8 @@ class LastFmImportController extends AbstractController
             }
         }
 
+        $containerStatus = $this->containerManager->getStatus();
+
         return $this->render('lastfm/import.html.twig', [
             'form' => $form->createView(),
             'report' => $report,
@@ -132,6 +148,8 @@ class LastFmImportController extends AbstractController
             'unmatched_cumulative' => $this->trackRepo->countUnmatched(),
             'lidarr_configured' => $this->lidarrConfig->isConfigured(),
             'navidrome_url' => rtrim($this->navidromeUrl, '/'),
+            'container_configured' => $this->containerManager->isConfigured(),
+            'container_status' => $containerStatus->value,
         ]);
     }
 }

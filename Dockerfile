@@ -10,7 +10,7 @@ ARG SUPERCRONIC_VERSION=v0.2.30
 ARG SUPERCRONIC_AMD64_SHA1=7da26ce6ab48d75e97f7204554afe7c80779ec77
 ARG SUPERCRONIC_ARM64_SHA1=33b06352d1b4c11604a44a3f0aaef47cc6d33e07
 
-RUN apk add --no-cache git unzip icu-data-full \
+RUN apk add --no-cache git unzip icu-data-full docker-cli \
  && install-php-extensions @composer pdo_sqlite intl opcache \
  && set -eux; \
     arch="$(apk --print-arch)"; \

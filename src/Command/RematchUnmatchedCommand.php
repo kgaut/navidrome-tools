@@ -2,6 +2,8 @@
 
 namespace App\Command;
 
+use App\Docker\NavidromeContainerException;
+use App\Docker\NavidromeContainerManager;
 use App\Entity\RunHistory;
 use App\LastFm\RematchReport;
 use App\Service\LastFmRematchService;
@@ -22,6 +24,7 @@ class RematchUnmatchedCommand extends Command
     public function __construct(
         private readonly LastFmRematchService $rematch,
         private readonly RunHistoryRecorder $recorder,
+        private readonly NavidromeContainerManager $container,
     ) {
         parent::__construct();
     }
@@ -60,6 +63,12 @@ class RematchUnmatchedCommand extends Command
                 null,
                 InputOption::VALUE_NONE,
                 'Process unmatched rows in random order (combine with --limit to sample a subset).',
+            )
+            ->addOption(
+                'force',
+                'f',
+                InputOption::VALUE_NONE,
+                'Bypass the Navidrome container pre-flight check (only when NAVIDROME_CONTAINER_NAME is set). Use at your own risk: writing while Navidrome runs can corrupt the SQLite WAL.',
             );
     }
 
@@ -72,6 +81,17 @@ class RematchUnmatchedCommand extends Command
         $limit = max(0, (int) $input->getOption('limit'));
         $tolerance = max(0, (int) $input->getOption('tolerance'));
         $random = (bool) $input->getOption('random');
+        $force = (bool) $input->getOption('force');
+
+        if (!$dryRun) {
+            try {
+                $this->container->assertSafeToWrite($force);
+            } catch (NavidromeContainerException $e) {
+                $io->error($e->getMessage());
+
+                return Command::FAILURE;
+            }
+        }
 
         $reference = $runId !== null ? 'run-' . $runId : 'all';
         $label = 'Rematch unmatched — ' . $reference . ($dryRun ? ' [dry-run]' : '');

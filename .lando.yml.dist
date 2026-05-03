@@ -38,6 +38,10 @@ services:
         LIDARR_QUALITY_PROFILE_ID: 1
         LIDARR_METADATA_PROFILE_ID: 1
         LIDARR_MONITOR: all
+        # Navidrome container management — empty = disabled.
+        # Set to your Navidrome container name to enable the dashboard
+        # card + start/stop buttons (requires Docker socket mount).
+        NAVIDROME_CONTAINER_NAME: ''
         RUN_HISTORY_RETENTION_DAYS: '90'
         # File de chemins consommée par un beets externe (cron côté hôte
         # qui partage le même volume). Vide = bouton « pousser dans la

@@ -2,6 +2,8 @@
 
 namespace App\Command;
 
+use App\Docker\NavidromeContainerException;
+use App\Docker\NavidromeContainerManager;
 use App\Entity\LastFmImportTrack;
 use App\Entity\RunHistory;
 use App\LastFm\ImportReport;
@@ -27,6 +29,7 @@ class ImportLastFmCommand extends Command
         private readonly LastFmImporter $importer,
         private readonly RunHistoryRecorder $recorder,
         private readonly EntityManagerInterface $em,
+        private readonly NavidromeContainerManager $container,
     ) {
         parent::__construct();
     }
@@ -83,6 +86,12 @@ class ImportLastFmCommand extends Command
                 null,
                 InputOption::VALUE_REQUIRED,
                 'Stop after processing N scrobbles (safety cap). Omit for no cap.',
+            )
+            ->addOption(
+                'force',
+                'f',
+                InputOption::VALUE_NONE,
+                'Bypass the Navidrome container pre-flight check (only when NAVIDROME_CONTAINER_NAME is set). Use at your own risk: writing while Navidrome runs can corrupt the SQLite WAL.',
             );
     }
 
@@ -107,6 +116,17 @@ class ImportLastFmCommand extends Command
         $dateMax = $this->parseDate($input->getOption('date-max'));
         $tolerance = max(0, (int) $input->getOption('tolerance'));
         $dryRun = (bool) $input->getOption('dry-run');
+        $force = (bool) $input->getOption('force');
+
+        if (!$dryRun) {
+            try {
+                $this->container->assertSafeToWrite($force);
+            } catch (NavidromeContainerException $e) {
+                $io->error($e->getMessage());
+
+                return Command::FAILURE;
+            }
+        }
 
         $io->section(sprintf(
             'Importing scrobbles for Last.fm user "%s"%s%s%s',
