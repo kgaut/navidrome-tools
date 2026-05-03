@@ -20,6 +20,8 @@ class RunHistory
     public const TYPE_LASTFM_REMATCH = 'lastfm-rematch';
     public const TYPE_NAVIDROME_RESCAN = 'navidrome-rescan';
     public const TYPE_BEETS_QUEUE_PUSH = 'beets-queue-push';
+    public const TYPE_DB_BACKUP = 'db-backup';
+    public const TYPE_NAVIDROME_BACKUP = 'navidrome-backup';
 
     public const STATUS_SUCCESS = 'success';
     public const STATUS_ERROR = 'error';

@@ -24,6 +24,10 @@ parameters:
     lidarr.monitor: '%env(LIDARR_MONITOR)%'
     navidrome.container_name: '%env(NAVIDROME_CONTAINER_NAME)%'
     app.homepage_api_token: '%env(HOMEPAGE_API_TOKEN)%'
+    app.db_backup_schedule: '%env(DB_BACKUP_SCHEDULE)%'
+    app.db_backup_retention_days: '%env(int:DB_BACKUP_RETENTION_DAYS)%'
+    app.navidrome_backup_schedule: '%env(NAVIDROME_BACKUP_SCHEDULE)%'
+    app.navidrome_backup_retention_days: '%env(int:NAVIDROME_BACKUP_RETENTION_DAYS)%'
 
 services:
     _defaults:
@@ -72,10 +76,21 @@ services:
             $statsRefreshSchedule: '%app.stats_refresh_schedule%'
             $loveSyncSchedule: '%lastfm.love_sync_schedule%'
             $rematchSchedule: '%lastfm.rematch_schedule%'
+            $dbBackupSchedule: '%app.db_backup_schedule%'
+            $navidromeBackupSchedule: '%app.navidrome_backup_schedule%'
 
     App\Command\PurgeHistoryCommand:
         arguments:
             $retentionDays: '%app.run_history_retention_days%'
+
+    App\Command\BackupDataDbCommand:
+        arguments:
+            $retentionDays: '%app.db_backup_retention_days%'
+
+    App\Command\BackupNavidromeDbCommand:
+        arguments:
+            $navidromeDbPath: '%navidrome.db_path%'
+            $retentionDays: '%app.navidrome_backup_retention_days%'
 
     App\Lidarr\LidarrConfig:
         arguments:
@@ -101,6 +116,10 @@ services:
     App\Controller\Api\StatusController:
         arguments:
             $apiToken: '%app.homepage_api_token%'
+
+    App\Controller\SettingsController:
+        arguments:
+            $dataBackupRetentionDays: '%app.db_backup_retention_days%'
 
     App\Controller\ForgottenArtistsController:
         arguments:

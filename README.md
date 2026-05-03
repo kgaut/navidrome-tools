@@ -101,6 +101,10 @@ pouvez les éditer puis les activer.
 | `COVERS_CACHE_PATH`  | non         | Cache disque des miniatures album/artiste. Défaut : `/app/var/covers` (volume Docker dédié dans le compose). |
 | `NAVIDROME_CONTAINER_NAME` | non   | Nom du conteneur Navidrome dans la même stack docker-compose. Quand renseigné, le dashboard affiche un statut UP/DOWN avec boutons Start/Stop, et les commandes d'import refusent de tourner si Navidrome est détecté UP (`--force` pour outrepasser). Requiert le mount `/var/run/docker.sock` (cf. `docker-compose.example.yml`). |
 | `HOMEPAGE_API_TOKEN` | non       | Bearer token pour le widget [Homepage](https://gethomepage.dev/widgets/services/customapi/) sur l'endpoint `/api/status`. Vide = mode enrichi désactivé (seul le mode healthcheck no-auth est servi). Voir la section [Widget Homepage](#widget-homepage-gethomepage). |
+| `DB_BACKUP_SCHEDULE` | non       | Cron expr pour `app:db:backup` (snapshot de la DB locale du tool). Vide = désactivé. Sortie dans `var/backups/data-*.db.gz`. Voir la section [Sauvegardes des DB](#sauvegardes-des-db). |
+| `DB_BACKUP_RETENTION_DAYS` | non (`30`) | Auto-purge des backups locaux plus anciens que N jours en fin de chaque run. 0 = ne purge jamais. |
+| `NAVIDROME_BACKUP_SCHEDULE` | non | Cron expr pour `app:navidrome:backup` (snapshot de la DB Navidrome avec stop/start du conteneur). Vide = désactivé. Sortie dans `var/backups/navidrome-*.db.gz`. La ligne cron générée utilise `--auto-stop` automatiquement quand `NAVIDROME_CONTAINER_NAME` est renseigné. |
+| `NAVIDROME_BACKUP_RETENTION_DAYS` | non (`30`) | Auto-purge des backups Navidrome plus anciens que N jours. 0 = ne purge jamais. |
 
 ### Mise à jour
 
@@ -672,6 +676,45 @@ Avec ce pattern, navidrome-tools ne touche **que** le fichier de
 queue (RW), `/music` reste `:ro`. Le push est tracé dans
 `/history` (type `beets-queue-push`) et le bandeau de la page
 affiche la taille courante de la queue.
+
+## Sauvegardes des DB
+
+Snapshots SQLite gzippés via `VACUUM INTO`, sortie dans
+`var/backups/`. Deux pendants :
+
+- **DB locale** (`data.db`) — `app:db:backup`. Sûr à lancer pendant
+  que l'app tourne. Programme via `DB_BACKUP_SCHEDULE`. Bouton
+  « Sauvegarder maintenant » sur `/settings`.
+- **DB Navidrome** (`navidrome.db`) — `app:navidrome:backup`.
+  Navidrome doit être arrêté pendant le snapshot ; deux modes :
+  - `--auto-stop` : orchestre stop Navidrome → backup → restart
+    (try / finally — restart toujours, même en cas d'erreur). Mode
+    recommandé pour le cron. Requiert `NAVIDROME_CONTAINER_NAME`
+    + le mount Docker socket.
+  - sans flag : pré-flight bloquant si Navidrome tourne. `--force`
+    pour outrepasser (à vos risques — copie possiblement corrompue).
+
+```bash
+bin/console app:db:backup
+bin/console app:navidrome:backup --auto-stop
+```
+
+Le cron supercronic intégré ajoute `--auto-stop` automatiquement
+sur la ligne `app:navidrome:backup` quand `NAVIDROME_CONTAINER_NAME`
+est renseigné.
+
+Retention configurable via `DB_BACKUP_RETENTION_DAYS` (défaut 30) et
+`NAVIDROME_BACKUP_RETENTION_DAYS` (défaut 30) — purge appliquée à la
+fin de chaque run. 0 = ne purge jamais.
+
+Page `/settings`, section « Sauvegardes » : liste des fichiers avec
+taille + date, télécharge ou supprime depuis l'UI.
+
+**Restauration** : la suppression d'`var/data.db` puis copie d'un
+backup décompressé à sa place suffit (faire avant le boot du
+conteneur, ou le redémarrer après). Pour Navidrome, même procédure
+en arrêtant Navidrome au préalable. Une commande `app:db:restore`
+viendra plus tard (#37).
 
 ## Historique des runs cron
 

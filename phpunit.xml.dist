@@ -28,6 +28,10 @@
         <env name="LIDARR_MONITOR" value="all"/>
         <env name="NAVIDROME_CONTAINER_NAME" value=""/>
         <env name="RUN_HISTORY_RETENTION_DAYS" value="90"/>
+        <env name="DB_BACKUP_SCHEDULE" value=""/>
+        <env name="DB_BACKUP_RETENTION_DAYS" value="30"/>
+        <env name="NAVIDROME_BACKUP_SCHEDULE" value=""/>
+        <env name="NAVIDROME_BACKUP_RETENTION_DAYS" value="30"/>
         <env name="BEETS_QUEUE_PATH" value=""/>
         <env name="LASTFM_API_KEY" value=""/>
         <env name="LASTFM_API_SECRET" value=""/>

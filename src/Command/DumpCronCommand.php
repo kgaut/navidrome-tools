@@ -23,6 +23,8 @@ class DumpCronCommand extends Command
         private readonly string $statsRefreshSchedule,
         private readonly string $loveSyncSchedule = '',
         private readonly string $rematchSchedule = '',
+        private readonly string $dbBackupSchedule = '',
+        private readonly string $navidromeBackupSchedule = '',
     ) {
         parent::__construct();
     }
@@ -99,6 +101,43 @@ class DumpCronCommand extends Command
                 ));
             } catch (\Throwable $e) {
                 $output->writeln('# SKIP rematch: invalid LASTFM_REMATCH_SCHEDULE (' . $e->getMessage() . ')');
+            }
+        }
+
+        if ($this->dbBackupSchedule !== '') {
+            try {
+                new CronExpression($this->dbBackupSchedule);
+                $output->writeln('');
+                $output->writeln('# Backup of the tool\'s local DB (DB_BACKUP_SCHEDULE)');
+                $output->writeln(sprintf(
+                    '%s php %s app:db:backup',
+                    $this->dbBackupSchedule,
+                    $bin,
+                ));
+            } catch (\Throwable $e) {
+                $output->writeln('# SKIP db backup: invalid DB_BACKUP_SCHEDULE (' . $e->getMessage() . ')');
+            }
+        }
+
+        if ($this->navidromeBackupSchedule !== '') {
+            try {
+                new CronExpression($this->navidromeBackupSchedule);
+                $output->writeln('');
+                $output->writeln('# Backup of the Navidrome library DB (NAVIDROME_BACKUP_SCHEDULE)');
+                // Auto-stop only when the container management is wired —
+                // otherwise --auto-stop fails immediately with « not configured ».
+                // Without --auto-stop the pre-flight blocks the run if Navidrome
+                // is up, so the user has to either configure NAVIDROME_CONTAINER_NAME
+                // or stop Navidrome out-of-band.
+                $autoStopFlag = $this->containerConfig->isConfigured() ? ' --auto-stop' : '';
+                $output->writeln(sprintf(
+                    '%s php %s app:navidrome:backup%s',
+                    $this->navidromeBackupSchedule,
+                    $bin,
+                    $autoStopFlag,
+                ));
+            } catch (\Throwable $e) {
+                $output->writeln('# SKIP navidrome backup: invalid NAVIDROME_BACKUP_SCHEDULE (' . $e->getMessage() . ')');
             }
         }
 
