@@ -41,6 +41,7 @@ class PlaylistController extends AbstractController
     #[Route('/playlists/{id}', name: 'app_playlists_show', methods: ['GET'], requirements: ['id' => '[^/]+'])]
     public function show(
         string $id,
+        Request $request,
         SubsonicClient $subsonic,
         NavidromeRepository $navidrome,
         PlaylistStatsService $stats,
@@ -61,11 +62,62 @@ class PlaylistController extends AbstractController
             ? $navidrome->filterMissingMediaFileIds($trackIds)
             : [];
 
+        // Optional search-to-add. Below 2 chars Subsonic returns way too
+        // much noise — and it spares an API call on the empty-form load.
+        $q = trim((string) $request->query->get('q', ''));
+        $searchResults = [];
+        if (mb_strlen($q) >= 2) {
+            try {
+                $existing = array_fill_keys($trackIds, true);
+                foreach ($subsonic->search3($q, 20)['songs'] as $song) {
+                    if ($song['id'] === '' || isset($existing[$song['id']])) {
+                        continue;
+                    }
+                    $searchResults[] = $song;
+                }
+            } catch (\Throwable $e) {
+                $this->addFlash('error', 'Recherche Subsonic impossible : ' . $e->getMessage());
+            }
+        }
+
         return $this->render('playlist_management/show.html.twig', [
             'playlist' => $playlist,
             'stats' => $stats->compute($playlist['tracks']),
             'missingIds' => array_fill_keys($missingIds, true),
+            'searchQuery' => $q,
+            'searchResults' => $searchResults,
         ]);
+    }
+
+    #[Route('/playlists/{id}/add-track', name: 'app_playlists_add_track', methods: ['POST'], requirements: ['id' => '[^/]+'])]
+    public function addTrack(string $id, Request $request, SubsonicClient $subsonic): Response
+    {
+        if (!$this->isCsrfTokenValid('add-track' . $id, (string) $request->request->get('_token'))) {
+            throw $this->createAccessDeniedException();
+        }
+
+        $songId = trim((string) $request->request->get('songId', ''));
+        if ($songId === '') {
+            $this->addFlash('error', 'Aucun morceau sélectionné.');
+            return $this->redirectToRoute('app_playlists_show', ['id' => $id]);
+        }
+
+        try {
+            $subsonic->updatePlaylist($id, songIdToAdd: [$songId]);
+            $this->addFlash('success', 'Morceau ajouté à la playlist.');
+        } catch (\Throwable $e) {
+            $this->addFlash('error', 'Erreur Subsonic : ' . $e->getMessage());
+        }
+
+        // Preserve the search query so the user can keep adding from the
+        // same result set without retyping.
+        $q = trim((string) $request->request->get('q', ''));
+        $params = ['id' => $id];
+        if ($q !== '') {
+            $params['q'] = $q;
+        }
+
+        return $this->redirectToRoute('app_playlists_show', $params);
     }
 
     #[Route('/playlists/{id}/rename', name: 'app_playlists_rename', methods: ['POST'], requirements: ['id' => '[^/]+'])]

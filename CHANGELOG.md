@@ -24,6 +24,15 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
   incomplètes ») n'étaient accessibles que sur desktop. Closes #115.
 
 ### Added
+- **Ajout de morceau dans une playlist depuis l'UI** : sur
+  `/playlists/{id}`, nouveau bloc « Ajouter un morceau » sous la table
+  des morceaux. Tape une requête (≥ 2 chars), Subsonic répond les
+  matchs (`search3.view` wrappé dans `SubsonicClient::search3()`),
+  cliquer « + Ajouter » l'ajoute via `updatePlaylist(songIdToAdd: …)`.
+  La requête est conservée dans l'URL après l'ajout pour permettre
+  d'enchaîner les ajouts sur le même résultat. Les morceaux déjà
+  présents sont filtrés des résultats. Closes #78 (partiellement —
+  reorder dans #117).
 - **Endpoint JSON `/api/status` + widget Homepage (gethomepage)** :
   nouveau controller `App\Controller\Api\StatusController` qui expose
   les métriques clés du tool en JSON. Sert deux usages avec un seul

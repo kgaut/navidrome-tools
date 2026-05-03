@@ -210,4 +210,56 @@
             </tbody>
         </table>
     {% endif %}
+
+    {# Search-to-add — Subsonic search3, filters out songs already in the playlist #}
+    <div class="mt-6 bg-white border border-slate-200 rounded p-3">
+        <h2 class="font-medium text-sm mb-2">Ajouter un morceau</h2>
+        <form method="get" action="{{ path('app_playlists_show', {id: playlist.id}) }}" class="flex items-center gap-2">
+            <input type="text" name="q" value="{{ searchQuery }}" placeholder="Titre, artiste, album…" minlength="2"
+                   class="border rounded px-2 py-1 text-sm flex-1 min-w-0">
+            <button type="submit" class="text-sm bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded">Rechercher</button>
+            {% if searchQuery is not empty %}
+                <a href="{{ path('app_playlists_show', {id: playlist.id}) }}" class="text-xs text-slate-500 hover:underline">Effacer</a>
+            {% endif %}
+        </form>
+
+        {% if searchQuery is not empty %}
+            {% if searchResults is empty %}
+                <p class="text-sm text-slate-500 mt-3">Aucun résultat (ou tous les morceaux trouvés sont déjà dans la playlist).</p>
+            {% else %}
+                <table class="w-full text-sm mt-3">
+                    <thead class="bg-slate-100 text-slate-600">
+                        <tr>
+                            <th class="px-3 py-2 text-left">Titre</th>
+                            <th class="px-3 py-2 text-left">Artiste</th>
+                            <th class="px-3 py-2 text-left">Album</th>
+                            <th class="px-3 py-2 text-right">Durée</th>
+                            <th class="px-3 py-2 text-right">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in searchResults %}
+                            <tr class="border-t hover:bg-slate-50">
+                                <td class="px-3 py-2">{{ r.title }}</td>
+                                <td class="px-3 py-2 text-slate-600">{{ r.artist }}</td>
+                                <td class="px-3 py-2 text-slate-500 text-xs">{{ r.album }}</td>
+                                <td class="px-3 py-2 text-right text-xs text-slate-500">
+                                    {% set m = (r.duration // 60) %}{% set s = (r.duration % 60) %}
+                                    {{ m }}:{{ s|format('%02d') }}
+                                </td>
+                                <td class="px-3 py-2 text-right">
+                                    <form method="post" action="{{ path('app_playlists_add_track', {id: playlist.id}) }}" class="inline">
+                                        <input type="hidden" name="_token" value="{{ csrf_token('add-track' ~ playlist.id) }}">
+                                        <input type="hidden" name="songId" value="{{ r.id }}">
+                                        <input type="hidden" name="q" value="{{ searchQuery }}">
+                                        <button type="submit" class="text-xs bg-emerald-100 hover:bg-emerald-200 text-emerald-800 px-2 py-1 rounded">+ Ajouter</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% endif %}
+        {% endif %}
+    </div>
 {% endblock %}
