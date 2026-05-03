@@ -106,6 +106,19 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
   un état cohérent). En cas de double échec (import KO + restart KO), la
   `NavidromeContainerException` finale chaîne l'exception d'origine en
   `previous` pour tracer les deux problèmes.
+- **Page « Discover » `/discover/artists`** : suggestions d'artistes
+  via `LastFmClient::artistGetSimilar` (wrap `artist.getSimilar`).
+  Prend tes top 20 artistes des 90 derniers jours, demande à Last.fm
+  les 10 plus similaires de chacun, dédoublonne par nom normalisé en
+  gardant le meilleur score de match, filtre les artistes déjà dans
+  `media_file` (via la nouvelle méthode
+  `NavidromeRepository::getKnownArtistsNormalized()` qui exploite
+  `np_normalize`). Croise avec
+  `LidarrClient::indexExistingArtists()` pour afficher « ✓ déjà dans
+  Lidarr » ou un bouton « + Lidarr » par carte. Cache 24h dans
+  `stats_snapshot` (key `discover-artists`) avec rafraîchissement
+  manuel via POST CSRF. Désactivé silencieusement si `LASTFM_API_KEY`
+  est vide. Closes #92.
 - **Page « métadonnées incomplètes »** sur `/stats/incomplete-metadata` :
   liste les albums dont la colonne Navidrome `mbz_album_id` est vide
   ou nulle, regroupés par artiste (album_artist) et triés par nombre

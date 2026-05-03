@@ -573,6 +573,32 @@ class NavidromeRepository
     }
 
     /**
+     * Set of normalized artist names already present in `media_file`.
+     * Returned as `[normalized => true]` for O(1) « do we already own X? »
+     * lookups (used by the discover suggestions). Uses the same
+     * `np_normalize` UDF as `findArtistIdByName` so the keys match what
+     * external matchers produce client-side.
+     *
+     * @return array<string, true>
+     */
+    public function getKnownArtistsNormalized(): array
+    {
+        $rows = $this->connection()->fetchAllAssociative(
+            "SELECT DISTINCT np_normalize(artist) AS norm FROM media_file WHERE artist != ''",
+        );
+
+        $out = [];
+        foreach ($rows as $r) {
+            $key = (string) $r['norm'];
+            if ($key !== '') {
+                $out[$key] = true;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
      * Albums with no MusicBrainz album id, ranked by lifetime plays.
      * Plays count is taken from `scrobbles` when available (lifetime),
      * falls back to `annotation.play_count` otherwise. Returns [] when
