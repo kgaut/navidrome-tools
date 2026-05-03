@@ -48,7 +48,10 @@ class LastFmHistoryEntryRepository extends ServiceEntityRepository
             return null;
         }
 
-        return new \DateTimeImmutable($row['last_fetched']);
+        // fetchedAt is stored in UTC (see UtcDateTimeImmutableType); MAX() returns
+        // the raw wall-clock string, so we must tag it UTC explicitly — otherwise
+        // PHP's default timezone re-interprets it and shifts the instant.
+        return new \DateTimeImmutable($row['last_fetched'], new \DateTimeZone('UTC'));
     }
 
     public function deleteForUser(string $lastfmUser): int

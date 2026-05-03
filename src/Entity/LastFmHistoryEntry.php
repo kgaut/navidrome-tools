@@ -2,6 +2,7 @@
 
 namespace App\Entity;
 
+use App\Doctrine\UtcDateTimeImmutableType;
 use App\Repository\LastFmHistoryEntryRepository;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
@@ -27,7 +28,7 @@ class LastFmHistoryEntry
     #[ORM\Column(length: 255)]
     private string $lastfmUser;
 
-    #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
+    #[ORM\Column(type: UtcDateTimeImmutableType::NAME)]
     private \DateTimeImmutable $playedAt;
 
     #[ORM\Column(length: 255)]
@@ -42,7 +43,7 @@ class LastFmHistoryEntry
     #[ORM\Column(length: 64, nullable: true)]
     private ?string $mbid = null;
 
-    #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
+    #[ORM\Column(type: UtcDateTimeImmutableType::NAME)]
     private \DateTimeImmutable $fetchedAt;
 
     public function __construct(
@@ -59,7 +60,7 @@ class LastFmHistoryEntry
         $this->title = $title;
         $this->album = $album !== null && $album !== '' ? $album : null;
         $this->mbid = $mbid !== null && $mbid !== '' ? $mbid : null;
-        $this->fetchedAt = new \DateTimeImmutable();
+        $this->fetchedAt = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
     }
 
     public function getId(): ?int

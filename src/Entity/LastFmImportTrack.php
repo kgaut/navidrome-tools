@@ -2,6 +2,7 @@
 
 namespace App\Entity;
 
+use App\Doctrine\UtcDateTimeImmutableType;
 use App\Repository\LastFmImportTrackRepository;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
@@ -44,7 +45,7 @@ class LastFmImportTrack
     #[ORM\Column(length: 64, nullable: true)]
     private ?string $mbid = null;
 
-    #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
+    #[ORM\Column(type: UtcDateTimeImmutableType::NAME)]
     private \DateTimeImmutable $playedAt;
 
     #[ORM\Column(length: 16)]
