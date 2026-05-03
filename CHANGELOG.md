@@ -106,6 +106,13 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
   un état cohérent). En cas de double échec (import KO + restart KO), la
   `NavidromeContainerException` finale chaîne l'exception d'origine en
   `previous` pour tracer les deux problèmes.
+- **Dark theme par défaut** : passe en revue de
+  `templates/base.html.twig` qui pose un thème sombre permanent
+  via une overlay CSS qui re-cible les utilitaires Tailwind les
+  plus courants (`bg-white`, `bg-slate-50/100/200`,
+  `text-slate-800/700/600/500`, bords, flash messages, inputs
+  natifs, code). Une seule modif de fichier — pas de réécriture
+  template par template, pas de `dark:` prefix à propager. Closes #87.
 - **Page « Discover » `/discover/artists`** : suggestions d'artistes
   via `LastFmClient::artistGetSimilar` (wrap `artist.getSimilar`).
   Prend tes top 20 artistes des 90 derniers jours, demande à Last.fm
