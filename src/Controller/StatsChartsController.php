@@ -31,6 +31,7 @@ class StatsChartsController extends AbstractController
 
         $playsByMonth = $hasScrobbles ? $navidrome->getPlaysByMonth($months) : [];
         $topArtists = $hasScrobbles ? $navidrome->getTopArtistsTimeline($months, 5) : [];
+        $diversity = $hasScrobbles ? $navidrome->getDiversityByMonth($months) : [];
 
         $heatmap = $hasScrobbles
             ? $navidrome->getHeatmapDayHour((new \DateTimeImmutable())->modify('-90 days'), null)
@@ -55,6 +56,7 @@ class StatsChartsController extends AbstractController
             'plays_by_month' => $playsByMonth,
             'top_artists' => $topArtists,
             'top_artists_palette' => self::TOP_ARTISTS_PALETTE,
+            'diversity' => $diversity,
             'day_labels' => $dayLabels,
             'day_values' => $dayValues,
         ]);

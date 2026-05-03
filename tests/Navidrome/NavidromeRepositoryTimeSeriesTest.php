@@ -41,6 +41,34 @@ class NavidromeRepositoryTimeSeriesTest extends TestCase
         $this->assertSame(1, $series[2]['plays'], 'current month');
     }
 
+    public function testGetDiversityByMonthCountsUniqueArtists(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: true);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', 'A', 'Daft Punk');
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-2', 'B', 'Aphex Twin');
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-3', 'C', 'Daft Punk');
+
+        $now = new \DateTimeImmutable();
+        // current month: 3 plays / 2 unique artists
+        NavidromeFixtureFactory::insertScrobble($conn, 'user-1', 'mf-1', $now->format('Y-m-d 10:00:00'));
+        NavidromeFixtureFactory::insertScrobble($conn, 'user-1', 'mf-3', $now->format('Y-m-d 11:00:00'));
+        NavidromeFixtureFactory::insertScrobble($conn, 'user-1', 'mf-2', $now->format('Y-m-d 12:00:00'));
+        // 2 months ago: 2 plays / 1 unique artist
+        NavidromeFixtureFactory::insertScrobble($conn, 'user-1', 'mf-1', $now->modify('-2 months')->format('Y-m-d 10:00:00'));
+        NavidromeFixtureFactory::insertScrobble($conn, 'user-1', 'mf-3', $now->modify('-2 months')->format('Y-m-d 11:00:00'));
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $series = $repo->getDiversityByMonth(3);
+
+        $this->assertCount(3, $series);
+        $this->assertSame(2, $series[0]['plays']);
+        $this->assertSame(1, $series[0]['uniques'], 'two months ago: only Daft Punk');
+        $this->assertSame(0, $series[1]['plays']);
+        $this->assertSame(0, $series[1]['uniques']);
+        $this->assertSame(3, $series[2]['plays']);
+        $this->assertSame(2, $series[2]['uniques'], 'current month: Daft Punk + Aphex Twin');
+    }
+
     public function testGetTopArtistsTimelineRanksAndExposesFullSeries(): void
     {
         $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: true);

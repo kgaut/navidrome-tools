@@ -66,6 +66,17 @@
                 <canvas id="chart-dow"></canvas>
             </div>
         </div>
+
+        <div class="bg-white shadow rounded p-5">
+            <h2 class="font-semibold text-sm mb-3">Diversité d'écoute ({{ months }} mois)</h2>
+            <p class="text-xs text-slate-500 mb-3">
+                Ratio artistes uniques par écoute, mois par mois. Plus c'est haut, plus tu explores ;
+                plus c'est bas, plus tu rabâches les mêmes morceaux.
+            </p>
+            <div class="h-64">
+                <canvas id="chart-diversity"></canvas>
+            </div>
+        </div>
     </div>
 {% endblock %}
 
@@ -74,6 +85,7 @@
         (function () {
             const playsMonthly = {{ plays_by_month|json_encode|raw }};
             const topArtists = {{ top_artists|json_encode|raw }};
+            const diversity = {{ diversity|json_encode|raw }};
             const dayLabels = {{ day_labels|json_encode|raw }};
             const dayValues = {{ day_values|json_encode|raw }};
 
@@ -143,6 +155,46 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: { legend: { display: false } },
+                },
+            });
+
+            // Chart 4: diversity (uniques / plays per month, line)
+            const diversityRatio = diversity.map(r => r.plays > 0 ? r.uniques / r.plays : 0);
+            new Chart(document.getElementById('chart-diversity'), {
+                type: 'line',
+                data: {
+                    labels: diversity.map(r => r.month),
+                    datasets: [{
+                        label: 'Artistes uniques / écoutes',
+                        data: diversityRatio,
+                        borderColor: '#8b5cf6',
+                        backgroundColor: 'rgba(139, 92, 246, 0.15)',
+                        tension: 0.3,
+                        fill: true,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function (ctx) {
+                                    const r = diversity[ctx.dataIndex];
+                                    const pct = (ctx.parsed.y * 100).toFixed(1);
+                                    return pct + '%  (' + r.uniques + ' artistes / ' + r.plays + ' écoutes)';
+                                },
+                            },
+                        },
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 1,
+                            ticks: { callback: v => Math.round(v * 100) + '%' },
+                        },
+                    },
                 },
             });
         })();
