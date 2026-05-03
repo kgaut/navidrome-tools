@@ -7,6 +7,23 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+### Fixed
+- **Heures Last.fm history affichées dans `APP_TIMEZONE`** : la page
+  `/stats/lastfm-history` affichait les heures de scrobble avec le
+  décalage UTC (ex. `10:00` au lieu de `12:00` à Paris en été). Cause :
+  Doctrine `datetime_immutable` sérialisait l'heure dans la timezone
+  de l'objet (UTC) puis la relisait en l'étiquetant avec la timezone
+  PHP par défaut (`Europe/Paris`), ce qui décalait silencieusement
+  l'instant ; Twig `|date` ne corrigeait plus rien. Nouveau type
+  Doctrine `utc_datetime_immutable` (`App\Doctrine\UtcDateTimeImmutableType`)
+  qui force la sérialisation en UTC à l'écriture et tague la valeur
+  UTC à la relecture, indépendamment de `APP_TIMEZONE`. Appliqué à
+  `LastFmHistoryEntry::$playedAt` / `$fetchedAt` et
+  `LastFmImportTrack::$playedAt`. Aucune migration de données : les
+  rows existantes en base étaient déjà au bon wall-clock UTC pour
+  `played_at` ; `fetched_at` se réaligne au prochain « Rafraîchir ».
+  Closes #102.
+
 ### Added
 - **`app:lastfm:rematch --random`** : nouveau flag qui mélange l'ordre
   des unmatched avant d'appliquer `--limit`. Utile pour échantillonner

@@ -1,5 +1,12 @@
 doctrine:
     dbal:
+        types:
+            # Stores DateTimeImmutable as UTC and reads it back UTC-tagged,
+            # so APP_TIMEZONE doesn't silently shift the instant. Use on
+            # any column whose value is a true point in time (a scrobble
+            # timestamp, an audit row's start/end), not a wall-clock that
+            # only makes sense in the operator's local time.
+            utc_datetime_immutable: App\Doctrine\UtcDateTimeImmutableType
         default_connection: default
         connections:
             default:
