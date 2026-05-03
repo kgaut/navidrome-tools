@@ -30,6 +30,11 @@ services:
       # to also mount /var/run/docker.sock below.
       NAVIDROME_CONTAINER_NAME: ${NAVIDROME_CONTAINER_NAME:-}
       RUN_HISTORY_RETENTION_DAYS: ${RUN_HISTORY_RETENTION_DAYS:-90}
+      # Database backups — leave both schedules empty to disable.
+      DB_BACKUP_SCHEDULE: ${DB_BACKUP_SCHEDULE:-}
+      DB_BACKUP_RETENTION_DAYS: ${DB_BACKUP_RETENTION_DAYS:-30}
+      NAVIDROME_BACKUP_SCHEDULE: ${NAVIDROME_BACKUP_SCHEDULE:-}
+      NAVIDROME_BACKUP_RETENTION_DAYS: ${NAVIDROME_BACKUP_RETENTION_DAYS:-30}
       # File de chemins consommée par un beets externe (cron côté hôte
       # qui partage le même volume). Vide = bouton masqué sur
       # /tagging/missing-mbid.
@@ -88,6 +93,11 @@ services:
       LIDARR_MONITOR: ${LIDARR_MONITOR:-all}
       NAVIDROME_CONTAINER_NAME: ${NAVIDROME_CONTAINER_NAME:-}
       RUN_HISTORY_RETENTION_DAYS: ${RUN_HISTORY_RETENTION_DAYS:-90}
+      # Database backups — leave both schedules empty to disable.
+      DB_BACKUP_SCHEDULE: ${DB_BACKUP_SCHEDULE:-}
+      DB_BACKUP_RETENTION_DAYS: ${DB_BACKUP_RETENTION_DAYS:-30}
+      NAVIDROME_BACKUP_SCHEDULE: ${NAVIDROME_BACKUP_SCHEDULE:-}
+      NAVIDROME_BACKUP_RETENTION_DAYS: ${NAVIDROME_BACKUP_RETENTION_DAYS:-30}
       # File de chemins consommée par un beets externe (cron côté hôte
       # qui partage le même volume). Vide = bouton masqué sur
       # /tagging/missing-mbid.

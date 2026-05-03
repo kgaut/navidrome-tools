@@ -43,6 +43,12 @@ services:
         # card + start/stop buttons (requires Docker socket mount).
         NAVIDROME_CONTAINER_NAME: ''
         RUN_HISTORY_RETENTION_DAYS: '90'
+        # Database backups — both schedules empty = disabled. Snapshots
+        # SQLite via VACUUM INTO + gzip into var/backups/.
+        DB_BACKUP_SCHEDULE: ''
+        DB_BACKUP_RETENTION_DAYS: '30'
+        NAVIDROME_BACKUP_SCHEDULE: ''
+        NAVIDROME_BACKUP_RETENTION_DAYS: '30'
         # File de chemins consommée par un beets externe (cron côté hôte
         # qui partage le même volume). Vide = bouton « pousser dans la
         # queue beets » masqué sur /tagging/missing-mbid.

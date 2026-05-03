@@ -32,6 +32,107 @@
         </div>
     </form>
 
+    <div class="bg-white shadow rounded p-6 max-w-3xl mt-6 space-y-4">
+        <h2 class="text-lg font-semibold">Sauvegardes</h2>
+        <p class="text-sm text-slate-500">
+            Snapshots SQLite gzippés via <code>VACUUM INTO</code>, stockés dans <code>var/backups/</code>.
+            Programmables via <code>DB_BACKUP_SCHEDULE</code> et <code>NAVIDROME_BACKUP_SCHEDULE</code>.
+        </p>
+
+        {# Local DB section — synchronous "run now" button #}
+        <div>
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="font-medium text-sm">DB locale (<code>data.db</code>)</h3>
+                <form method="post" action="{{ path('app_settings_backup_run_data') }}">
+                    <input type="hidden" name="_token" value="{{ csrf_token('backup-run-data') }}">
+                    <button type="submit" class="text-sm bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded">Sauvegarder maintenant</button>
+                </form>
+            </div>
+            {% if data_backups is empty %}
+                <p class="text-xs text-slate-500">Aucune sauvegarde pour le moment.</p>
+            {% else %}
+                <table class="w-full text-sm border border-slate-200 rounded">
+                    <thead class="bg-slate-100 text-slate-600 text-xs uppercase">
+                        <tr>
+                            <th class="px-3 py-2 text-left">Fichier</th>
+                            <th class="px-3 py-2 text-right">Taille</th>
+                            <th class="px-3 py-2 text-left">Date</th>
+                            <th class="px-3 py-2 text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for b in data_backups %}
+                            <tr class="border-t hover:bg-slate-50">
+                                <td class="px-3 py-2 font-mono text-xs">{{ b.name }}</td>
+                                <td class="px-3 py-2 text-right text-xs text-slate-500">
+                                    {% if b.size < 1024 %}{{ b.size }} o
+                                    {% elseif b.size < 1048576 %}{{ (b.size / 1024)|number_format(1, ',', ' ') }} Kio
+                                    {% else %}{{ (b.size / 1048576)|number_format(1, ',', ' ') }} Mio{% endif %}
+                                </td>
+                                <td class="px-3 py-2 text-xs text-slate-500">{{ b.mtime|date('Y-m-d H:i') }}</td>
+                                <td class="px-3 py-2 text-right space-x-2">
+                                    <a href="{{ path('app_settings_backup_download', {type: 'data', name: b.name}) }}"
+                                       class="text-xs text-sky-700 hover:underline">Télécharger</a>
+                                    <form method="post" action="{{ path('app_settings_backup_delete', {type: 'data', name: b.name}) }}"
+                                          class="inline" onsubmit="return confirm('Supprimer définitivement {{ b.name }} ?');">
+                                        <input type="hidden" name="_token" value="{{ csrf_token('backup-delete' ~ b.name) }}">
+                                        <button type="submit" class="text-xs text-rose-600 hover:underline">Supprimer</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% endif %}
+        </div>
+
+        {# Navidrome DB section — no in-browser button (stop/start takes too long for an HTTP request) #}
+        <div>
+            <h3 class="font-medium text-sm mb-2">DB Navidrome (<code>navidrome.db</code>)</h3>
+            <p class="text-xs text-slate-500 mb-2">
+                À lancer en CLI ou via cron — l'opération arrête puis redémarre Navidrome,
+                trop long pour une requête HTTP synchrone :
+                <code class="text-slate-700">bin/console app:navidrome:backup --auto-stop</code>
+            </p>
+            {% if navidrome_backups is empty %}
+                <p class="text-xs text-slate-500">Aucune sauvegarde pour le moment.</p>
+            {% else %}
+                <table class="w-full text-sm border border-slate-200 rounded">
+                    <thead class="bg-slate-100 text-slate-600 text-xs uppercase">
+                        <tr>
+                            <th class="px-3 py-2 text-left">Fichier</th>
+                            <th class="px-3 py-2 text-right">Taille</th>
+                            <th class="px-3 py-2 text-left">Date</th>
+                            <th class="px-3 py-2 text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for b in navidrome_backups %}
+                            <tr class="border-t hover:bg-slate-50">
+                                <td class="px-3 py-2 font-mono text-xs">{{ b.name }}</td>
+                                <td class="px-3 py-2 text-right text-xs text-slate-500">
+                                    {% if b.size < 1024 %}{{ b.size }} o
+                                    {% elseif b.size < 1048576 %}{{ (b.size / 1024)|number_format(1, ',', ' ') }} Kio
+                                    {% else %}{{ (b.size / 1048576)|number_format(1, ',', ' ') }} Mio{% endif %}
+                                </td>
+                                <td class="px-3 py-2 text-xs text-slate-500">{{ b.mtime|date('Y-m-d H:i') }}</td>
+                                <td class="px-3 py-2 text-right space-x-2">
+                                    <a href="{{ path('app_settings_backup_download', {type: 'navidrome', name: b.name}) }}"
+                                       class="text-xs text-sky-700 hover:underline">Télécharger</a>
+                                    <form method="post" action="{{ path('app_settings_backup_delete', {type: 'navidrome', name: b.name}) }}"
+                                          class="inline" onsubmit="return confirm('Supprimer définitivement {{ b.name }} ?');">
+                                        <input type="hidden" name="_token" value="{{ csrf_token('backup-delete' ~ b.name) }}">
+                                        <button type="submit" class="text-xs text-rose-600 hover:underline">Supprimer</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% endif %}
+        </div>
+    </div>
+
     <div class="bg-white shadow rounded p-6 max-w-xl mt-6 space-y-3">
         <h2 class="text-lg font-semibold">Connexion Last.fm authentifiée</h2>
         {% if not lastfm_auth_configured %}

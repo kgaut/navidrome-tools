@@ -24,6 +24,36 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
   incomplètes ») n'étaient accessibles que sur desktop. Closes #115.
 
 ### Added
+- **Backup automatique programmable des DB SQLite** : deux nouvelles
+  commandes CLI plus une section dédiée sur `/settings`, partagent
+  toutes les deux le `App\Service\BackupService` (snapshot via
+  `VACUUM INTO` + gzip PHP zlib, sortie dans `var/backups/`).
+  - `app:db:backup` (#95) : backup de la **DB locale** du tool
+    (`var/data.db`). Cron via `DB_BACKUP_SCHEDULE`. Sûr à lancer
+    pendant que l'app tourne (Doctrine SQLite gère la concurrence).
+  - `app:navidrome:backup` (#119) : backup de la **DB Navidrome**
+    (`navidrome.db`). Comme `app:lastfm:import`, accepte `--auto-stop`
+    qui orchestre stop Navidrome → backup → restart Navidrome (try /
+    finally — restart toujours, même en cas d'erreur du backup) via
+    `NavidromeContainerManager::runWithNavidromeStopped()`. Sans
+    `--auto-stop`, pré-flight bloquant si Navidrome tourne (override
+    avec `--force`). Cron via `NAVIDROME_BACKUP_SCHEDULE` ; la ligne
+    cron générée par `app:cron:dump` ajoute automatiquement
+    `--auto-stop` quand `NAVIDROME_CONTAINER_NAME` est renseigné.
+  - Retention configurable via `DB_BACKUP_RETENTION_DAYS` (défaut 30)
+    et `NAVIDROME_BACKUP_RETENTION_DAYS` (défaut 30). 0 = ne purge
+    jamais. Purge appliquée à la fin de chaque run.
+  - Trace dans `RunHistory` (types `db-backup` et `navidrome-backup`,
+    metric `size_bytes` + `pruned`).
+  - UI sur `/settings` : section « Sauvegardes » qui liste les
+    fichiers (taille + date), permet de télécharger et de supprimer.
+    Bouton « Sauvegarder maintenant » pour la DB locale (sub-seconde) ;
+    pour Navidrome, instruction CLI affichée (le stop/restart est
+    incompatible avec une requête HTTP synchrone).
+  - **Restauration hors-scope de cette PR** (destructive, demande de
+    fermer toutes les connexions DB) — couverte ultérieurement par
+    `app:db:restore` (cf. #37) et procédure manuelle pour Navidrome.
+  Closes #95, closes #119.
 - **Ajout de morceau dans une playlist depuis l'UI** : sur
   `/playlists/{id}`, nouveau bloc « Ajouter un morceau » sous la table
   des morceaux. Tape une requête (≥ 2 chars), Subsonic répond les
