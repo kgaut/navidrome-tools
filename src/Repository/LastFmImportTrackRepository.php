@@ -224,6 +224,162 @@ class LastFmImportTrackRepository extends ServiceEntityRepository
     }
 
     /**
+     * Aggregate unmatched tracks across all runs by artist alone — the
+     * complement of {@see findUnmatchedAggregated()} for prioritising which
+     * artists to push into Lidarr first (one « + Lidarr » click covers
+     * every missing title of that artist).
+     *
+     * @return array{
+     *     items: list<array{artist:string, scrobbles:int, distinct_titles:int, last_played:\DateTimeImmutable}>,
+     *     total: int
+     * }
+     */
+    public function findUnmatchedAggregatedByArtist(
+        ?string $artist = null,
+        int $page = 1,
+        int $perPage = 50,
+    ): array {
+        return self::queryUnmatchedAggregatedByArtist(
+            $this->getEntityManager()->getConnection(),
+            $artist,
+            $page,
+            $perPage,
+        );
+    }
+
+    /**
+     * @return array{
+     *     items: list<array{artist:string, scrobbles:int, distinct_titles:int, last_played:\DateTimeImmutable}>,
+     *     total: int
+     * }
+     */
+    public static function queryUnmatchedAggregatedByArtist(
+        Connection $conn,
+        ?string $artist,
+        int $page,
+        int $perPage,
+    ): array {
+        $page = max(1, $page);
+        $perPage = max(1, $perPage);
+
+        $where = "status = 'unmatched'";
+        $params = [];
+        if ($artist !== null && $artist !== '') {
+            $where .= ' AND LOWER(artist) LIKE :artist';
+            $params['artist'] = '%' . mb_strtolower($artist) . '%';
+        }
+
+        $totalSql = 'SELECT COUNT(*) FROM ('
+            . "SELECT 1 FROM lastfm_import_track WHERE $where "
+            . 'GROUP BY artist'
+            . ') sub';
+        $total = (int) $conn->fetchOne($totalSql, $params);
+
+        $offset = ($page - 1) * $perPage;
+        $itemsSql = 'SELECT artist, COUNT(*) AS scrobbles, COUNT(DISTINCT title) AS distinct_titles, '
+            . 'MAX(played_at) AS last_played '
+            . "FROM lastfm_import_track WHERE $where "
+            . 'GROUP BY artist '
+            . 'ORDER BY scrobbles DESC, last_played DESC '
+            . 'LIMIT :limit OFFSET :offset';
+        $itemsParams = $params + ['limit' => $perPage, 'offset' => $offset];
+
+        $items = [];
+        foreach ($conn->fetchAllAssociative($itemsSql, $itemsParams) as $row) {
+            $items[] = [
+                'artist' => (string) $row['artist'],
+                'scrobbles' => (int) $row['scrobbles'],
+                'distinct_titles' => (int) $row['distinct_titles'],
+                'last_played' => new \DateTimeImmutable((string) $row['last_played']),
+            ];
+        }
+
+        return ['items' => $items, 'total' => $total];
+    }
+
+    /**
+     * Aggregate unmatched tracks by (artist, album). Rows where album is
+     * null or empty are skipped — without an album value there's nothing
+     * actionable at the album level (Lidarr's grain is the artist; the
+     * album view exists to spot which *records* are most missed).
+     *
+     * @return array{
+     *     items: list<array{artist:string, album:string, scrobbles:int, distinct_titles:int, last_played:\DateTimeImmutable}>,
+     *     total: int
+     * }
+     */
+    public function findUnmatchedAggregatedByAlbum(
+        ?string $artist = null,
+        ?string $album = null,
+        int $page = 1,
+        int $perPage = 50,
+    ): array {
+        return self::queryUnmatchedAggregatedByAlbum(
+            $this->getEntityManager()->getConnection(),
+            $artist,
+            $album,
+            $page,
+            $perPage,
+        );
+    }
+
+    /**
+     * @return array{
+     *     items: list<array{artist:string, album:string, scrobbles:int, distinct_titles:int, last_played:\DateTimeImmutable}>,
+     *     total: int
+     * }
+     */
+    public static function queryUnmatchedAggregatedByAlbum(
+        Connection $conn,
+        ?string $artist,
+        ?string $album,
+        int $page,
+        int $perPage,
+    ): array {
+        $page = max(1, $page);
+        $perPage = max(1, $perPage);
+
+        $where = "status = 'unmatched' AND album IS NOT NULL AND album <> ''";
+        $params = [];
+        if ($artist !== null && $artist !== '') {
+            $where .= ' AND LOWER(artist) LIKE :artist';
+            $params['artist'] = '%' . mb_strtolower($artist) . '%';
+        }
+        if ($album !== null && $album !== '') {
+            $where .= ' AND LOWER(album) LIKE :album';
+            $params['album'] = '%' . mb_strtolower($album) . '%';
+        }
+
+        $totalSql = 'SELECT COUNT(*) FROM ('
+            . "SELECT 1 FROM lastfm_import_track WHERE $where "
+            . 'GROUP BY artist, album'
+            . ') sub';
+        $total = (int) $conn->fetchOne($totalSql, $params);
+
+        $offset = ($page - 1) * $perPage;
+        $itemsSql = 'SELECT artist, album, COUNT(*) AS scrobbles, COUNT(DISTINCT title) AS distinct_titles, '
+            . 'MAX(played_at) AS last_played '
+            . "FROM lastfm_import_track WHERE $where "
+            . 'GROUP BY artist, album '
+            . 'ORDER BY scrobbles DESC, last_played DESC '
+            . 'LIMIT :limit OFFSET :offset';
+        $itemsParams = $params + ['limit' => $perPage, 'offset' => $offset];
+
+        $items = [];
+        foreach ($conn->fetchAllAssociative($itemsSql, $itemsParams) as $row) {
+            $items[] = [
+                'artist' => (string) $row['artist'],
+                'album' => (string) $row['album'],
+                'scrobbles' => (int) $row['scrobbles'],
+                'distinct_titles' => (int) $row['distinct_titles'],
+                'last_played' => new \DateTimeImmutable((string) $row['last_played']),
+            ];
+        }
+
+        return ['items' => $items, 'total' => $total];
+    }
+
+    /**
      * @return array<string, int> status → count
      */
     public function countByStatusForRun(RunHistory $run): array
