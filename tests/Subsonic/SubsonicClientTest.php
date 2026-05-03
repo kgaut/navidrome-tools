@@ -411,6 +411,60 @@ class SubsonicClientTest extends TestCase
         $sub->updatePlaylist('', name: 'X');
     }
 
+    public function testSearch3ReturnsSongs(): void
+    {
+        $client = new MockHttpClient([
+            $this->ok([
+                'searchResult3' => [
+                    'song' => [
+                        ['id' => 'mf-1', 'title' => 'Take Me to Church', 'artist' => 'Hozier', 'album' => 'Hozier', 'duration' => 241],
+                        ['id' => 'mf-2', 'title' => 'Cherry Wine', 'artist' => 'Hozier', 'album' => 'Hozier', 'duration' => 240],
+                    ],
+                ],
+            ]),
+        ]);
+
+        $sub = new SubsonicClient($client, 'http://navi.test', 'admin', 'changeme');
+        $res = $sub->search3('hozier');
+
+        $this->assertCount(2, $res['songs']);
+        $this->assertSame('mf-1', $res['songs'][0]['id']);
+        $this->assertSame('Take Me to Church', $res['songs'][0]['title']);
+        $this->assertSame(241, $res['songs'][0]['duration']);
+    }
+
+    public function testSearch3SkipsHttpWhenQueryIsBlank(): void
+    {
+        // Empty / whitespace queries don't even hit the wire — saves a
+        // pointless API call on every page load before the user types.
+        $sub = new SubsonicClient(new MockHttpClient(static function () {
+            throw new \RuntimeException('Should not perform HTTP for empty query.');
+        }), 'http://navi.test', 'admin', 'changeme');
+
+        $this->assertSame(['songs' => []], $sub->search3(''));
+        $this->assertSame(['songs' => []], $sub->search3('   '));
+    }
+
+    public function testSearch3PassesCountAsSongCount(): void
+    {
+        $captured = null;
+        $client = new MockHttpClient(function (string $method, string $url) use (&$captured): MockResponse {
+            $captured = $url;
+
+            return $this->ok(['searchResult3' => []]);
+        });
+
+        $sub = new SubsonicClient($client, 'http://navi.test', 'admin', 'changeme');
+        $sub->search3('led zep', 50);
+
+        $this->assertNotNull($captured);
+        $this->assertStringContainsString('/rest/search3.view?', $captured);
+        $this->assertStringContainsString('songCount=50', $captured);
+        // Artists / albums must be muted so the response stays small.
+        $this->assertStringContainsString('artistCount=0', $captured);
+        $this->assertStringContainsString('albumCount=0', $captured);
+    }
+
     /**
      * @param array<string, mixed> $payload
      */
