@@ -8,6 +8,12 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### Added
+- **`app:lastfm:rematch --random`** : nouveau flag qui mélange l'ordre
+  des unmatched avant d'appliquer `--limit`. Utile pour échantillonner
+  un sous-ensemble représentatif quand on debugge une nouvelle
+  heuristique de matching sur un gros backlog (sans le flag, le tri
+  par défaut `id ASC` retraite toujours les mêmes morceaux en tête de
+  table).
 - **Cache de résolution Last.fm match (positif + négatif)** : nouvelle
   table `lastfm_match_cache` (`source_artist_norm`, `source_title_norm`
   UNIQUE → `target_media_file_id` nullable + `strategy`

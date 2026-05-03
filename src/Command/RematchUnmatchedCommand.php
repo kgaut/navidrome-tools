@@ -54,6 +54,12 @@ class RematchUnmatchedCommand extends Command
                 InputOption::VALUE_REQUIRED,
                 'Dedup tolerance in seconds for scrobbleExistsNear (default 60).',
                 '60',
+            )
+            ->addOption(
+                'random',
+                null,
+                InputOption::VALUE_NONE,
+                'Process unmatched rows in random order (combine with --limit to sample a subset).',
             );
     }
 
@@ -65,6 +71,7 @@ class RematchUnmatchedCommand extends Command
         $runId = $runId !== null ? (int) $runId : null;
         $limit = max(0, (int) $input->getOption('limit'));
         $tolerance = max(0, (int) $input->getOption('tolerance'));
+        $random = (bool) $input->getOption('random');
 
         $reference = $runId !== null ? 'run-' . $runId : 'all';
         $label = 'Rematch unmatched — ' . $reference . ($dryRun ? ' [dry-run]' : '');
@@ -79,6 +86,7 @@ class RematchUnmatchedCommand extends Command
                     limit: $limit,
                     dryRun: $dryRun,
                     toleranceSeconds: $tolerance,
+                    random: $random,
                 ),
                 extractMetrics: static fn (RematchReport $r) => [
                     'considered' => $r->considered,
@@ -92,6 +100,7 @@ class RematchUnmatchedCommand extends Command
                     'run_id_filter' => $runId,
                     'limit' => $limit,
                     'dry_run' => $dryRun,
+                    'random' => $random,
                 ],
             );
         } catch (\Throwable $e) {

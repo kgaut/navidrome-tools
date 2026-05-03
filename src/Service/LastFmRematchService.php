@@ -40,8 +40,13 @@ class LastFmRematchService
         $this->logger = $logger ?? new NullLogger();
     }
 
-    public function rematch(?int $runId = null, int $limit = 0, bool $dryRun = false, int $toleranceSeconds = 60): RematchReport
-    {
+    public function rematch(
+        ?int $runId = null,
+        int $limit = 0,
+        bool $dryRun = false,
+        int $toleranceSeconds = 60,
+        bool $random = false,
+    ): RematchReport {
         if (!$this->navidrome->hasScrobblesTable()) {
             throw new \RuntimeException(
                 'The Navidrome scrobbles table does not exist. Upgrade Navidrome to >= 0.55.',
@@ -56,7 +61,7 @@ class LastFmRematchService
 
         $report = new RematchReport();
         $batch = 0;
-        foreach ($this->trackRepo->streamUnmatched($runId, $limit) as $track) {
+        foreach ($this->trackRepo->streamUnmatched($runId, $limit, $random) as $track) {
             /** @var LastFmImportTrack $track */
             $report->considered++;
 
