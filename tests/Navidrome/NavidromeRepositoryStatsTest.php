@@ -87,6 +87,52 @@ class NavidromeRepositoryStatsTest extends TestCase
         $this->assertSame(3, $topArtistsSymf[0]['plays']);
     }
 
+    public function testGetForgottenArtistsRanksByPlaysAndIdleness(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: true);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', 'A', 'Old Favorite');
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-2', 'B', 'Recent Listen');
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-3', 'C', 'Low Plays Old');
+
+        $now = new \DateTimeImmutable();
+
+        // Old Favorite: 60 plays, all 18 months ago → forgotten
+        for ($i = 0; $i < 60; $i++) {
+            NavidromeFixtureFactory::insertScrobble(
+                $conn,
+                'user-1',
+                'mf-1',
+                $now->modify('-18 months')->modify('+' . $i . ' minutes')->format('Y-m-d H:i:s'),
+            );
+        }
+        // Recent Listen: 80 plays, last one yesterday → not forgotten
+        for ($i = 0; $i < 80; $i++) {
+            NavidromeFixtureFactory::insertScrobble(
+                $conn,
+                'user-1',
+                'mf-2',
+                $now->modify('-1 day')->modify('-' . $i . ' minutes')->format('Y-m-d H:i:s'),
+            );
+        }
+        // Low Plays Old: only 10 plays 18 months ago → below min_plays
+        for ($i = 0; $i < 10; $i++) {
+            NavidromeFixtureFactory::insertScrobble(
+                $conn,
+                'user-1',
+                'mf-3',
+                $now->modify('-18 months')->modify('+' . $i . ' hours')->format('Y-m-d H:i:s'),
+            );
+        }
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $forgotten = $repo->getForgottenArtists(minPlays: 50, idleMonths: 12);
+
+        $this->assertCount(1, $forgotten, 'only Old Favorite passes both thresholds');
+        $this->assertSame('Old Favorite', $forgotten[0]['artist']);
+        $this->assertSame(60, $forgotten[0]['plays']);
+        $this->assertGreaterThan(500, $forgotten[0]['idle_days'], 'about 18 months idle');
+    }
+
     public function testTopArtistsAggregatesCorrectly(): void
     {
         $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: true);

@@ -102,6 +102,10 @@ services:
         arguments:
             $apiToken: '%app.homepage_api_token%'
 
+    App\Controller\ForgottenArtistsController:
+        arguments:
+            $navidromeUrl: '%navidrome.url%'
+
     App\LastFm\LastFmClient:
         arguments:
             $pageDelaySeconds: '%lastfm.page_delay_seconds%'

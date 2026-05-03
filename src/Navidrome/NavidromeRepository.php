@@ -573,6 +573,66 @@ class NavidromeRepository
     }
 
     /**
+     * Artists with high lifetime plays that haven't been played in the
+     * last $idleMonths months. Sorted by `plays * idle_seconds` desc
+     * (so heavy listening + long silence ranks first). Returns at most
+     * $limit rows. Empty array when scrobbles is missing — annotation
+     * fallback would be unreliable here (no MAX(play_date) per artist).
+     *
+     * @return list<array{artist: string, plays: int, last_played_at: \DateTimeImmutable, idle_days: int}>
+     */
+    public function getForgottenArtists(int $minPlays = 50, int $idleMonths = 12, int $limit = 200): array
+    {
+        if (!$this->hasScrobblesTable()) {
+            return [];
+        }
+
+        $userId = $this->resolveUserId();
+        $now = new \DateTimeImmutable();
+        $idleThreshold = $now->modify(sprintf('-%d months', $idleMonths))->getTimestamp();
+        $nowTs = $now->getTimestamp();
+
+        $rows = $this->connection()->fetchAllAssociative(
+            "SELECT mf.artist AS artist,
+                    COUNT(*) AS plays,
+                    MAX(s.submission_time) AS last_play
+             FROM scrobbles s
+             JOIN media_file mf ON mf.id = s.media_file_id
+             WHERE s.user_id = :uid AND mf.artist != ''
+             GROUP BY mf.artist
+             HAVING plays >= :min_plays AND last_play < :idle_threshold
+             ORDER BY plays * (:now_ts - last_play) DESC
+             LIMIT :lim",
+            [
+                'uid' => $userId,
+                'min_plays' => $minPlays,
+                'idle_threshold' => $idleThreshold,
+                'now_ts' => $nowTs,
+                'lim' => $limit,
+            ],
+            [
+                'min_plays' => \Doctrine\DBAL\ParameterType::INTEGER,
+                'idle_threshold' => \Doctrine\DBAL\ParameterType::INTEGER,
+                'now_ts' => \Doctrine\DBAL\ParameterType::INTEGER,
+                'lim' => \Doctrine\DBAL\ParameterType::INTEGER,
+            ],
+        );
+
+        $tz = new \DateTimeZone(date_default_timezone_get());
+
+        return array_map(static function (array $r) use ($tz, $nowTs): array {
+            $lastPlay = (int) $r['last_play'];
+
+            return [
+                'artist' => (string) $r['artist'],
+                'plays' => (int) $r['plays'],
+                'last_played_at' => (new \DateTimeImmutable('@' . $lastPlay))->setTimezone($tz),
+                'idle_days' => (int) floor(($nowTs - $lastPlay) / 86400),
+            ];
+        }, $rows);
+    }
+
+    /**
      * Plays + distinct artists per month over the last $monthsBack months.
      * Months without scrobbles return plays=0, uniques=0.
      *
