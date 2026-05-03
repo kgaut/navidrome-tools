@@ -168,6 +168,52 @@ class LastFmClient
     }
 
     /**
+     * Returns up to $limit artists similar to $artist, ranked by Last.fm's
+     * own `match` score (0..1). Each entry: name, MBID (when known), match
+     * score, and the Last.fm URL of the artist page. Empty array when the
+     * seed name is unknown or Last.fm returns no neighbours.
+     *
+     * @return list<array{name: string, mbid: ?string, match: float, url: string}>
+     */
+    public function artistGetSimilar(string $apiKey, string $artist, int $limit = 10): array
+    {
+        $payload = $this->call([
+            'method' => 'artist.getSimilar',
+            'artist' => $artist,
+            'api_key' => $apiKey,
+            'limit' => $limit,
+            'autocorrect' => 1,
+            'format' => 'json',
+        ]);
+
+        $items = $payload['similarartists']['artist'] ?? [];
+        // Last.fm returns a single object instead of an array when one
+        // sibling is found.
+        if (isset($items['name'])) {
+            $items = [$items];
+        }
+
+        $out = [];
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $name = trim((string) ($item['name'] ?? ''));
+            if ($name === '') {
+                continue;
+            }
+            $out[] = [
+                'name' => $name,
+                'mbid' => ($item['mbid'] ?? '') !== '' ? (string) $item['mbid'] : null,
+                'match' => (float) ($item['match'] ?? 0),
+                'url' => (string) ($item['url'] ?? ''),
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * Cheaper sibling of {@see trackGetInfo()} : returns only the
      * canonical artist / track names suggested by Last.fm, no MBID. Same
      * autocorrect normalization as `trackGetInfo`.

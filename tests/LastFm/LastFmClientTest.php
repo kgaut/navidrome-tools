@@ -107,4 +107,57 @@ class LastFmClientTest extends TestCase
         $this->assertSame('Daft Punk', $info->correctedTitle);
         $this->assertNull($info->mbid);
     }
+
+    public function testArtistGetSimilarReturnsRankedNeighbours(): void
+    {
+        $http = new MockHttpClient([
+            new MockResponse(json_encode([
+                'similarartists' => [
+                    'artist' => [
+                        [
+                            'name' => 'Justice',
+                            'mbid' => 'mbid-justice',
+                            'match' => '0.95',
+                            'url' => 'https://www.last.fm/music/Justice',
+                        ],
+                        [
+                            'name' => 'Mr. Oizo',
+                            'mbid' => '',
+                            'match' => '0.72',
+                            'url' => 'https://www.last.fm/music/Mr.+Oizo',
+                        ],
+                    ],
+                ],
+            ], JSON_THROW_ON_ERROR)),
+        ]);
+
+        $similar = (new LastFmClient($http, 0))->artistGetSimilar('apikey', 'Daft Punk', 5);
+
+        $this->assertCount(2, $similar);
+        $this->assertSame('Justice', $similar[0]['name']);
+        $this->assertSame('mbid-justice', $similar[0]['mbid']);
+        $this->assertSame(0.95, $similar[0]['match']);
+        $this->assertNull($similar[1]['mbid'], 'empty MBID coerced to null');
+    }
+
+    public function testArtistGetSimilarHandlesSingleObjectShape(): void
+    {
+        // Last.fm collapses to a single object when only one neighbour is found.
+        $http = new MockHttpClient([
+            new MockResponse(json_encode([
+                'similarartists' => [
+                    'artist' => [
+                        'name' => 'Lone Match',
+                        'mbid' => 'mbid-lone',
+                        'match' => '0.5',
+                        'url' => '',
+                    ],
+                ],
+            ], JSON_THROW_ON_ERROR)),
+        ]);
+
+        $similar = (new LastFmClient($http, 0))->artistGetSimilar('apikey', 'Anyone', 1);
+        $this->assertCount(1, $similar);
+        $this->assertSame('Lone Match', $similar[0]['name']);
+    }
 }

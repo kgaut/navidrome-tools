@@ -28,10 +28,13 @@ class LidarrController extends AbstractController
             '1', 'tracks' => 'app_lastfm_unmatched',
             default => null,
         };
+        $redirectDiscover = (bool) $request->request->get('_redirect_discover', false);
         if ($redirectRunId > 0) {
             $back = $this->redirectToRoute('app_history_detail', ['id' => $redirectRunId]);
         } elseif ($unmatchedRoute !== null) {
             $back = $this->redirectToRoute($unmatchedRoute);
+        } elseif ($redirectDiscover) {
+            $back = $this->redirectToRoute('app_discover_artists');
         } else {
             $back = $this->redirectToRoute('app_lastfm_import');
         }
