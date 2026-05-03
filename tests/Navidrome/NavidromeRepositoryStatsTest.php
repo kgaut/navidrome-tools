@@ -87,6 +87,64 @@ class NavidromeRepositoryStatsTest extends TestCase
         $this->assertSame(3, $topArtistsSymf[0]['plays']);
     }
 
+    public function testGetIncompleteAlbumsListsAlbumsWithoutMbzAlbumId(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: true);
+
+        // Album with MBID — should NOT appear
+        NavidromeFixtureFactory::insertTrack(
+            $conn,
+            'mf-1a',
+            'Track A',
+            'Artist X',
+            180,
+            'Tagged Album',
+            null,
+            '',
+            null,
+            null,
+            mbzAlbumId: '00000000-0000-0000-0000-000000000001',
+        );
+        NavidromeFixtureFactory::insertTrack(
+            $conn,
+            'mf-1b',
+            'Track B',
+            'Artist X',
+            180,
+            'Tagged Album',
+            null,
+            '',
+            null,
+            null,
+            mbzAlbumId: '00000000-0000-0000-0000-000000000001',
+        );
+
+        // Album without MBID, 3 tracks, 5 plays
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-2a', 'T1', 'Artist Y', 180, 'Untagged Album');
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-2b', 'T2', 'Artist Y', 180, 'Untagged Album');
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-2c', 'T3', 'Artist Y', 180, 'Untagged Album');
+        for ($i = 0; $i < 3; $i++) {
+            NavidromeFixtureFactory::insertScrobble($conn, 'user-1', 'mf-2a', '2025-01-0' . ($i + 1) . ' 10:00:00');
+        }
+        for ($i = 0; $i < 2; $i++) {
+            NavidromeFixtureFactory::insertScrobble($conn, 'user-1', 'mf-2b', '2025-01-0' . ($i + 1) . ' 11:00:00');
+        }
+
+        // Smaller untagged album, 1 track, 1 play (should rank below)
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-3', 'Solo', 'Artist Z', 180, 'Tiny Album');
+        NavidromeFixtureFactory::insertScrobble($conn, 'user-1', 'mf-3', '2025-01-01 12:00:00');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $albums = $repo->getIncompleteAlbums();
+
+        $this->assertCount(2, $albums, 'Tagged Album excluded');
+        $this->assertSame('Untagged Album', $albums[0]['album']);
+        $this->assertSame(3, $albums[0]['tracks']);
+        $this->assertSame(5, $albums[0]['plays']);
+        $this->assertSame('Tiny Album', $albums[1]['album']);
+        $this->assertSame(1, $albums[1]['plays']);
+    }
+
     public function testGetForgottenArtistsRanksByPlaysAndIdleness(): void
     {
         $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: true);
