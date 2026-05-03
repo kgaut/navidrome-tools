@@ -118,7 +118,13 @@ Fonctionnalités livrées :
   `NavidromeContainerManager`, enum `ContainerStatus`,
   `NavidromeContainerException`), POST routes
   `/navidrome/container/{start,stop}` avec CSRF
-  `navidrome_container`.
+  `navidrome_container`. Flag CLI `--auto-stop` (sur
+  `app:lastfm:import` et `app:lastfm:rematch`) : alternative au
+  pré-flight bloquant — orchestre stop Navidrome → action → restart
+  via `NavidromeContainerManager::runWithNavidromeStopped()` (try/
+  finally, restart même en cas d'erreur de l'action). Activé
+  automatiquement par `app:cron:dump` sur la ligne rematch quand le
+  conteneur est configuré.
 
 ---
 

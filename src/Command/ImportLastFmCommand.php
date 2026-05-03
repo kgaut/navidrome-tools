@@ -92,6 +92,12 @@ class ImportLastFmCommand extends Command
                 'f',
                 InputOption::VALUE_NONE,
                 'Bypass the Navidrome container pre-flight check (only when NAVIDROME_CONTAINER_NAME is set). Use at your own risk: writing while Navidrome runs can corrupt the SQLite WAL.',
+            )
+            ->addOption(
+                'auto-stop',
+                null,
+                InputOption::VALUE_NONE,
+                'When NAVIDROME_CONTAINER_NAME is set, stop Navidrome before the import and restart it afterwards (always, even on error). No-op when the feature is disabled or when Navidrome is already stopped. Mutually exclusive with the default pre-flight check — pass this for unattended runs (cron).',
             );
     }
 
@@ -117,8 +123,9 @@ class ImportLastFmCommand extends Command
         $tolerance = max(0, (int) $input->getOption('tolerance'));
         $dryRun = (bool) $input->getOption('dry-run');
         $force = (bool) $input->getOption('force');
+        $autoStop = (bool) $input->getOption('auto-stop');
 
-        if (!$dryRun) {
+        if (!$dryRun && !$autoStop) {
             try {
                 $this->container->assertSafeToWrite($force);
             } catch (NavidromeContainerException $e) {
@@ -140,7 +147,7 @@ class ImportLastFmCommand extends Command
             $maxScrobbles = $input->getOption('max-scrobbles');
             $maxScrobblesInt = $maxScrobbles !== null ? max(1, (int) $maxScrobbles) : null;
             $em = $this->em;
-            $report = $this->recorder->record(
+            $runImport = fn () => $this->recorder->record(
                 type: RunHistory::TYPE_LASTFM_IMPORT,
                 reference: $user,
                 label: 'Last.fm import — ' . $user . ($dryRun ? ' [dry-run]' : ''),
@@ -191,6 +198,12 @@ class ImportLastFmCommand extends Command
                     'date_max' => $dateMax?->format('Y-m-d'),
                 ],
             );
+
+            if ($autoStop && !$dryRun) {
+                $report = $this->container->runWithNavidromeStopped($runImport);
+            } else {
+                $report = $runImport();
+            }
         } catch (\Throwable $e) {
             $io->error($e->getMessage());
 

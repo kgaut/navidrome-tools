@@ -90,4 +90,75 @@ class NavidromeContainerManager
 
         throw new NavidromeContainerException($message);
     }
+
+    /**
+     * Run $action with Navidrome guaranteed stopped, then restart it if
+     * we stopped it ourselves. Restart happens in a finally-equivalent
+     * block, so an action that throws still leaves Navidrome running.
+     *
+     * - Feature disabled (`NAVIDROME_CONTAINER_NAME` empty) → run as-is.
+     * - Status `Stopped` / `NotFound` → run as-is, don't try to restart
+     *   something we didn't stop.
+     * - Status `Running` → stop, run, restart (always).
+     * - Status `Unknown` → throw, since we can't safely orchestrate
+     *   stop/start without confirming current state.
+     *
+     * If both the action and the restart fail, the restart failure is
+     * raised with the action error chained as `previous`.
+     *
+     * @template T
+     * @param  callable(): T $action
+     * @return T
+     */
+    public function runWithNavidromeStopped(callable $action): mixed
+    {
+        if (!$this->config->isConfigured()) {
+            return $action();
+        }
+
+        $status = $this->getStatus();
+        if ($status === ContainerStatus::Unknown) {
+            throw new NavidromeContainerException(sprintf(
+                'Statut du conteneur Navidrome « %s » indéterminé — impossible d\'orchestrer un stop/restart automatique. Vérifier le mount /var/run/docker.sock.',
+                $this->config->containerName,
+            ));
+        }
+
+        if ($status !== ContainerStatus::Running) {
+            return $action();
+        }
+
+        $this->stop();
+
+        $actionException = null;
+        $result = null;
+        try {
+            $result = $action();
+        } catch (\Throwable $e) {
+            $actionException = $e;
+        }
+
+        try {
+            $this->start();
+        } catch (\Throwable $startException) {
+            if ($actionException !== null) {
+                throw new NavidromeContainerException(
+                    sprintf(
+                        '%s — et le redémarrage du conteneur Navidrome a aussi échoué : %s',
+                        $actionException->getMessage(),
+                        $startException->getMessage(),
+                    ),
+                    0,
+                    $actionException,
+                );
+            }
+            throw $startException;
+        }
+
+        if ($actionException !== null) {
+            throw $actionException;
+        }
+
+        return $result;
+    }
 }
