@@ -1,0 +1,84 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Métadonnées incomplètes{% endblock %}
+
+{% block body %}
+    <div class="flex flex-wrap items-center gap-3 text-xs mb-4">
+        <span class="text-slate-500">Voir aussi :</span>
+        <a href="{{ path('app_stats') }}" class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200">Vue d'ensemble</a>
+        <a href="{{ path('app_stats_forgotten_artists') }}" class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200">Artistes oubliés</a>
+        <a href="{{ path('app_tagging_missing_mbid') }}" class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200">Morceaux sans MBID</a>
+    </div>
+
+    <div class="flex items-start justify-between mb-4 flex-wrap gap-3">
+        <h1 class="text-2xl font-semibold">Métadonnées incomplètes</h1>
+    </div>
+
+    <p class="text-sm text-slate-600 mb-6">
+        Albums dont le <code>mbz_album_id</code> est vide. Triés par nombre d'écoutes —
+        ceux qui sont écoutés en priorité méritent d'être taggés en premier dans
+        <a href="https://picard.musicbrainz.org/" target="_blank" rel="noopener" class="underline">MusicBrainz Picard</a>
+        ou
+        <a href="https://beets.io/" target="_blank" rel="noopener" class="underline">beets</a>.
+    </p>
+
+    {% if not available %}
+        <div class="bg-amber-50 border border-amber-300 text-amber-800 rounded p-4 mb-6 text-sm">
+            La base Navidrome n'est pas accessible.
+        </div>
+    {% elseif by_artist is empty %}
+        <div class="bg-emerald-50 border border-emerald-300 text-emerald-800 rounded p-4 text-sm">
+            🎉 Aucun album sans <code>mbz_album_id</code> dans le top {{ 200 }}. Soit ta lib est
+            bien taggée, soit la colonne <code>mbz_album_id</code> n'existe pas (Navidrome très ancien).
+        </div>
+    {% else %}
+        <p class="text-xs text-slate-500 mb-4">
+            {{ total_albums }} album(s) sans MBID, regroupés sur {{ by_artist|length }} artiste(s).
+        </p>
+
+        <div class="space-y-4">
+            {% for group in by_artist %}
+                <div class="bg-white shadow rounded overflow-hidden">
+                    <div class="px-4 py-3 border-b bg-slate-50 flex items-center justify-between">
+                        <h2 class="font-semibold text-sm">
+                            {{ group.artist }}
+                            <span class="text-xs text-slate-500 font-normal">
+                                — {{ group.albums|length }} album(s) ·
+                                {{ group.total_plays|number_format(0, '.', ' ') }} écoute(s)
+                            </span>
+                        </h2>
+                    </div>
+                    <table class="w-full text-sm">
+                        <thead class="bg-slate-100 text-slate-600 text-left text-xs">
+                        <tr>
+                            <th class="px-3 py-2">Album</th>
+                            <th class="px-3 py-2 w-24 text-right">Pistes</th>
+                            <th class="px-3 py-2 w-28 text-right">Plays</th>
+                            <th class="px-3 py-2 w-40 text-right">Liens</th>
+                        </tr>
+                        </thead>
+                        <tbody class="divide-y">
+                        {% for a in group.albums %}
+                            <tr>
+                                <td class="px-3 py-1.5">{{ a.album }}</td>
+                                <td class="px-3 py-1.5 text-right text-slate-600">{{ a.tracks }}</td>
+                                <td class="px-3 py-1.5 text-right">{{ a.plays|number_format(0, '.', ' ') }}</td>
+                                <td class="px-3 py-1.5 text-right text-xs space-x-2">
+                                    {% if navidrome_url %}
+                                        <a href="{{ navidrome_url }}/app/#/library?searchType=album&search={{ a.album|url_encode }}"
+                                           target="_blank" rel="noopener"
+                                           class="text-sky-600 hover:underline">Navidrome</a>
+                                    {% endif %}
+                                    <a href="https://musicbrainz.org/search?type=release&query=artist%3A{{ group.artist|url_encode }}+AND+release%3A{{ a.album|url_encode }}"
+                                       target="_blank" rel="noopener"
+                                       class="text-sky-600 hover:underline">MusicBrainz</a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+{% endblock %}

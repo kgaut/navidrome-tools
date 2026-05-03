@@ -106,6 +106,15 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
   un état cohérent). En cas de double échec (import KO + restart KO), la
   `NavidromeContainerException` finale chaîne l'exception d'origine en
   `previous` pour tracer les deux problèmes.
+- **Page « métadonnées incomplètes »** sur `/stats/incomplete-metadata` :
+  liste les albums dont la colonne Navidrome `mbz_album_id` est vide
+  ou nulle, regroupés par artiste (album_artist) et triés par nombre
+  d'écoutes. Pour chaque ligne : nombre de pistes, nombre d'écoutes
+  total, lien vers Navidrome (recherche album) et MusicBrainz
+  (recherche release). Curate les albums prioritaires à retagger
+  dans Picard / beets (les plus écoutés en premier). Détection auto
+  de la colonne via `mediaFileColumns()` — fonctionnalité désactivée
+  silencieusement si la colonne n'existe pas. Closes #25.
 - **Page « artistes oubliés »** sur `/stats/forgotten-artists` :
   liste les artistes avec un historique de plays consistant
   (`min_plays`, défaut 50) qui n'ont rien tourné depuis longtemps

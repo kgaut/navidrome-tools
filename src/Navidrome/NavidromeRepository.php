@@ -573,6 +573,65 @@ class NavidromeRepository
     }
 
     /**
+     * Albums with no MusicBrainz album id, ranked by lifetime plays.
+     * Plays count is taken from `scrobbles` when available (lifetime),
+     * falls back to `annotation.play_count` otherwise. Returns [] when
+     * the `mbz_album_id` column doesn't exist (very old Navidrome).
+     *
+     * @return list<array{album: string, album_artist: string, tracks: int, plays: int}>
+     */
+    public function getIncompleteAlbums(int $limit = 200): array
+    {
+        $columns = $this->mediaFileColumns();
+        if (!in_array('mbz_album_id', $columns, true)) {
+            return [];
+        }
+
+        $userId = $this->resolveUserId();
+
+        if ($this->hasScrobblesTable()) {
+            $sql = "SELECT mf.album AS album,
+                           mf.album_artist AS album_artist,
+                           COUNT(DISTINCT mf.id) AS tracks,
+                           COUNT(s.id) AS plays
+                    FROM media_file mf
+                    LEFT JOIN scrobbles s ON s.media_file_id = mf.id AND s.user_id = :uid
+                    WHERE (mf.mbz_album_id IS NULL OR mf.mbz_album_id = '')
+                      AND mf.album != ''
+                    GROUP BY mf.album, mf.album_artist
+                    ORDER BY plays DESC, tracks DESC, album_artist ASC, album ASC
+                    LIMIT :lim";
+        } else {
+            $sql = "SELECT mf.album AS album,
+                           mf.album_artist AS album_artist,
+                           COUNT(DISTINCT mf.id) AS tracks,
+                           COALESCE(SUM(a.play_count), 0) AS plays
+                    FROM media_file mf
+                    LEFT JOIN annotation a ON a.item_id = mf.id
+                                          AND a.item_type = 'media_file'
+                                          AND a.user_id = :uid
+                    WHERE (mf.mbz_album_id IS NULL OR mf.mbz_album_id = '')
+                      AND mf.album != ''
+                    GROUP BY mf.album, mf.album_artist
+                    ORDER BY plays DESC, tracks DESC, album_artist ASC, album ASC
+                    LIMIT :lim";
+        }
+
+        $rows = $this->connection()->fetchAllAssociative(
+            $sql,
+            ['uid' => $userId, 'lim' => $limit],
+            ['lim' => \Doctrine\DBAL\ParameterType::INTEGER],
+        );
+
+        return array_map(static fn (array $r): array => [
+            'album' => (string) $r['album'],
+            'album_artist' => (string) $r['album_artist'],
+            'tracks' => (int) $r['tracks'],
+            'plays' => (int) $r['plays'],
+        ], $rows);
+    }
+
+    /**
      * Artists with high lifetime plays that haven't been played in the
      * last $idleMonths months. Sorted by `plays * idle_seconds` desc
      * (so heavy listening + long silence ranks first). Returns at most
