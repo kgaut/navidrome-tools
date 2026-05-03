@@ -68,12 +68,15 @@ final class NavidromeFixtureFactory
         if ($withScrobbles) {
             // Mirror the real Navidrome 0.55+ schema where submission_time is
             // an INTEGER unix timestamp (was DATETIME prior to 0.55).
+            // `client` (Subsonic client name: DSub, Symfonium, web…) is
+            // optional in tests — left NULL when callers don't pass it.
             $conn->executeStatement(<<<'SQL'
                 CREATE TABLE scrobbles (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     media_file_id VARCHAR(255) NOT NULL,
                     user_id VARCHAR(255) NOT NULL,
-                    submission_time INTEGER NOT NULL
+                    submission_time INTEGER NOT NULL,
+                    client VARCHAR(255) DEFAULT NULL
                 )
             SQL);
         }
@@ -128,15 +131,20 @@ final class NavidromeFixtureFactory
         );
     }
 
-    public static function insertScrobble(Connection $conn, string $userId, string $mediaId, string $time): void
-    {
+    public static function insertScrobble(
+        Connection $conn,
+        string $userId,
+        string $mediaId,
+        string $time,
+        ?string $client = null,
+    ): void {
         $ts = strtotime($time);
         if ($ts === false) {
             throw new \InvalidArgumentException(sprintf('Invalid scrobble time "%s".', $time));
         }
         $conn->executeStatement(
-            'INSERT INTO scrobbles (media_file_id, user_id, submission_time) VALUES (?, ?, ?)',
-            [$mediaId, $userId, $ts],
+            'INSERT INTO scrobbles (media_file_id, user_id, submission_time, client) VALUES (?, ?, ?, ?)',
+            [$mediaId, $userId, $ts, $client],
             [2 => \Doctrine\DBAL\ParameterType::INTEGER],
         );
     }

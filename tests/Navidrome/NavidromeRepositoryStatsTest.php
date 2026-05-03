@@ -42,6 +42,51 @@ class NavidromeRepositoryStatsTest extends TestCase
         $this->assertSame(2, $repo->getDistinctTracksPlayed($weekAgo, $now));
     }
 
+    public function testScrobbleClientHelpersDetectColumnAndListDistinctClients(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: true);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', 'A', 'Artist');
+
+        NavidromeFixtureFactory::insertScrobble($conn, 'user-1', 'mf-1', '2025-01-01 10:00:00', 'Symfonium');
+        NavidromeFixtureFactory::insertScrobble($conn, 'user-1', 'mf-1', '2025-01-02 10:00:00', 'DSub');
+        NavidromeFixtureFactory::insertScrobble($conn, 'user-1', 'mf-1', '2025-01-03 10:00:00', 'Symfonium');
+        NavidromeFixtureFactory::insertScrobble($conn, 'user-1', 'mf-1', '2025-01-04 10:00:00', null);
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+
+        $this->assertTrue($repo->hasScrobbleClient(), 'fixture creates the column');
+        $this->assertSame(['DSub', 'Symfonium'], $repo->listScrobbleClients(), 'sorted, NULL excluded');
+    }
+
+    public function testStatsMethodsFilterByClientWhenColumnIsPresent(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: true);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', 'Song 1', 'Artist X');
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-2', 'Song 2', 'Artist Y');
+
+        // 3 Symfonium plays for Artist X, 2 DSub plays for Artist Y
+        for ($i = 0; $i < 3; $i++) {
+            NavidromeFixtureFactory::insertScrobble($conn, 'user-1', 'mf-1', '2025-01-0' . ($i + 1) . ' 10:00:00', 'Symfonium');
+        }
+        for ($i = 0; $i < 2; $i++) {
+            NavidromeFixtureFactory::insertScrobble($conn, 'user-1', 'mf-2', '2025-01-0' . ($i + 1) . ' 10:00:00', 'DSub');
+        }
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+
+        $this->assertSame(5, $repo->getTotalPlays(null, null), 'baseline: all plays');
+        $this->assertSame(3, $repo->getTotalPlays(null, null, 'Symfonium'));
+        $this->assertSame(2, $repo->getTotalPlays(null, null, 'DSub'));
+
+        $topArtistsAll = $repo->getTopArtists(null, null, 10);
+        $this->assertCount(2, $topArtistsAll);
+
+        $topArtistsSymf = $repo->getTopArtists(null, null, 10, 'Symfonium');
+        $this->assertCount(1, $topArtistsSymf);
+        $this->assertSame('Artist X', $topArtistsSymf[0]['artist']);
+        $this->assertSame(3, $topArtistsSymf[0]['plays']);
+    }
+
     public function testTopArtistsAggregatesCorrectly(): void
     {
         $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: true);

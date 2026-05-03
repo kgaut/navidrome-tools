@@ -39,22 +39,31 @@ class StatsService
     ) {
     }
 
-    public function getOrCompute(string $period): StatsSnapshot
+    /**
+     * Compose the cache key for a (period, client) combo. `null`/empty client
+     * keeps the legacy `$period` key (no migration needed for existing rows).
+     */
+    public static function cacheKey(string $period, ?string $client = null): string
     {
-        $existing = $this->repository->findOneByPeriod($period);
+        return ($client !== null && $client !== '') ? $period . '|' . $client : $period;
+    }
+
+    public function getOrCompute(string $period, ?string $client = null): StatsSnapshot
+    {
+        $existing = $this->repository->findOneByPeriod(self::cacheKey($period, $client));
         if ($existing !== null) {
             return $existing;
         }
 
-        return $this->compute($period);
+        return $this->compute($period, $client);
     }
 
-    public function getCached(string $period): ?StatsSnapshot
+    public function getCached(string $period, ?string $client = null): ?StatsSnapshot
     {
-        return $this->repository->findOneByPeriod($period);
+        return $this->repository->findOneByPeriod(self::cacheKey($period, $client));
     }
 
-    public function compute(string $period): StatsSnapshot
+    public function compute(string $period, ?string $client = null): StatsSnapshot
     {
         if (!isset(self::periods()[$period])) {
             throw new \InvalidArgumentException(sprintf('Unknown stats period "%s".', $period));
@@ -63,15 +72,17 @@ class StatsService
         [$from, $to] = $this->resolveWindow($period);
 
         $data = [
-            'total_plays' => $this->navidrome->getTotalPlays($from, $to),
-            'distinct_tracks' => $this->navidrome->getDistinctTracksPlayed($from, $to),
-            'top_artists' => $this->navidrome->getTopArtists($from, $to, self::TOP_ARTISTS_LIMIT),
-            'top_tracks' => $this->navidrome->getTopTracksWithDetails($from, $to, self::TOP_TRACKS_LIMIT),
+            'total_plays' => $this->navidrome->getTotalPlays($from, $to, $client),
+            'distinct_tracks' => $this->navidrome->getDistinctTracksPlayed($from, $to, $client),
+            'top_artists' => $this->navidrome->getTopArtists($from, $to, self::TOP_ARTISTS_LIMIT, $client),
+            'top_tracks' => $this->navidrome->getTopTracksWithDetails($from, $to, self::TOP_TRACKS_LIMIT, $client),
             'window_from' => $from?->format(\DateTimeInterface::ATOM),
             'window_to' => $to?->format(\DateTimeInterface::ATOM),
+            'client' => $client,
         ];
 
-        $snapshot = $this->repository->findOneByPeriod($period) ?? new StatsSnapshot($period);
+        $key = self::cacheKey($period, $client);
+        $snapshot = $this->repository->findOneByPeriod($key) ?? new StatsSnapshot($key);
         $snapshot->setData($data);
 
         if ($snapshot->getId() === null) {
@@ -83,17 +94,29 @@ class StatsService
     }
 
     /**
+     * Recompute every (period × client) combo currently observed in scrobbles
+     * plus the unfiltered baseline. Used by the cron snapshotter so that any
+     * client-filtered tab on /stats is served from cache.
+     *
      * @return array{StatsSnapshot[], string[]} [snapshots, errors]
      */
     public function computeAll(): array
     {
         $snapshots = [];
         $errors = [];
+        $clients = array_merge([null], $this->navidrome->listScrobbleClients());
         foreach (array_keys(self::periods()) as $period) {
-            try {
-                $snapshots[] = $this->compute($period);
-            } catch (\Throwable $e) {
-                $errors[] = sprintf('%s: %s', $period, $e->getMessage());
+            foreach ($clients as $client) {
+                try {
+                    $snapshots[] = $this->compute($period, $client);
+                } catch (\Throwable $e) {
+                    $errors[] = sprintf(
+                        '%s%s: %s',
+                        $period,
+                        $client !== null ? ' [' . $client . ']' : '',
+                        $e->getMessage(),
+                    );
+                }
             }
         }
 
