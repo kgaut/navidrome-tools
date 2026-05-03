@@ -2,6 +2,7 @@
 
 namespace App\Tests\LastFm;
 
+use App\LastFm\LastFmApiException;
 use App\LastFm\LastFmClient;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpClient\MockHttpClient;
@@ -66,8 +67,11 @@ class LastFmClientTest extends TestCase
         $this->assertSame('mbid-1', $info->mbid);
     }
 
-    public function testTrackGetInfoErrorPropagatesAsRuntimeException(): void
+    public function testTrackGetInfoSwallowsTrackNotFoundError(): void
     {
+        // Last.fm error 6 = « Track not found ». Expected for any scrobble
+        // whose artist/title isn't in Last.fm's catalog — must NOT crash
+        // the import, just return an empty result so the cascade continues.
         $http = new MockHttpClient([
             new MockResponse(json_encode([
                 'error' => 6,
@@ -75,11 +79,59 @@ class LastFmClientTest extends TestCase
             ], JSON_THROW_ON_ERROR)),
         ]);
 
+        $info = (new LastFmClient($http, 0))->trackGetInfo('apikey', 'Unknown', 'Untrack');
+
+        $this->assertNull($info->mbid);
+        $this->assertNull($info->correctedArtist);
+        $this->assertNull($info->correctedTitle);
+        $this->assertFalse($info->hasMbid());
+        $this->assertFalse($info->hasCorrection());
+    }
+
+    public function testTrackGetInfoPropagatesNonTrackNotFoundErrors(): void
+    {
+        // Real failures (rate limit, invalid key, service down) must
+        // bubble up so the import surfaces them instead of silently
+        // hammering the API.
+        $http = new MockHttpClient([
+            new MockResponse(json_encode([
+                'error' => 29,
+                'message' => 'Rate limit exceeded',
+            ], JSON_THROW_ON_ERROR)),
+        ]);
+
         $client = new LastFmClient($http, 0);
 
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessageMatches('/Last\.fm API error 6:/');
-        $client->trackGetInfo('apikey', 'Unknown', 'Untrack');
+        try {
+            $client->trackGetInfo('apikey', 'Some', 'Track');
+            $this->fail('Expected LastFmApiException to be thrown');
+        } catch (LastFmApiException $e) {
+            $this->assertSame(29, $e->errorCode);
+            $this->assertSame('Rate limit exceeded', $e->errorMessage);
+        }
+    }
+
+    public function testCallThrowsLastFmApiExceptionWithErrorCode(): void
+    {
+        // Indirect check via a method that goes through call() but is
+        // outside the lookup() try/catch — artistGetSimilar surfaces any
+        // error code untouched.
+        $http = new MockHttpClient([
+            new MockResponse(json_encode([
+                'error' => 10,
+                'message' => 'Invalid API key',
+            ], JSON_THROW_ON_ERROR)),
+        ]);
+
+        $client = new LastFmClient($http, 0);
+
+        try {
+            $client->artistGetSimilar('badkey', 'Daft Punk');
+            $this->fail('Expected LastFmApiException to be thrown');
+        } catch (LastFmApiException $e) {
+            $this->assertSame(10, $e->errorCode);
+            $this->assertStringContainsString('Last.fm API error 10', $e->getMessage());
+        }
     }
 
     public function testTrackGetCorrectionReadsNestedCorrectionTrackNode(): void

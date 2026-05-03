@@ -41,6 +41,21 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
   (desktop + mobile).
 
 ### Fixed
+- **`Last.fm API error 6: Track not found` interrompait l'import** : à
+  l'étape 7 de la cascade de matching, `ScrobbleMatcher` appelle
+  `LastFmClient::trackGetInfo()` pour les scrobbles non matchés
+  localement. Quand Last.fm ne connaît pas le track (cas attendu —
+  morceau absent de leur catalogue), l'API renvoyait `error: 6` et
+  `LastFmClient::call()` le propageait en `RuntimeException`, qui
+  remontait jusqu'à crasher le run (`app:lastfm:import` /
+  `app:lastfm:rematch`) au premier scrobble inconnu de Last.fm.
+  Nouvelle exception typée `App\LastFm\LastFmApiException` qui porte
+  `errorCode` séparément ; `lookup()` (track.getInfo /
+  track.getCorrection) intercepte spécifiquement le code 6 et retourne
+  `LastFmTrackInfo::empty()` — la cascade continue normalement vers
+  l'éventuel fuzzy puis `unmatched`. Les autres codes (rate limit 29,
+  invalid key 10, service down 11/16, etc.) continuent de remonter
+  pour ne pas masquer une vraie panne. Closes #113.
 - **`UNIQUE constraint failed: lastfm_match_cache.source_artist_norm,
   lastfm_match_cache.source_title_norm` pendant `app:lastfm:import`** :
   l'import ne flushe pas entre deux scrobbles, donc lorsque la même

@@ -234,14 +234,26 @@ class LastFmClient
      */
     private function lookup(string $method, string $apiKey, string $artist, string $title, string $bodyKey): LastFmTrackInfo
     {
-        $payload = $this->call([
-            'method' => $method,
-            'artist' => $artist,
-            'track' => $title,
-            'api_key' => $apiKey,
-            'autocorrect' => 1,
-            'format' => 'json',
-        ]);
+        try {
+            $payload = $this->call([
+                'method' => $method,
+                'artist' => $artist,
+                'track' => $title,
+                'api_key' => $apiKey,
+                'autocorrect' => 1,
+                'format' => 'json',
+            ]);
+        } catch (LastFmApiException $e) {
+            // Code 6 = « Track not found ». Expected during the matching
+            // cascade for tracks Last.fm doesn't know — let the caller
+            // continue with an empty result instead of crashing the whole
+            // import. Real failures (rate limit, invalid key, service
+            // down) keep bubbling up.
+            if ($e->errorCode === 6) {
+                return LastFmTrackInfo::empty();
+            }
+            throw $e;
+        }
 
         $node = $payload;
         foreach (explode('.', $bodyKey) as $segment) {
@@ -342,11 +354,10 @@ class LastFmClient
         }
 
         if (isset($body['error'])) {
-            throw new \RuntimeException(sprintf(
-                'Last.fm API error %s: %s',
-                $body['error'],
-                $body['message'] ?? 'unknown',
-            ));
+            throw new LastFmApiException(
+                (int) $body['error'],
+                (string) ($body['message'] ?? 'unknown'),
+            );
         }
 
         return $body;
