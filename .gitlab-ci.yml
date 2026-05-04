@@ -1,5 +1,5 @@
 # GitLab CI — mirror of .github/workflows/ci.yml.
-# Five jobs: phpcs, phpstan, tests (matrix PHP 8.3 + 8.4),
+# Five jobs: phpcs, phpstan, tests (PHP 8.4),
 # docker-build (validation), docker-publish (multi-arch push).
 #
 # The publish job pushes to the GitLab Container Registry of the
@@ -41,24 +41,21 @@ variables:
 phpcs:
   extends: .php
   stage: lint
-  image: php:8.3-cli-alpine
+  image: php:8.4-cli-alpine
   script:
     - vendor/bin/phpcs
 
 phpstan:
   extends: .php
   stage: lint
-  image: php:8.3-cli-alpine
+  image: php:8.4-cli-alpine
   script:
     - vendor/bin/phpstan analyse --memory-limit=512M --no-progress
 
 tests:
   extends: .php
   stage: test
-  image: php:${PHP_VERSION}-cli-alpine
-  parallel:
-    matrix:
-      - PHP_VERSION: ["8.3", "8.4"]
+  image: php:8.4-cli-alpine
   script:
     - vendor/bin/phpunit --colors=always
 

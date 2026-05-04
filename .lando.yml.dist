@@ -1,14 +1,14 @@
 name: navidrome-tools
 
 # Recommended Lando stack for Symfony 7 :
-#  - PHP 8.3 served via nginx
+#  - PHP 8.4 served via nginx
 #  - Composer 2 (required by Symfony Flex)
 #  - SQLite for both the tool's DB and the (read-only mounted) Navidrome DB,
 #    so no extra database service is needed.
 
 services:
   appserver:
-    type: php:8.3
+    type: php:8.4
     via: nginx
     webroot: public
     composer_version: '2'

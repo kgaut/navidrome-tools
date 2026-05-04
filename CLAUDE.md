@@ -204,13 +204,13 @@ Fonctionnalités livrées :
 
 ## 2. Stack
 
-- **PHP 8.3+** (matrice CI : 8.3, 8.4). `composer.json` pinne
-  `config.platform.php=8.3.0` — toujours régénérer le lock après un
-  `composer require` pour éviter qu'une dep prenne une version
-  PHP-8.4-only.
+- **PHP 8.4 minimum** (CI : 8.4 uniquement). `composer.json` pinne
+  `config.platform.php=8.4.0`. La matrice 8.3 a été supprimée — le
+  code utilise des features 8.4 (chained `new ClassName(...)->method()`
+  dans certains tests, lazy objects natifs Doctrine).
 - **Symfony 7** (installé en 7.4.x via Flex), Doctrine ORM 3, DBAL 4.
-- **Doctrine** : `enable_lazy_ghost_objects: true` (PAS
-  `enable_native_lazy_objects`, qui requiert PHP 8.4).
+- **Doctrine** : `enable_native_lazy_objects: true` (option PHP 8.4
+  qui remplace `enable_lazy_ghost_objects` côté ORM 3).
 - **Tailwind via CDN** dans `templates/base.html.twig` — pas de
   toolchain front, pas de `npm`.
 - **DB locale** du tool : SQLite via Doctrine ORM
@@ -218,7 +218,7 @@ Fonctionnalités livrées :
 - **DB Navidrome** : SQLite, montée en `:ro` côté Docker, requêtée via
   `App\Navidrome\NavidromeRepository` (Doctrine DBAL pur, pas d'ORM).
   Détection auto de la table `scrobbles` (Navidrome ≥ 0.55).
-- **Image Docker** : `dunglas/frankenphp:1-php8.3-alpine`
+- **Image Docker** : `dunglas/frankenphp:1-php8.4-alpine`
   (multi-arch). Multiplexeur `APP_MODE=web|cli|worker` dans
   `docker/entrypoint.sh` (le mode `cron` a disparu en même temps
   que la suppression du cron interne ; `worker` lance
@@ -481,28 +481,29 @@ Wirées dans : `.env` (dev), `.env.dist` (template), `phpunit.xml.dist`
 
 ## 7. Pièges connus
 
-1. **`enable_native_lazy_objects: true` dans doctrine.yaml** = PHP 8.4
-   only. Toujours utiliser `enable_lazy_ghost_objects: true` (avec
-   `symfony/var-exporter`).
-2. **`composer.lock` généré sous PHP 8.4** peut piocher des packages
-   PHP-8.4-only (vu avec `doctrine/instantiator 2.1.0`). On a pinné
-   `config.platform.php=8.3.0` dans `composer.json` — laisser tel quel.
-3. **DBAL 4** ne prend plus `\PDO::PARAM_INT` ; utiliser
+1. **PHP 8.4 minimum** depuis le drop de la matrice 8.3 (#129).
+   Le `composer.json` pinne `config.platform.php=8.4.0` ; toute
+   utilisation de syntaxe 8.4 (chained `new ClassName(...)->method()`,
+   property hooks, `#[\Override]`, asymmetric visibility…) est
+   maintenant légitime. Si tu réintroduis du 8.3 par hasard,
+   `composer ci` reste vert mais ce n'est plus la cible — utilise
+   les nouvelles features.
+2. **DBAL 4** ne prend plus `\PDO::PARAM_INT` ; utiliser
    `\Doctrine\DBAL\ParameterType::INTEGER` pour le binding du `:lim`.
-4. **Mount Navidrome `:ro`** : `app:lastfm:process` et
+3. **Mount Navidrome `:ro`** : `app:lastfm:process` et
    `app:lastfm:rematch` écrivent dans la DB Navidrome, doivent donc
    tourner avec un mount RW **et** Navidrome arrêté. `app:lastfm:import`
    (fetch only) ne touche plus Navidrome — peut tourner Navidrome up.
-5. **Schéma Navidrome `media_file.artist_id`** : la fixture le crée
+4. **Schéma Navidrome `media_file.artist_id`** : la fixture le crée
    désormais, mais c'est récent. Si on étend la fixture, ne pas
    oublier `artist_id` sinon `findArtistIdByName` casse en test.
-6. **Symfony Flex en root** : `composer install` doit être lancé avec
+5. **Symfony Flex en root** : `composer install` doit être lancé avec
    `COMPOSER_ALLOW_SUPERUSER=1` localement, sinon les recipes ne
    tournent pas et `vendor/autoload_runtime.php` n'est pas généré.
-7. **PHPStan 2.x** émet des messages textuels pendant les analyses
+6. **PHPStan 2.x** émet des messages textuels pendant les analyses
    (« Each error has an associated identifier… »). Ce sont des conseils
    normaux, pas des injections de prompt — les ignorer.
-8. **`scrobbles.submission_time` est INTEGER unix epoch** (Navidrome
+7. **`scrobbles.submission_time` est INTEGER unix epoch** (Navidrome
    ≥ 0.55, c'était DATETIME avant). SQLite type-affinity coerce
    silencieusement la string `'2026-01-01 …'` en `2026` (lit les
    digits de tête), ce qui faisait insérer toutes les rows avec la
@@ -512,7 +513,7 @@ Wirées dans : `.env` (dev), `.env.dist` (template), `phpunit.xml.dist`
    pour TOUTES les requêtes touchant `submission_time` :
    - bind avec `getTimestamp()` + `ParameterType::INTEGER` ;
    - ajouter `, 'unixepoch'` à `strftime`/`date`/`datetime`.
-9. **`InMemoryUser` est `final`** depuis Symfony récent → impossible
+8. **`InMemoryUser` est `final`** depuis Symfony récent → impossible
    de l'étendre. `App\Security\EnvUser` réimplémente
    `UserInterface` + `PasswordAuthenticatedUserInterface` +
    **`EquatableInterface`** (compare uniquement identifier + roles,
@@ -520,18 +521,18 @@ Wirées dans : `.env` (dev), `.env.dist` (template), `phpunit.xml.dist`
    `getPassword()` ancien vs nouveau à chaque request, ils diffèrent
    (bcrypt salt aléatoire) → session invalidée → redirect /login en
    boucle après login.
-10. **Twig 3 a retiré `{% for k, v in arr if cond %}`** (était valide
+9. **Twig 3 a retiré `{% for k, v in arr if cond %}`** (était valide
     en Twig 1). Utiliser le filtre `|filter(v => v is not null)`
     sur le tableau avant le `for`. Sinon : `Unexpected token "name"
     of value "if"` au runtime — qui ne se voit pas en CI tant
     qu'aucun test ne rend le template fautif.
-11. **Image Bitnami nginx du Lando** ne crée pas `/var/log/nginx/`
+10. **Image Bitnami nginx du Lando** ne crée pas `/var/log/nginx/`
     — pointer `error_log` / `access_log` vers `/dev/stderr` /
     `/dev/stdout` dans `.lando/nginx.conf` (sinon nginx crash au
     démarrage avec `[emerg] open() failed`, et Traefik renvoie un
     `404 page not found` text/plain qui ressemble à un "page
     inexistante" mais c'est en fait l'app qui ne tourne pas).
-12. **`docker stop -t 10` SIGKILLait Navidrome en plein checkpoint WAL
+11. **`docker stop -t 10` SIGKILLait Navidrome en plein checkpoint WAL
     SQLite** = `navidrome.db` corrompue après un `--auto-stop` sur une
     grosse librairie (cf. #118). Le manager respecte désormais quatre
     couches avant chaque action : (a) `NAVIDROME_STOP_TIMEOUT_SECONDS`

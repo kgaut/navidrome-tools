@@ -24,7 +24,7 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: '8.4'
           coverage: none
           tools: composer:v2
           extensions: pdo_sqlite, intl
@@ -46,7 +46,7 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: '8.4'
           coverage: none
           tools: composer:v2
           extensions: pdo_sqlite, intl
@@ -60,19 +60,15 @@ jobs:
         run: vendor/bin/phpstan analyse --memory-limit=512M --no-progress
 
   tests:
-    name: PHPUnit (PHP ${{ matrix.php }})
+    name: PHPUnit
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        php: ['8.3', '8.4']
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: ${{ matrix.php }}
+          php-version: '8.4'
           coverage: none
           tools: composer:v2
           extensions: pdo_sqlite, intl

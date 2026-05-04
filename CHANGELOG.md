@@ -46,6 +46,16 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
   déplacé dans le handler.
 
 ### Changed
+- **BREAKING — PHP 8.4 minimum** : le support de PHP 8.3 est retiré
+  (matrice CI ramenée à 8.4 uniquement, `composer.json` pin
+  `>=8.4` + `config.platform.php=8.4.0`, image Docker passe sur
+  `dunglas/frankenphp:1-php8.4-alpine`, `.lando.yml.dist` sur
+  `php:8.4`). Doctrine ORM bascule sur `enable_native_lazy_objects:
+  true` (option PHP 8.4 qui remplace les ghost objects basés
+  `symfony/var-exporter`). Les déploiements existants reçoivent
+  automatiquement la nouvelle image lors d'un `docker compose pull`
+  — aucune action requise. Pour le dev local, `lando rebuild -y`
+  pour récupérer le nouveau service appserver.
 - **BREAKING — Suppression du cron interne (supercronic)** : le tool
   ne planifie plus rien tout seul. La commande `app:cron:dump` et la
   commande `app:playlist:run-all` sont supprimées, le service Docker
