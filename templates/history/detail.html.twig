@@ -9,56 +9,6 @@
 
     <h1 class="text-2xl font-semibold mb-4">Run #{{ entry.id }} — {{ entry.label }}</h1>
 
-    {% if entry.inProgress %}
-        {% set is_stale = entry.isStale(600) %}
-        <div id="run-progress-card"
-             class="bg-white shadow rounded p-6 max-w-3xl mb-4 border-l-4 {{ is_stale ? 'border-rose-500' : (entry.status == 'queued' ? 'border-slate-400' : 'border-sky-500') }}"
-             data-progress-url="{{ path('app_history_progress_json', {id: entry.id}) }}">
-            <div class="flex items-center justify-between mb-3">
-                <div>
-                    <span id="run-progress-status" class="text-xs px-2 py-0.5 rounded
-                        {{ is_stale ? 'bg-rose-100 text-rose-800' : (entry.status == 'queued' ? 'bg-slate-200 text-slate-700' : 'bg-sky-100 text-sky-800') }}">
-                        {% if is_stale %}stale{% else %}{{ entry.status }}{% endif %}
-                    </span>
-                    <span id="run-progress-label" class="ml-2 text-sm text-slate-700">
-                        {% if entry.status == 'queued' %}
-                            En file d'attente — démarre dès que le worker est libre.
-                        {% elseif is_stale %}
-                            Aucune mise à jour depuis &gt; 10 min — le worker a probablement crashé.
-                        {% else %}
-                            En cours…
-                        {% endif %}
-                    </span>
-                </div>
-                <span id="run-progress-counter" class="text-sm font-mono text-slate-500">
-                    {% if entry.progress and entry.progress.current is defined %}
-                        {{ entry.progress.current }}{% if entry.progress.total %} / {{ entry.progress.total }}{% endif %}
-                    {% endif %}
-                </span>
-            </div>
-
-            <div class="h-3 rounded bg-slate-200 overflow-hidden">
-                {% set pct = entry.progress.percent ?? (entry.status == 'queued' ? 0 : null) %}
-                <div id="run-progress-bar"
-                     class="h-3 rounded {{ is_stale ? 'bg-rose-400' : 'bg-sky-500' }}
-                            {% if pct is null %}animate-pulse w-full opacity-50{% endif %}"
-                     style="width: {{ pct is not null ? pct ~ '%' : '100%' }}"></div>
-            </div>
-
-            {% if entry.progress and entry.progress.message %}
-                <p id="run-progress-message" class="mt-3 text-xs text-slate-500 font-mono">{{ entry.progress.message }}</p>
-            {% else %}
-                <p id="run-progress-message" class="mt-3 text-xs text-slate-500 font-mono"></p>
-            {% endif %}
-
-            {% if entry.progress and entry.progress.updated_at is defined %}
-                <p class="mt-1 text-[11px] text-slate-400">
-                    Dernière mise à jour : <time>{{ entry.progress.updated_at }}</time>
-                </p>
-            {% endif %}
-        </div>
-    {% endif %}
-
     <div class="bg-white shadow rounded p-6 max-w-3xl space-y-3 text-sm">
         <div><strong>Type :</strong> <span class="font-mono">{{ entry.type }}</span></div>
         <div><strong>Référence :</strong> <span class="font-mono">{{ entry.reference }}</span></div>
@@ -66,7 +16,7 @@
             <strong>Statut :</strong>
             {% set badge = entry.status == 'success' ? 'bg-emerald-100 text-emerald-800'
                 : entry.status == 'error' ? 'bg-rose-100 text-rose-800'
-                : entry.status in ['queued', 'running'] ? 'bg-sky-100 text-sky-800'
+                : entry.status == 'running' ? 'bg-sky-100 text-sky-800'
                 : 'bg-amber-100 text-amber-800' %}
             <span class="text-xs px-2 py-0.5 rounded {{ badge }}">{{ entry.status }}</span>
         </div>
@@ -137,30 +87,16 @@
         </div>
     {% endif %}
 
-    {# ---------- Rematch action for runs with unmatched ---------- #}
+    {# ---------- Rematch CLI hint for runs with unmatched ---------- #}
     {% if entry.type in ['lastfm-process', 'lastfm-import'] and (status_counts.unmatched ?? 0) > 0 %}
         <div class="bg-white shadow rounded p-6 mt-6 max-w-3xl">
             <h2 class="text-lg font-semibold mb-1">Re-tenter le matching</h2>
             <p class="text-sm text-slate-500 mb-3">
                 {{ status_counts.unmatched }} scrobble{{ status_counts.unmatched > 1 ? 's' : '' }}
-                non matché{{ status_counts.unmatched > 1 ? 's' : '' }} dans ce run. Un re-essai applique
-                les heuristiques courantes (incl. nouveaux alias, nouveaux morceaux ajoutés à Navidrome
-                depuis l'import) et insère les scrobbles trouvés.
+                non matché{{ status_counts.unmatched > 1 ? 's' : '' }} dans ce run. Lancez le rematch
+                en CLI (Navidrome doit être arrêté ou utilisez <code>--auto-stop</code>) :
             </p>
-            <div class="mb-4 p-3 rounded bg-rose-50 border border-rose-200 text-sm text-rose-800">
-                ⚠️ <strong>Navidrome doit être arrêté</strong> pendant l'opération
-                (l'import écrit dans la table <code>scrobbles</code>, qui est montée en lecture seule
-                tant que Navidrome tourne).
-            </div>
-            <form method="post" action="{{ path('app_lastfm_rematch') }}"
-                  onsubmit="return confirm('Lancer le rematch sur les {{ status_counts.unmatched }} scrobbles non matchés de ce run ?');">
-                <input type="hidden" name="_token" value="{{ csrf_token('lastfm_rematch') }}">
-                <input type="hidden" name="run_id" value="{{ entry.id }}">
-                <button type="submit"
-                        class="px-4 py-2 rounded bg-emerald-600 text-white text-sm hover:bg-emerald-700">
-                    🔁 Re-tenter le matching de ce run
-                </button>
-            </form>
+            <pre class="bg-slate-900 text-slate-100 rounded px-3 py-2 text-xs overflow-x-auto"><code>php bin/console app:lastfm:rematch --auto-stop --run-id={{ entry.id }}</code></pre>
         </div>
     {% endif %}
 
@@ -356,56 +292,3 @@
     {% endif %}
 {% endblock %}
 
-{% block javascripts %}
-    {{ parent() }}
-    {% if entry.inProgress %}
-        <script>
-            (function () {
-                const card = document.getElementById('run-progress-card');
-                if (!card) { return; }
-                const url = card.dataset.progressUrl;
-                const statusEl = document.getElementById('run-progress-status');
-                const labelEl = document.getElementById('run-progress-label');
-                const counterEl = document.getElementById('run-progress-counter');
-                const barEl = document.getElementById('run-progress-bar');
-                const messageEl = document.getElementById('run-progress-message');
-                let timer = null;
-
-                async function tick() {
-                    try {
-                        const res = await fetch(url, { headers: { 'Accept': 'application/json' }, cache: 'no-store' });
-                        if (!res.ok) { return; }
-                        const data = await res.json();
-
-                        if (!data.in_progress) {
-                            window.location.reload();
-                            return;
-                        }
-
-                        statusEl.textContent = data.status;
-                        labelEl.textContent = data.status === 'queued'
-                            ? "En file d'attente — démarre dès que le worker est libre."
-                            : 'En cours…';
-
-                        const p = data.progress;
-                        if (p) {
-                            if (p.percent !== null && p.percent !== undefined) {
-                                barEl.style.width = p.percent + '%';
-                                barEl.classList.remove('animate-pulse', 'w-full', 'opacity-50');
-                            }
-                            if (p.current !== null && p.current !== undefined) {
-                                counterEl.textContent = p.total ? (p.current + ' / ' + p.total) : String(p.current);
-                            }
-                            if (p.message) { messageEl.textContent = p.message; }
-                        }
-                    } catch (e) {
-                        // Network blip — keep polling.
-                    }
-                }
-
-                timer = setInterval(tick, 2000);
-                window.addEventListener('beforeunload', () => clearInterval(timer));
-            })();
-        </script>
-    {% endif %}
-{% endblock %}

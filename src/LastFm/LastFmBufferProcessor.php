@@ -148,8 +148,7 @@ class LastFmBufferProcessor
             // unbounded on big sweeps. We detach the just-persisted
             // LastFmImportTrack rows + the cache entries the matcher
             // queued, but keep $auditRun managed so the caller's
-            // progress callback (RunHistoryRecorder::updateProgress)
-            // keeps seeing a managed entity to flush.
+            // progress callback keeps seeing a managed entity.
             if (!$dryRun && ++$batch >= 100) {
                 $this->flushAndDetach($pendingTracks);
                 $pendingTracks = [];

@@ -32,20 +32,8 @@ case "$MODE" in
         exec php bin/console "$@"
         ;;
 
-    worker)
-        # Long-lived Messenger consumer for async UI-launched jobs (Last.fm
-        # fetch/process/rematch/sync-loved). --limit=1 serialises consumption
-        # so jobs that write to Navidrome never run concurrently. The
-        # --time-limit recycles the process to keep memory bounded.
-        exec php bin/console messenger:consume async \
-            --time-limit="${MESSENGER_WORKER_TIME_LIMIT:-3600}" \
-            --memory-limit="${MESSENGER_WORKER_MEMORY_LIMIT:-128M}" \
-            --limit="${MESSENGER_WORKER_MESSAGE_LIMIT:-1}" \
-            -vv
-        ;;
-
     *)
-        echo "Unknown APP_MODE='$MODE' (expected: web | cli | worker)" >&2
+        echo "Unknown APP_MODE='$MODE' (expected: web | cli)" >&2
         exit 1
         ;;
 esac

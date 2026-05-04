@@ -158,27 +158,21 @@ Fonctionnalités livrées :
   `app:lastfm:process` et `app:lastfm:rematch` qui doivent
   absolument tourner Navidrome arrêté ; `app:lastfm:import` n'écrit
   plus dans Navidrome depuis le split fetch/process).
-- **Lancement async des jobs Last.fm depuis l'UI** : les 4 routes
-  POST (`/lastfm/import`, `/lastfm/process`, `/lastfm/rematch`,
-  `/lastfm/love-sync`) ne font plus tourner les services dans le
-  cycle HTTP. Elles créent une row `RunHistory` en `queued`,
-  dispatchent un `App\Message\RunLastFm{Fetch,Process,Rematch,SyncLoved}Message`
-  sur le transport `async` (Doctrine), et redirigent vers
-  `/history/{id}`. Le service `navidrome-tools-worker`
-  (`APP_MODE=worker`) consomme la file via `messenger:consume async
-  --limit=1` (sérialise les écritures Navidrome). Les handlers
-  (`src/MessageHandler/`) reprennent la row via
-  `RunHistoryRecorder::recordExisting()` (status passe `queued` →
-  `running` → `success|error`) et alimentent `RunHistory.progress`
-  (JSON `{current, total, percent, message, updated_at}`) toutes
-  les 50 lignes via `RunHistoryRecorder::updateProgress()` (flush
-  throttlé à 1/s pour épargner SQLite). Côté UI, `templates/history/detail.html.twig`
-  affiche une barre de progression Tailwind avec polling vanilla JS
-  toutes les 2s sur `GET /history/{id}/progress.json`
-  (`App\Controller\Api\RunHistoryProgressController`) ; recharge la
-  page sur fin de job. Pré-flight Navidrome (`runWithNavidromeStopped`)
-  déplacé dans le handler. Détection `stale` (> 10 min sans tick)
-  via `RunHistory::isStale()`.
+- **Pas de worker, pas de file, pas de progression live** : les
+  long-runners Last.fm (`app:lastfm:{import,process,rematch,sync-loved}`)
+  s'exécutent **uniquement en CLI**, à planifier depuis le crontab
+  unix de l'hôte (cf. `docker-compose.example.yml` pour des
+  exemples). Les pages `/lastfm/import` et `/lastfm/love-sync`
+  affichent les compteurs (buffer, unmatched, statut auth Last.fm)
+  et les commandes à copier-coller — il n'y a plus aucun POST qui
+  déclenche du travail. Les anciennes routes `/lastfm/process`,
+  `/lastfm/rematch` (POST) et `/history/{id}/progress.json` ont
+  été supprimées avec la mécanique Symfony Messenger
+  (`src/Message/`, `src/MessageHandler/`, `config/packages/messenger.yaml`,
+  service `navidrome-tools-worker`, colonne `run_history.progress`,
+  table `messenger_messages`). Le pré-flight Navidrome
+  (`runWithNavidromeStopped`) reste en place côté CLI via
+  `--auto-stop` sur `process` et `rematch`.
 - **Pilotage du conteneur Navidrome** (optionnel, activé si
   `NAVIDROME_CONTAINER_NAME` est renseigné) : card dashboard
   affichant l'état UP/DOWN avec boutons Start/Stop, pré-flight
@@ -219,15 +213,14 @@ Fonctionnalités livrées :
   `App\Navidrome\NavidromeRepository` (Doctrine DBAL pur, pas d'ORM).
   Détection auto de la table `scrobbles` (Navidrome ≥ 0.55).
 - **Image Docker** : `dunglas/frankenphp:1-php8.4-alpine`
-  (multi-arch). Multiplexeur `APP_MODE=web|cli|worker` dans
-  `docker/entrypoint.sh` (le mode `cron` a disparu en même temps
-  que la suppression du cron interne ; `worker` lance
-  `messenger:consume async --limit=1` pour les jobs Last.fm UI).
-- **Symfony Messenger** (transport Doctrine, table
-  `messenger_messages` auto-créée) : utilisé **uniquement** pour les
-  4 long-runners Last.fm lancés depuis l'UI (`fetch`, `process`,
-  `rematch`, `sync-loved`). Les commandes CLI restent synchrones et
-  ne passent pas par le bus.
+  (multi-arch). Multiplexeur `APP_MODE=web|cli` dans
+  `docker/entrypoint.sh` (les modes `cron` puis `worker` ont disparu
+  avec la suppression du cron interne puis du worker Messenger ;
+  toutes les commandes longues passent désormais par `web` ou un
+  one-shot `cli` planifié dans le crontab unix).
+- **Pas de Symfony Messenger** : les jobs longs sont synchrones côté
+  CLI (`RunHistoryRecorder::record()` enveloppe l'action). Pas de
+  file, pas de table `messenger_messages`, pas de worker dédié.
 - **Auth UI** : un seul user via `APP_AUTH_USER` / `APP_AUTH_PASSWORD`,
   hashé en mémoire au boot par `App\Security\EnvUserProvider`.
 
@@ -246,16 +239,11 @@ src/
 ├── Entity/           PlaylistDefinition, Setting, StatsSnapshot, RunHistory,
 │                     LastFmHistoryEntry, NavidromeHistoryEntry, LastFmImportTrack,
 │                     LastFmBufferedScrobble
-├── Form/             PlaylistDefinitionType (form dynamique selon le générateur),
-│                     LastFmImportType
+├── Form/             PlaylistDefinitionType (form dynamique selon le générateur)
 ├── Generator/        Interface + 8 générateurs + GeneratorRegistry + ParameterDefinition
 ├── LastFm/           LastFmClient, LastFmFetcher, LastFmBufferProcessor,
 │                     ScrobbleMatcher, LastFmScrobble, FetchReport, ProcessReport
 ├── Lidarr/           LidarrClient, LidarrConfig, LidarrConflictException
-├── Message/          DTOs des 4 messages async UI (RunLastFm{Fetch,Process,
-│                     Rematch,SyncLoved}Message)
-├── MessageHandler/   Handlers correspondants (#[AsMessageHandler]) qui reprennent
-│                     la RunHistory queued via RunHistoryRecorder::recordExisting()
 ├── Navidrome/        NavidromeRepository (toutes les requêtes DBAL Navidrome),
 │                     TrackSummary
 ├── Repository/       Repos Doctrine ORM (PlaylistDefinitionRepository,

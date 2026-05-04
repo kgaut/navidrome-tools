@@ -3,14 +3,12 @@ name: navidrome-tools
 # Recommended Lando stack for Symfony 7 :
 #  - PHP 8.4 served via nginx (appserver)
 #  - Composer 2 (required by Symfony Flex)
-#  - A long-lived Messenger consumer (workerserver) built from the project
-#    Dockerfile — mirrors the prod `navidrome-tools-worker` service so the
-#    4 UI-launched Last.fm jobs (fetch / process / rematch / sync-loved)
-#    actually run in dev. APP_MODE=worker triggers the entrypoint's
-#    `messenger:consume async` branch.
 #  - A Navidrome instance (navidrome) sharing its SQLite DB with the tool
 #    via a host folder under `var/navidrome-data/`. The music library is
 #    bind-mounted read-only — adapt the path in your local .lando.yml.
+#
+# All Last.fm / stats / history jobs run synchronously via `lando symfony
+# app:<command>` (see the tooling block at the bottom). No worker, no queue.
 
 services:
   appserver:
@@ -87,42 +85,10 @@ services:
         # disabled, only the no-auth healthcheck mode is served.
         HOMEPAGE_API_TOKEN: ''
 
-  # Long-lived Messenger consumer — mirrors the prod `navidrome-tools-worker`
-  # service. Built from the project Dockerfile (so the runtime matches prod
-  # 1:1 : FrankenPHP base + same PHP extensions). The Dockerfile entrypoint
-  # switches on APP_MODE=worker to exec `messenger:consume async`. The host
-  # project dir is bind-mounted at /app so code edits are picked up live ;
-  # we depend on `appserver`'s build step to populate vendor/.
-  workerserver:
-    type: compose
-    services:
-      build:
-        context: .
-        dockerfile: Dockerfile
-      image: navidrome-tools:lando-worker
-      # Lando's /lando-entrypoint.sh clobbers the Dockerfile's
-      # ENTRYPOINT ["/entrypoint.sh"]. Re-invoke it explicitly so the
-      # APP_MODE=worker branch (messenger:consume async) actually runs.
-      command: /entrypoint.sh
-      working_dir: /app
-      restart: unless-stopped
-      volumes:
-        - .:/app
-      environment:
-        <<: *app_env
-        APP_MODE: worker
-        # Recycle the process every 10 min in dev so code changes are picked
-        # up without `lando restart workerserver`.
-        MESSENGER_WORKER_TIME_LIMIT: '600'
-        MESSENGER_WORKER_MEMORY_LIMIT: '256M'
-        MESSENGER_WORKER_MESSAGE_LIMIT: '1'
-      depends_on:
-        - appserver
-
   # Navidrome instance for end-to-end testing. Shares its SQLite DB with the
   # tool via the host folder `var/navidrome-data/` (mounted at /data here,
   # and visible at /app/var/navidrome-data/navidrome.db inside the appserver
-  # / workerserver thanks to Lando's project-dir mount). Reachable at
+  # thanks to Lando's project-dir mount). Reachable at
   # https://navidrome.lndo.site once `lando start` is done.
   #
   # Edit the music bind-mount below to point at your local library path —
@@ -176,10 +142,6 @@ tooling:
     service: appserver
     cmd: php bin/console app:playlist:run
     description: Run one playlist (e.g. `lando playlist-run "Top 30 derniers jours" --dry-run`)
-  worker:
-    service: appserver
-    cmd: php bin/console messenger:consume async --limit=1 -vv
-    description: Consume one queued async job (Last.fm fetch/process/rematch/sync-loved). Re-run to process the next.
 
 proxy:
   appserver_nginx:
