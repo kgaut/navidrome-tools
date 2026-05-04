@@ -66,6 +66,8 @@ class LastFmBufferProcessor
         $report = new ProcessReport();
         $batch = 0;
         $connection = $this->em->getConnection();
+        /** @var list<LastFmImportTrack> $pendingTracks */
+        $pendingTracks = [];
 
         foreach ($this->bufferRepo->streamAll($limit) as $buffered) {
             /** @var LastFmBufferedScrobble $buffered */
@@ -116,7 +118,7 @@ class LastFmBufferProcessor
 
             if (!$dryRun) {
                 if ($auditRun !== null) {
-                    $this->em->persist(new LastFmImportTrack(
+                    $importTrack = new LastFmImportTrack(
                         runHistory: $auditRun,
                         artist: $buffered->getArtist(),
                         title: $buffered->getTitle(),
@@ -125,7 +127,9 @@ class LastFmBufferProcessor
                         playedAt: $buffered->getPlayedAt(),
                         status: $status,
                         matchedMediaFileId: $matchedId,
-                    ));
+                    );
+                    $this->em->persist($importTrack);
+                    $pendingTracks[] = $importTrack;
                 }
                 $connection->executeStatement(
                     'DELETE FROM lastfm_import_buffer WHERE id = :id',
@@ -133,10 +137,22 @@ class LastFmBufferProcessor
                 );
             }
 
-            // Periodic flush so memory does not grow unbounded on big
-            // sweeps (mirrors LastFmRematchService).
+            // Detach the buffered entity now that we're done with it —
+            // toIterable() leaves it managed otherwise, so a 100k-row
+            // buffer would pin 100k entities in the identity map.
+            if ($this->em->contains($buffered)) {
+                $this->em->detach($buffered);
+            }
+
+            // Periodic flush + targeted detach so memory does not grow
+            // unbounded on big sweeps. We detach the just-persisted
+            // LastFmImportTrack rows + the cache entries the matcher
+            // queued, but keep $auditRun managed so the caller's
+            // progress callback (RunHistoryRecorder::updateProgress)
+            // keeps seeing a managed entity to flush.
             if (!$dryRun && ++$batch >= 100) {
-                $this->em->flush();
+                $this->flushAndDetach($pendingTracks);
+                $pendingTracks = [];
                 $batch = 0;
             }
 
@@ -146,7 +162,7 @@ class LastFmBufferProcessor
         }
 
         if (!$dryRun) {
-            $this->em->flush();
+            $this->flushAndDetach($pendingTracks);
         }
 
         if ($progress !== null) {
@@ -154,6 +170,20 @@ class LastFmBufferProcessor
         }
 
         return $report;
+    }
+
+    /**
+     * @param list<LastFmImportTrack> $pendingTracks
+     */
+    private function flushAndDetach(array $pendingTracks): void
+    {
+        $this->em->flush();
+        foreach ($pendingTracks as $track) {
+            if ($this->em->contains($track)) {
+                $this->em->detach($track);
+            }
+        }
+        $this->cacheRepository?->detachPending();
     }
 
     private function bumpCacheCounters(ProcessReport $report, MatchResult $result): void
