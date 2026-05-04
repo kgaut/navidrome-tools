@@ -111,13 +111,33 @@
             </div>
         {% endif %}
 
+        <div class="bg-sky-50 border border-sky-300 text-sky-900 rounded p-3 mb-4 text-sm">
+            <div class="flex items-start gap-2">
+                <div class="text-base">💡</div>
+                <div class="flex-1">
+                    <p class="mb-2">
+                        <strong>Recommandé : lancer le traitement depuis le CLI</strong>
+                        plutôt que ce bouton. La requête HTTP peut être interrompue
+                        par un timeout reverse-proxy sur les gros buffers, alors que
+                        la commande tient sur des centaines de milliers de
+                        scrobbles. Avec <code>--auto-stop</code>, l'arrêt et le
+                        redémarrage de Navidrome sont orchestrés automatiquement.
+                    </p>
+                    <pre class="bg-white border border-sky-200 rounded px-2 py-1 text-xs overflow-x-auto mb-2"><code>php bin/console app:lastfm:process --auto-stop</code></pre>
+                    <p class="text-xs text-sky-800 mb-1">Avec Docker Compose :</p>
+                    <pre class="bg-white border border-sky-200 rounded px-2 py-1 text-xs overflow-x-auto"><code>docker compose exec -T navidrome-tools-web \
+    php bin/console app:lastfm:process --auto-stop</code></pre>
+                </div>
+            </div>
+        </div>
+
         <form method="post" action="{{ path('app_lastfm_process') }}"
               onsubmit="return confirm('Lancer le traitement des {{ buffer_count }} scrobbles bufferés ?');">
             <input type="hidden" name="_token" value="{{ csrf_token('lastfm_process') }}">
             <button type="submit"
                     {% if buffer_count == 0 %}disabled{% endif %}
                     class="px-4 py-2 rounded text-sm text-white {{ buffer_count == 0 ? 'bg-slate-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700' }}">
-                ▶ Traiter le buffer
+                ▶ Traiter le buffer depuis l'UI
             </button>
         </form>
     </div>
