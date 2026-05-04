@@ -5,101 +5,34 @@
 {% block body %}
     <h1 class="text-2xl font-semibold mb-4">Import des scrobbles Last.fm</h1>
 
-    {# ---------- Navidrome container status block ---------- #}
-    {% if container_configured and container_status == 'stopped' %}
-        <div class="bg-emerald-50 border-2 border-emerald-400 rounded-lg p-4 mb-6 flex items-center gap-3">
-            <div class="text-2xl">✅</div>
-            <div class="text-sm text-emerald-900 flex-1">
-                Conteneur Navidrome <strong>arrêté</strong> — l'import en écriture
-                peut se lancer en toute sécurité.
-            </div>
-            <form method="post" action="{{ path('app_navidrome_container_start') }}">
-                <input type="hidden" name="_token" value="{{ csrf_token('navidrome_container') }}">
-                <input type="hidden" name="_back" value="{{ path('app_lastfm_import') }}">
-                <button type="submit" class="text-xs px-2 py-1 rounded bg-emerald-700 hover:bg-emerald-800 text-white">
-                    ▶ Redémarrer Navidrome
-                </button>
-            </form>
-        </div>
-    {% elseif container_configured and container_status == 'running' %}
-        <div class="bg-rose-50 border-2 border-rose-500 rounded-lg p-5 mb-6 shadow-sm">
-            <div class="flex items-start gap-3">
-                <div class="text-3xl">🛑</div>
-                <div class="flex-1">
-                    <h2 class="text-lg font-bold text-rose-900 mb-1">
-                        Navidrome tourne actuellement — l'import en écriture est bloqué
-                    </h2>
-                    <p class="text-sm text-rose-900 mb-3">
-                        L'écriture dans la DB SQLite pendant que Navidrome tourne
-                        peut <strong>corrompre le journal WAL</strong>. Arrêtez-le
-                        en un clic ci-dessous, lancez l'import, puis redémarrez-le.
-                    </p>
-                    <form method="post" action="{{ path('app_navidrome_container_stop') }}"
-                          onsubmit="return confirm('Arrêter le conteneur Navidrome ?');">
-                        <input type="hidden" name="_token" value="{{ csrf_token('navidrome_container') }}">
-                        <input type="hidden" name="_back" value="{{ path('app_lastfm_import') }}">
-                        <button type="submit" class="px-3 py-1.5 rounded bg-rose-600 hover:bg-rose-700 text-white text-sm">
-                            ⏸ Arrêter Navidrome
-                        </button>
-                    </form>
-                </div>
+    <div class="bg-sky-50 border border-sky-300 text-sky-900 rounded-lg p-4 mb-6 text-sm">
+        <div class="flex items-start gap-3">
+            <div class="text-xl">ℹ️</div>
+            <div class="flex-1">
+                L'import Last.fm se fait en <strong>deux étapes découplées</strong> :
+                <ol class="list-decimal pl-6 mt-1 space-y-0.5">
+                    <li><strong>Récupération</strong> des scrobbles dans un buffer local — Navidrome peut tourner.</li>
+                    <li><strong>Traitement</strong> du buffer : matching et insertion dans Navidrome — Navidrome doit être arrêté.</li>
+                </ol>
+                Cela évite tout risque de corruption SQLite et permet de fetcher
+                régulièrement sans toucher à Navidrome.
             </div>
         </div>
-    {% else %}
-        {# Container not configured, or status unknown/notfound : keep the static warning #}
-        <div class="bg-rose-50 border-2 border-rose-400 rounded-lg p-5 mb-6 shadow-sm">
-            <div class="flex items-start gap-3">
-                <div class="text-3xl">⚠️</div>
-                <div class="flex-1">
-                    <h2 class="text-lg font-bold text-rose-900 mb-1">
-                        ARRÊTEZ NAVIDROME avant tout import qui écrit dans la base
-                    </h2>
-                    <p class="text-sm text-rose-900 mb-2">
-                        Cet outil <strong>écrit directement</strong> dans le fichier
-                        SQLite de Navidrome (table <code>scrobbles</code>). Si Navidrome
-                        tourne en parallèle, vous risquez :
-                    </p>
-                    <ul class="text-sm text-rose-900 list-disc pl-6 space-y-1 mb-3">
-                        <li>des <strong>locks SQLite</strong> qui font échouer l'import en cours de route ;</li>
-                        <li>une <strong>corruption</strong> du journal WAL en cas d'écritures concurrentes ;</li>
-                        <li>des stats incohérentes le temps que Navidrome rafraîchisse son cache.</li>
-                    </ul>
-                    <p class="text-sm text-rose-900 mb-2">
-                        <strong>Procédure recommandée :</strong>
-                    </p>
-                    <ol class="text-sm text-rose-900 list-decimal pl-6 space-y-1 mb-3">
-                        <li><strong>Sauvegardez</strong> votre fichier <code>navidrome.db</code> (cp navidrome.db navidrome.db.bak).</li>
-                        <li>Cochez d'abord <strong>« Dry-run »</strong> pour vérifier le rapport des morceaux trouvés / non trouvés.</li>
-                        <li>Stoppez Navidrome (<code>docker compose stop navidrome</code> ou systemctl stop).</li>
-                        <li>Décochez « Dry-run » et relancez l'import.</li>
-                        <li>Redémarrez Navidrome.</li>
-                    </ol>
-                    <p class="text-sm text-rose-900">
-                        Pour de très gros historiques (&gt; 10 000 scrobbles), préférez la
-                        commande CLI <code>php bin/console app:lastfm:import</code> sans
-                        limite : aucun risque de timeout HTTP.
-                    </p>
-                    {% if container_configured and container_status == 'unknown' %}
-                        <p class="text-xs text-rose-700 mt-2">
-                            ⚠️ Statut du conteneur <code>{{ '%' ~ 'NAVIDROME_CONTAINER_NAME' ~ '%' }}</code>
-                            indéterminé — vérifier que <code>/var/run/docker.sock</code> est monté
-                            dans navidrome-tools.
-                        </p>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-    {% endif %}
+    </div>
 
-    {# ---------- Form ---------- #}
+    {# ---------- Section 1 : Fetch ---------- #}
     <div class="bg-white shadow rounded p-6 max-w-2xl mb-6">
+        <h2 class="text-lg font-semibold mb-1">1. Récupérer depuis Last.fm</h2>
+        <p class="text-sm text-slate-500 mb-4">
+            Lit l'historique Last.fm et stocke chaque scrobble dans le buffer local.
+            Aucune écriture côté Navidrome — peut être lancé pendant que Navidrome tourne.
+        </p>
         {{ form_start(form, {attr: {class: 'space-y-4'}}) }}
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {{ form_row(form.lastfm_user) }}
                 {{ form_row(form.api_key) }}
                 {{ form_row(form.date_min) }}
                 {{ form_row(form.date_max) }}
-                {{ form_row(form.tolerance) }}
                 {{ form_row(form.max_scrobbles) }}
             </div>
             <div class="border-t pt-4">
@@ -107,14 +40,86 @@
             </div>
             <div class="flex justify-end pt-2">
                 <button type="submit"
-                        {% if not (container_configured and container_status == 'stopped') %}
-                            onclick="if(!document.querySelector('[name$=\'[dry_run]\']').checked){return confirm('Avez-vous arrêté Navidrome ? Cliquez OK pour confirmer l\'import en écriture.');}"
-                        {% endif %}
                         class="px-4 py-2 text-sm rounded bg-emerald-600 hover:bg-emerald-700 text-white">
-                    Lancer l'import
+                    Lancer le fetch
                 </button>
             </div>
         {{ form_end(form) }}
+    </div>
+
+    {# ---------- Section 2 : Process buffer ---------- #}
+    <div class="bg-white shadow rounded p-6 max-w-2xl mb-6">
+        <h2 class="text-lg font-semibold mb-1">2. Traiter le buffer</h2>
+        <p class="text-sm text-slate-500 mb-3">
+            <strong>{{ buffer_count|number_format(0, '.', ' ') }}</strong>
+            scrobble{{ buffer_count > 1 ? 's' : '' }}
+            en attente dans le buffer.
+            {% if buffer_count == 0 %}
+                Lancez d'abord un fetch ci-dessus.
+            {% else %}
+                Le traitement applique la cascade de matching, insère les scrobbles
+                trouvés dans la table <code>scrobbles</code> de Navidrome, vide le
+                buffer au fur et à mesure et persiste l'audit dans
+                <code>lastfm_import_track</code>.
+            {% endif %}
+        </p>
+
+        {% if container_configured and container_status == 'stopped' %}
+            <div class="bg-emerald-50 border border-emerald-400 rounded p-3 mb-4 flex items-center gap-3 text-sm">
+                <div class="text-xl">✅</div>
+                <div class="flex-1 text-emerald-900">
+                    Conteneur Navidrome <strong>arrêté</strong> — le traitement peut se lancer.
+                </div>
+                <form method="post" action="{{ path('app_navidrome_container_start') }}">
+                    <input type="hidden" name="_token" value="{{ csrf_token('navidrome_container') }}">
+                    <input type="hidden" name="_back" value="{{ path('app_lastfm_import') }}">
+                    <button type="submit" class="text-xs px-2 py-1 rounded bg-emerald-700 hover:bg-emerald-800 text-white">
+                        ▶ Redémarrer Navidrome
+                    </button>
+                </form>
+            </div>
+        {% elseif container_configured and container_status == 'running' %}
+            <div class="bg-rose-50 border border-rose-400 rounded p-3 mb-4 text-sm">
+                <div class="flex items-start gap-3">
+                    <div class="text-xl">🛑</div>
+                    <div class="flex-1 text-rose-900">
+                        Navidrome tourne — le traitement est <strong>bloqué</strong>.
+                        Arrêtez-le ci-dessous, lancez le traitement, puis redémarrez.
+                        <div class="mt-2">
+                            <form method="post" action="{{ path('app_navidrome_container_stop') }}"
+                                  onsubmit="return confirm('Arrêter le conteneur Navidrome ?');"
+                                  class="inline">
+                                <input type="hidden" name="_token" value="{{ csrf_token('navidrome_container') }}">
+                                <input type="hidden" name="_back" value="{{ path('app_lastfm_import') }}">
+                                <button type="submit" class="px-3 py-1 rounded bg-rose-600 hover:bg-rose-700 text-white text-sm">
+                                    ⏸ Arrêter Navidrome
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div class="bg-amber-50 border border-amber-300 text-amber-900 rounded p-3 mb-4 text-sm">
+                ⚠️ Vérifiez que <strong>Navidrome est bien arrêté</strong> avant
+                de lancer le traitement (l'écriture concurrente sur la SQLite
+                Navidrome peut corrompre le journal WAL).
+                {% if container_configured and container_status == 'unknown' %}
+                    <br>Statut conteneur indéterminé — vérifier que
+                    <code>/var/run/docker.sock</code> est monté dans navidrome-tools.
+                {% endif %}
+            </div>
+        {% endif %}
+
+        <form method="post" action="{{ path('app_lastfm_process') }}"
+              onsubmit="return confirm('Lancer le traitement des {{ buffer_count }} scrobbles bufferés ?');">
+            <input type="hidden" name="_token" value="{{ csrf_token('lastfm_process') }}">
+            <button type="submit"
+                    {% if buffer_count == 0 %}disabled{% endif %}
+                    class="px-4 py-2 rounded text-sm text-white {{ buffer_count == 0 ? 'bg-slate-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700' }}">
+                ▶ Traiter le buffer
+            </button>
+        </form>
     </div>
 
     {# ---------- Cumulative rematch ---------- #}
@@ -157,102 +162,27 @@
 
     {% if report %}
         <div class="bg-white shadow rounded p-6 mb-6">
-            <h2 class="font-semibold mb-3">Rapport d'import</h2>
-            <div class="grid grid-cols-2 md:grid-cols-5 gap-3 text-center">
+            <h2 class="font-semibold mb-3">Rapport de fetch</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-center">
                 <div class="bg-slate-100 rounded p-3">
                     <div class="text-xs uppercase text-slate-500">Récupérés</div>
                     <div class="text-2xl font-semibold">{{ report.fetched|number_format(0, '.', ' ') }}</div>
                 </div>
                 <div class="bg-emerald-50 rounded p-3">
-                    <div class="text-xs uppercase text-emerald-700">Insérés</div>
-                    <div class="text-2xl font-semibold text-emerald-800">{{ report.inserted|number_format(0, '.', ' ') }}</div>
+                    <div class="text-xs uppercase text-emerald-700">Bufferés</div>
+                    <div class="text-2xl font-semibold text-emerald-800">{{ report.buffered|number_format(0, '.', ' ') }}</div>
                 </div>
                 <div class="bg-sky-50 rounded p-3">
-                    <div class="text-xs uppercase text-sky-700">Doublons</div>
-                    <div class="text-2xl font-semibold text-sky-800">{{ report.duplicates|number_format(0, '.', ' ') }}</div>
-                </div>
-                <div class="bg-amber-50 rounded p-3">
-                    <div class="text-xs uppercase text-amber-700">Non trouvés</div>
-                    <div class="text-2xl font-semibold text-amber-800">{{ report.unmatched|number_format(0, '.', ' ') }}</div>
-                </div>
-                <div class="bg-indigo-50 rounded p-3" title="Scrobbles ignorés via un alias avec cible vide">
-                    <div class="text-xs uppercase text-indigo-700">Ignorés</div>
-                    <div class="text-2xl font-semibold text-indigo-800">{{ report.skipped|number_format(0, '.', ' ') }}</div>
+                    <div class="text-xs uppercase text-sky-700">Déjà bufferés</div>
+                    <div class="text-2xl font-semibold text-sky-800">{{ report.alreadyBuffered|number_format(0, '.', ' ') }}</div>
                 </div>
             </div>
-        </div>
-
-        {% if unmatched is not empty %}
-            {% if not lidarr_configured %}
-                <div class="bg-sky-50 border border-sky-300 text-sky-800 rounded p-3 text-sm mb-3">
-                    💡 Configurez <code>LIDARR_URL</code> et <code>LIDARR_API_KEY</code> pour activer le bouton « + Lidarr » par ligne.
-                </div>
-            {% endif %}
-            <div class="bg-white shadow rounded overflow-hidden">
-                <div class="px-4 py-3 border-b bg-slate-50 flex items-center justify-between">
-                    <h2 class="font-semibold text-sm">
-                        Morceaux Last.fm non trouvés dans Navidrome
-                        <span class="text-xs text-slate-500">
-                            (top {{ unmatched|length }} sur {{ report.distinctUnmatched }} distincts, triés par scrobbles ↓)
-                        </span>
-                    </h2>
-                </div>
-                <div class="max-h-[600px] overflow-y-auto">
-                    <table class="w-full text-sm">
-                        <thead class="bg-slate-100 text-slate-600 text-left text-xs sticky top-0">
-                        <tr>
-                            <th class="px-3 py-2 w-20 text-right">Plays</th>
-                            <th class="px-3 py-2">Artiste</th>
-                            <th class="px-3 py-2">Titre</th>
-                            <th class="px-3 py-2">Album</th>
-                            <th class="px-3 py-2 w-64">Actions</th>
-                        </tr>
-                        </thead>
-                        <tbody class="divide-y">
-                        {% for row in unmatched %}
-                            <tr>
-                                <td class="px-3 py-1.5 text-right font-medium">{{ row.count }}</td>
-                                <td class="px-3 py-1.5">{{ row.artist }}</td>
-                                <td class="px-3 py-1.5">{{ row.title }}</td>
-                                <td class="px-3 py-1.5 text-slate-500">{{ row.album }}</td>
-                                <td class="px-3 py-1.5">
-                                    <div class="flex flex-wrap gap-1.5 items-center">
-                                        <a href="{{ row.lastfm_url }}" target="_blank" rel="noopener"
-                                           class="text-xs px-2 py-1 rounded bg-rose-100 text-rose-800 hover:bg-rose-200">
-                                            Last.fm ↗
-                                        </a>
-                                        {% if row.navidrome_artist_id %}
-                                            <a href="{{ navidrome_url }}/app/#/artist/{{ row.navidrome_artist_id }}/show"
-                                               target="_blank" rel="noopener"
-                                               class="text-xs px-2 py-1 rounded bg-sky-100 text-sky-800 hover:bg-sky-200">
-                                                Navidrome ↗
-                                            </a>
-                                        {% endif %}
-                                        {% if lidarr_configured %}
-                                            <form method="post" action="{{ path('app_lidarr_add_artist') }}"
-                                                  class="inline"
-                                                  onsubmit="return confirm('Ajouter « {{ row.artist|e('js') }} » à Lidarr ?');">
-                                                <input type="hidden" name="_token" value="{{ csrf_token('lidarr_add') }}">
-                                                <input type="hidden" name="artist" value="{{ row.artist }}">
-                                                <button type="submit"
-                                                        class="text-xs px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white">
-                                                    + Lidarr
-                                                </button>
-                                            </form>
-                                        {% endif %}
-                                    </div>
-                                </td>
-                            </tr>
-                        {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                <p class="text-xs text-slate-500 px-4 py-2 border-t">
-                    Ces morceaux ont été scrobblés sur Last.fm mais n'existent pas
-                    dans votre lib Navidrome (ou ont un artiste/titre différent).
-                    Ajoutez-les puis relancez l'import.
+            {% if report.buffered > 0 %}
+                <p class="text-sm text-slate-600 mt-3">
+                    💡 Lancez ensuite le traitement du buffer (section 2) pour
+                    matcher et insérer ces scrobbles dans Navidrome.
                 </p>
-            </div>
-        {% endif %}
+            {% endif %}
+        </div>
     {% endif %}
 {% endblock %}

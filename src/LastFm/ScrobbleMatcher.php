@@ -10,9 +10,9 @@ use App\Repository\LastFmMatchCacheRepository;
 
 /**
  * Encapsulates the matching cascade Last.fm scrobble → Navidrome media_file.
- * Used by both the live importer ({@see LastFmImporter}) and the rematch
- * service ({@see \App\Service\LastFmRematchService}) so the cascade lives in
- * one place.
+ * Used by the buffer processor ({@see LastFmBufferProcessor}) and the
+ * rematch service ({@see \App\Service\LastFmRematchService}) so the cascade
+ * lives in one place.
  *
  * Cascade order (each step short-circuits on success) :
  *   1. Track-level manual alias → STATUS_MATCHED or STATUS_SKIPPED (skips cache)

@@ -23,6 +23,8 @@ class DumpCronCommand extends Command
         private readonly string $statsRefreshSchedule,
         private readonly string $loveSyncSchedule = '',
         private readonly string $rematchSchedule = '',
+        private readonly string $fetchSchedule = '',
+        private readonly string $processSchedule = '',
     ) {
         parent::__construct();
     }
@@ -99,6 +101,38 @@ class DumpCronCommand extends Command
                 ));
             } catch (\Throwable $e) {
                 $output->writeln('# SKIP rematch: invalid LASTFM_REMATCH_SCHEDULE (' . $e->getMessage() . ')');
+            }
+        }
+
+        if ($this->fetchSchedule !== '') {
+            try {
+                new CronExpression($this->fetchSchedule);
+                $output->writeln('');
+                $output->writeln('# Fetch Last.fm scrobbles into the local buffer (LASTFM_FETCH_SCHEDULE)');
+                $output->writeln(sprintf(
+                    '%s php %s app:lastfm:import',
+                    $this->fetchSchedule,
+                    $bin,
+                ));
+            } catch (\Throwable $e) {
+                $output->writeln('# SKIP lastfm-fetch: invalid LASTFM_FETCH_SCHEDULE (' . $e->getMessage() . ')');
+            }
+        }
+
+        if ($this->processSchedule !== '') {
+            try {
+                new CronExpression($this->processSchedule);
+                $output->writeln('');
+                $output->writeln('# Process Last.fm import buffer into Navidrome (LASTFM_PROCESS_SCHEDULE)');
+                $autoStopFlag = $this->containerConfig->isConfigured() ? ' --auto-stop' : '';
+                $output->writeln(sprintf(
+                    '%s php %s app:lastfm:process%s',
+                    $this->processSchedule,
+                    $bin,
+                    $autoStopFlag,
+                ));
+            } catch (\Throwable $e) {
+                $output->writeln('# SKIP lastfm-process: invalid LASTFM_PROCESS_SCHEDULE (' . $e->getMessage() . ')');
             }
         }
 

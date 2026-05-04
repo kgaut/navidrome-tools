@@ -23,7 +23,7 @@ class LastFmImportType extends AbstractType
             ->add('lastfm_user', TextType::class, [
                 'label' => 'Identifiant Last.fm',
                 'constraints' => [new Assert\NotBlank()],
-                'help' => 'Le username Last.fm dont l\'historique sera importé (doit être public). '
+                'help' => 'Le username Last.fm dont l\'historique sera récupéré (doit être public). '
                     . 'Pré-rempli depuis LASTFM_USER si la variable est définie.',
             ])
             ->add('api_key', PasswordType::class, [
@@ -44,12 +44,6 @@ class LastFmImportType extends AbstractType
                 'widget' => 'single_text',
                 'html5' => true,
             ])
-            ->add('tolerance', IntegerType::class, [
-                'label' => 'Tolérance dedup (secondes)',
-                'data' => 60,
-                'attr' => ['min' => 0, 'max' => 3600],
-                'help' => 'Un scrobble Last.fm n\'est pas réinséré s\'il existe déjà un scrobble Navidrome à ± cette durée.',
-            ])
             ->add('max_scrobbles', IntegerType::class, [
                 'label' => 'Limite de sécurité (max scrobbles)',
                 'required' => false,
@@ -58,9 +52,9 @@ class LastFmImportType extends AbstractType
                 'help' => 'Stoppe après N scrobbles pour éviter les timeouts HTTP. Vider pour ne pas limiter (déconseillé via l\'UI).',
             ])
             ->add('dry_run', CheckboxType::class, [
-                'label' => 'Dry-run (ne rien écrire dans Navidrome)',
+                'label' => 'Dry-run (parcourir l\'API Last.fm sans rien écrire dans le buffer)',
                 'required' => false,
-                'data' => true,
+                'data' => false,
             ]);
     }
 

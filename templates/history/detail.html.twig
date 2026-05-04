@@ -87,7 +87,7 @@
     {% endif %}
 
     {# ---------- Rematch action for runs with unmatched ---------- #}
-    {% if entry.type == 'lastfm-import' and (status_counts.unmatched ?? 0) > 0 %}
+    {% if entry.type in ['lastfm-process', 'lastfm-import'] and (status_counts.unmatched ?? 0) > 0 %}
         <div class="bg-white shadow rounded p-6 mt-6 max-w-3xl">
             <h2 class="text-lg font-semibold mb-1">Re-tenter le matching</h2>
             <p class="text-sm text-slate-500 mb-3">
@@ -114,7 +114,7 @@
     {% endif %}
 
     {# ---------- Per-track section for Last.fm imports ---------- #}
-    {% if entry.type == 'lastfm-import' and (status_counts|default({})) is not empty %}
+    {% if entry.type in ['lastfm-process', 'lastfm-import'] and (status_counts|default({})) is not empty %}
         <div class="bg-white shadow rounded p-6 mt-6 max-w-5xl">
             <div class="flex items-start justify-between mb-4 flex-wrap gap-3">
                 <div>
@@ -217,7 +217,7 @@
     {% endif %}
 
     {# ---------- Unmatched artists section for Last.fm imports ---------- #}
-    {% if entry.type == 'lastfm-import' and unmatched_artists is not empty %}
+    {% if entry.type in ['lastfm-process', 'lastfm-import'] and unmatched_artists is not empty %}
         <div class="bg-white shadow rounded p-6 mt-6 max-w-5xl">
             <h2 class="text-lg font-semibold mb-1">
                 Artistes non matchés (top {{ unmatched_artists|length }})

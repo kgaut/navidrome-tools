@@ -88,6 +88,28 @@
                 {% endif %}
             </div>
         </div>
+        <div class="rounded border p-3 {{ health.lastfm_buffer_count == 0 ? 'bg-slate-50 border-slate-300' : 'bg-amber-50 border-amber-300' }}">
+            <div class="font-medium">Buffer Last.fm</div>
+            <div>
+                {% if health.lastfm_buffer_count == 0 %}
+                    ✓ vide
+                {% else %}
+                    {{ health.lastfm_buffer_count|number_format(0, '.', ' ') }} scrobble{{ health.lastfm_buffer_count > 1 ? 's' : '' }} en attente —
+                    <a href="{{ path('app_lastfm_import') }}" class="underline">traiter</a>
+                {% endif %}
+            </div>
+        </div>
+        <div class="rounded border p-3 {{ health.lastfm_unmatched_count == 0 ? 'bg-slate-50 border-slate-300' : 'bg-amber-50 border-amber-300' }}">
+            <div class="font-medium">Scrobbles non matchés</div>
+            <div>
+                {% if health.lastfm_unmatched_count == 0 %}
+                    ✓ aucun
+                {% else %}
+                    {{ health.lastfm_unmatched_count|number_format(0, '.', ' ') }} scrobble{{ health.lastfm_unmatched_count > 1 ? 's' : '' }} —
+                    <a href="{{ path('app_lastfm_unmatched') }}" class="underline">voir</a>
+                {% endif %}
+            </div>
+        </div>
     </div>
 
     {# ---------- Recent runs ---------- #}

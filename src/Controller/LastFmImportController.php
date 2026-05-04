@@ -4,18 +4,18 @@ namespace App\Controller;
 
 use App\Docker\NavidromeContainerException;
 use App\Docker\NavidromeContainerManager;
-use App\Entity\LastFmImportTrack;
 use App\Entity\RunHistory;
 use App\Form\LastFmImportType;
-use App\LastFm\ImportReport;
-use App\LastFm\LastFmImporter;
-use App\LastFm\LastFmScrobble;
+use App\LastFm\FetchReport;
+use App\LastFm\LastFmBufferProcessor;
+use App\LastFm\LastFmFetcher;
+use App\LastFm\ProcessReport;
 use App\Lidarr\LidarrConfig;
-use App\Navidrome\NavidromeRepository;
+use App\Repository\LastFmBufferedScrobbleRepository;
 use App\Repository\LastFmImportTrackRepository;
 use App\Service\RunHistoryRecorder;
-use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -23,12 +23,12 @@ use Symfony\Component\Routing\Attribute\Route;
 class LastFmImportController extends AbstractController
 {
     public function __construct(
-        private readonly LastFmImporter $importer,
+        private readonly LastFmFetcher $fetcher,
+        private readonly LastFmBufferProcessor $processor,
         private readonly LidarrConfig $lidarrConfig,
-        private readonly NavidromeRepository $navidrome,
         private readonly RunHistoryRecorder $recorder,
-        private readonly EntityManagerInterface $em,
         private readonly LastFmImportTrackRepository $trackRepo,
+        private readonly LastFmBufferedScrobbleRepository $bufferRepo,
         private readonly NavidromeContainerManager $containerManager,
         private readonly string $navidromeUrl,
     ) {
@@ -57,15 +57,7 @@ class LastFmImportController extends AbstractController
             }
 
             $user = (string) ($data['lastfm_user'] ?? '');
-            $isDry = (bool) ($data['dry_run'] ?? true);
-
-            if ($error === null && !$isDry) {
-                try {
-                    $this->containerManager->assertSafeToWrite();
-                } catch (NavidromeContainerException $e) {
-                    $error = $e->getMessage();
-                }
-            }
+            $isDry = (bool) ($data['dry_run'] ?? false);
 
             if ($error === null) {
                 set_time_limit(0);
@@ -77,41 +69,22 @@ class LastFmImportController extends AbstractController
                     ? \DateTimeImmutable::createFromInterface($data['date_max'])
                     : null;
                 try {
-                    $em = $this->em;
                     $report = $this->recorder->record(
-                        type: RunHistory::TYPE_LASTFM_IMPORT,
+                        type: RunHistory::TYPE_LASTFM_FETCH,
                         reference: $user,
-                        label: 'Last.fm import — ' . $user . ($isDry ? ' [dry-run]' : ''),
-                        action: fn (RunHistory $entry) => $this->importer->import(
+                        label: 'Last.fm fetch — ' . $user . ($isDry ? ' [dry-run]' : ''),
+                        action: fn (RunHistory $entry) => $this->fetcher->fetch(
                             apiKey: $apiKey,
                             lastFmUser: $user,
                             dateMin: $dateMin,
                             dateMax: $dateMax,
-                            toleranceSeconds: max(0, (int) ($data['tolerance'] ?? 60)),
-                            dryRun: $isDry,
                             maxScrobbles: $data['max_scrobbles'] !== null ? max(1, (int) $data['max_scrobbles']) : null,
-                            onScrobble: function (LastFmScrobble $s, string $status, ?string $mfid) use ($entry, $em): void {
-                                $em->persist(new LastFmImportTrack(
-                                    runHistory: $entry,
-                                    artist: $s->artist,
-                                    title: $s->title,
-                                    album: $s->album,
-                                    mbid: $s->mbid,
-                                    playedAt: $s->playedAt,
-                                    status: $status,
-                                    matchedMediaFileId: $mfid,
-                                ));
-                                // RunHistoryRecorder::record flushes once at the end, which
-                                // covers the persisted tracks too — no per-scrobble flush.
-                            },
+                            dryRun: $isDry,
                         ),
-                        extractMetrics: static fn (ImportReport $r) => [
+                        extractMetrics: static fn (FetchReport $r) => [
                             'fetched' => $r->fetched,
-                            'inserted' => $r->inserted,
-                            'duplicates' => $r->duplicates,
-                            'unmatched' => $r->unmatched,
-                            'skipped' => $r->skipped,
-                            'unmatched_artists' => $r->unmatchedArtistsRanking(100),
+                            'buffered' => $r->buffered,
+                            'already_buffered' => $r->alreadyBuffered,
                             'dry_run' => $isDry,
                             'date_min' => $dateMin?->format('Y-m-d'),
                             'date_max' => $dateMax?->format('Y-m-d'),
@@ -123,33 +96,75 @@ class LastFmImportController extends AbstractController
             }
         }
 
-        $unmatched = [];
-        if ($report instanceof ImportReport) {
-            foreach ($report->unmatchedRanking(100) as $row) {
-                $artist = $row['artist'];
-                $unmatched[] = [
-                    'count' => $row['count'],
-                    'artist' => $artist,
-                    'title' => $row['title'],
-                    'album' => $row['album'],
-                    'lastfm_url' => 'https://www.last.fm/music/' . rawurlencode($artist),
-                    'navidrome_artist_id' => $artist !== '' ? $this->navidrome->findArtistIdByName($artist) : null,
-                ];
-            }
-        }
-
         $containerStatus = $this->containerManager->getStatus();
 
         return $this->render('lastfm/import.html.twig', [
             'form' => $form->createView(),
             'report' => $report,
             'error' => $error,
-            'unmatched' => $unmatched,
             'unmatched_cumulative' => $this->trackRepo->countUnmatched(),
+            'buffer_count' => $this->bufferRepo->countAll(),
             'lidarr_configured' => $this->lidarrConfig->isConfigured(),
             'navidrome_url' => rtrim($this->navidromeUrl, '/'),
             'container_configured' => $this->containerManager->isConfigured(),
             'container_status' => $containerStatus->value,
         ]);
+    }
+
+    #[Route('/lastfm/process', name: 'app_lastfm_process', methods: ['POST'])]
+    public function process(Request $request): Response
+    {
+        $token = (string) $request->request->get('_token', '');
+        if (!$this->isCsrfTokenValid('lastfm_process', $token)) {
+            throw $this->createAccessDeniedException('Invalid CSRF token.');
+        }
+
+        try {
+            $this->containerManager->assertSafeToWrite();
+        } catch (NavidromeContainerException $e) {
+            $this->addFlash('error', $e->getMessage());
+
+            return new RedirectResponse($this->generateUrl('app_lastfm_import'));
+        }
+
+        set_time_limit(0);
+        ignore_user_abort(true);
+
+        try {
+            $entry = $this->recorder->record(
+                type: RunHistory::TYPE_LASTFM_PROCESS,
+                reference: 'buffer',
+                label: 'Last.fm process buffer',
+                action: fn (RunHistory $run) => [$run, $this->processor->process(auditRun: $run)],
+                extractMetrics: static fn (array $r) => [
+                    'considered' => $r[1]->considered,
+                    'inserted' => $r[1]->inserted,
+                    'duplicates' => $r[1]->duplicates,
+                    'unmatched' => $r[1]->unmatched,
+                    'skipped' => $r[1]->skipped,
+                    'cache_hits_positive' => $r[1]->cacheHitsPositive,
+                    'cache_hits_negative' => $r[1]->cacheHitsNegative,
+                    'cache_misses' => $r[1]->cacheMisses,
+                ],
+            );
+            [$runEntry, $report] = $entry;
+            /** @var RunHistory $runEntry */
+            /** @var ProcessReport $report */
+
+            $this->addFlash('success', sprintf(
+                'Buffer traité : %d considérés, %d insérés, %d doublons, %d non matchés, %d ignorés.',
+                $report->considered,
+                $report->inserted,
+                $report->duplicates,
+                $report->unmatched,
+                $report->skipped,
+            ));
+
+            return new RedirectResponse($this->generateUrl('app_history_detail', ['id' => $runEntry->getId()]));
+        } catch (\Throwable $e) {
+            $this->addFlash('error', 'Échec du traitement du buffer : ' . $e->getMessage());
+
+            return new RedirectResponse($this->generateUrl('app_lastfm_import'));
+        }
     }
 }

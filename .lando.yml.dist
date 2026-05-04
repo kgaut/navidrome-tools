@@ -81,6 +81,12 @@ services:
         # Cron schedule for re-matching previously unmatched scrobbles
         # (app:lastfm:rematch). Empty = no cron line. Requires Navidrome stopped.
         LASTFM_REMATCH_SCHEDULE: ''
+        # Cron schedule for the Last.fm fetch into the local buffer
+        # (app:lastfm:import). Safe to run while Navidrome is up.
+        LASTFM_FETCH_SCHEDULE: ''
+        # Cron schedule for processing the Last.fm import buffer
+        # (app:lastfm:process). Requires Navidrome stopped.
+        LASTFM_PROCESS_SCHEDULE: ''
         # Local on-disk cache for album/artist cover art (proxy + cache).
         COVERS_CACHE_PATH: '/app/var/covers'
         # Homepage (gethomepage.dev) integration. Bearer token consumed
