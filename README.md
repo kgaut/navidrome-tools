@@ -215,28 +215,44 @@ arrêtez Navidrome manuellement avant d'invoquer la commande.
 
 ## Développement local avec Lando (recommandé)
 
-[Lando](https://lando.dev/) fournit l'environnement Symfony complet
-(PHP 8.4 + nginx + Composer 2) sans installer quoi que ce soit sur la
-machine hôte.
+[Lando](https://lando.dev/) fournit l'environnement complet sans rien
+installer sur l'hôte. La stack expose **trois services** pour mirrorer
+la prod 1:1 :
+
+- `appserver` — Symfony 7 (PHP 8.4 + nginx + Composer 2), UI sur
+  `https://navidrome-tools.lndo.site`.
+- `workerserver` — consumer Messenger long-lived (`APP_MODE=worker`,
+  même image que la prod, construite depuis le `Dockerfile`). Sans lui,
+  les jobs Last.fm dispatchés depuis l'UI restent bloqués en `queued`.
+- `navidrome` — instance Navidrome de test sur
+  `https://navidrome.lndo.site`, partage sa base SQLite avec le tool
+  via `var/navidrome-data/`.
 
 ```bash
 git clone https://github.com/kgaut/navidrome-playlist-generator
 cd navidrome-playlist-generator
 
-# Copier la base SQLite Navidrome (ou créer un symlink)
-cp /chemin/vers/navidrome.db var/navidrome.db
+# Préparer le dossier partagé Navidrome ↔ tool (DB + cache).
+mkdir -p var/navidrome-data
+# (Optionnel) seeder avec votre vraie base, sinon Navidrome en créera
+# une vide au premier boot.
+cp /chemin/vers/navidrome.db var/navidrome-data/navidrome.db
 
-# Le repo livre .lando.yml.dist : copiez-le en .lando.yml et adaptez-le
-# (mots de passe, URL Navidrome, etc.) — .lando.yml est gitignored.
+# Copier le template Lando puis adapter le bind-mount du dossier
+# musique (search « /change/me/path/to/music » dans .lando.yml).
+# .lando.yml est gitignored.
 cp .lando.yml.dist .lando.yml
 
-lando start          # premier lancement : pull des images + composer install
+lando start          # premier lancement : build + composer install
 lando migrate        # crée la DB locale du tool
 lando seed           # insère les 4 définitions d'exemple
-
-# UI accessible sur :
-#   https://navidrome-tools.lndo.site
 ```
+
+URLs disponibles après `lando start` :
+
+- UI tool : <https://navidrome-tools.lndo.site>
+- Navidrome : <https://navidrome.lndo.site> (admin créé au premier
+  démarrage via l'UI Navidrome)
 
 Commandes utiles :
 
@@ -248,9 +264,18 @@ Commandes utiles :
 | `lando migrate`            | Jouer les migrations Doctrine.                                 |
 | `lando seed`               | Réinsérer les fixtures (idempotent).                           |
 | `lando playlist-run "Top 30 derniers jours" --dry-run` | Tester une définition. |
+| `lando worker`             | Consommer **un** message en foreground (debug) — le service `workerserver` consomme déjà en boucle, ce raccourci sert à voir la sortie `-vv`. |
+| `lando logs -s workerserver -f` | Suivre la sortie du worker en continu. |
+| `lando logs -s navidrome -f`    | Suivre les logs du Navidrome embarqué. |
 
 Pour activer Xdebug : éditer votre copie locale `.lando.yml` (`xdebug: debug`) puis
 `lando rebuild -y`.
+
+> **Note sur l'écriture dans la base Navidrome** : `app:lastfm:process`
+> et `app:lastfm:rematch` doivent être lancés **Navidrome arrêté**
+> (`lando stop navidrome` puis relancer après l'import). Le flag
+> `--auto-stop` n'est pas câblé sous Lando — c'est un setup dev, pas
+> prod.
 
 ## Développement local sans Lando
 
