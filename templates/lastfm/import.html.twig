@@ -9,174 +9,138 @@
         <div class="flex items-start gap-3">
             <div class="text-xl">ℹ️</div>
             <div class="flex-1">
-                L'import Last.fm se fait en <strong>deux étapes découplées</strong> :
+                L'import Last.fm se fait en <strong>deux étapes découplées</strong>, lancées
+                exclusivement en CLI :
                 <ol class="list-decimal pl-6 mt-1 space-y-0.5">
                     <li><strong>Récupération</strong> des scrobbles dans un buffer local — Navidrome peut tourner.</li>
                     <li><strong>Traitement</strong> du buffer : matching et insertion dans Navidrome — Navidrome doit être arrêté.</li>
                 </ol>
-                Cela évite tout risque de corruption SQLite et permet de fetcher
-                régulièrement sans toucher à Navidrome.
+                Cette page affiche l'état du buffer et les commandes à copier-coller.
+                Les jobs s'exécutent depuis le crontab unix de l'hôte (ou à la main).
             </div>
         </div>
     </div>
 
-    {# ---------- Section 1 : Fetch ---------- #}
-    <div class="bg-white shadow rounded p-6 max-w-2xl mb-6">
-        <h2 class="text-lg font-semibold mb-1">1. Récupérer depuis Last.fm</h2>
-        <p class="text-sm text-slate-500 mb-4">
-            Lit l'historique Last.fm et stocke chaque scrobble dans le buffer local.
-            Aucune écriture côté Navidrome — peut être lancé pendant que Navidrome tourne.
-        </p>
-        {{ form_start(form, {attr: {class: 'space-y-4'}}) }}
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {{ form_row(form.lastfm_user) }}
-                {{ form_row(form.api_key) }}
-                {{ form_row(form.date_min) }}
-                {{ form_row(form.date_max) }}
-                {{ form_row(form.max_scrobbles) }}
-            </div>
-            <div class="border-t pt-4">
-                {{ form_row(form.dry_run) }}
-            </div>
-            <div class="flex justify-end pt-2">
-                <button type="submit"
-                        class="px-4 py-2 text-sm rounded bg-emerald-600 hover:bg-emerald-700 text-white">
-                    Lancer le fetch
-                </button>
-            </div>
-        {{ form_end(form) }}
-    </div>
-
-    {# ---------- Section 2 : Process buffer ---------- #}
-    <div class="bg-white shadow rounded p-6 max-w-2xl mb-6">
-        <h2 class="text-lg font-semibold mb-1">2. Traiter le buffer</h2>
-        <p class="text-sm text-slate-500 mb-3">
-            <strong>{{ buffer_count|number_format(0, '.', ' ') }}</strong>
-            scrobble{{ buffer_count > 1 ? 's' : '' }}
-            en attente dans le buffer.
-            {% if buffer_count == 0 %}
-                Lancez d'abord un fetch ci-dessus.
-            {% else %}
-                Le traitement applique la cascade de matching, insère les scrobbles
-                trouvés dans la table <code>scrobbles</code> de Navidrome, vide le
-                buffer au fur et à mesure et persiste l'audit dans
-                <code>lastfm_import_track</code>.
-            {% endif %}
-        </p>
-
-        {% if container_configured and container_status == 'stopped' %}
-            <div class="bg-emerald-50 border border-emerald-400 rounded p-3 mb-4 flex items-center gap-3 text-sm">
-                <div class="text-xl">✅</div>
-                <div class="flex-1 text-emerald-900">
-                    Conteneur Navidrome <strong>arrêté</strong> — le traitement peut se lancer.
-                </div>
-                <form method="post" action="{{ path('app_navidrome_container_start') }}">
-                    <input type="hidden" name="_token" value="{{ csrf_token('navidrome_container') }}">
-                    <input type="hidden" name="_back" value="{{ path('app_lastfm_import') }}">
-                    <button type="submit" class="text-xs px-2 py-1 rounded bg-emerald-700 hover:bg-emerald-800 text-white">
-                        ▶ Redémarrer Navidrome
-                    </button>
-                </form>
-            </div>
-        {% elseif container_configured and container_status == 'running' %}
-            <div class="bg-rose-50 border border-rose-400 rounded p-3 mb-4 text-sm">
-                <div class="flex items-start gap-3">
-                    <div class="text-xl">🛑</div>
-                    <div class="flex-1 text-rose-900">
-                        Navidrome tourne — le traitement est <strong>bloqué</strong>.
-                        Arrêtez-le ci-dessous, lancez le traitement, puis redémarrez.
-                        <div class="mt-2">
-                            <form method="post" action="{{ path('app_navidrome_container_stop') }}"
-                                  onsubmit="return confirm('Arrêter le conteneur Navidrome ?');"
-                                  class="inline">
-                                <input type="hidden" name="_token" value="{{ csrf_token('navidrome_container') }}">
-                                <input type="hidden" name="_back" value="{{ path('app_lastfm_import') }}">
-                                <button type="submit" class="px-3 py-1 rounded bg-rose-600 hover:bg-rose-700 text-white text-sm">
-                                    ⏸ Arrêter Navidrome
-                                </button>
-                            </form>
-                        </div>
-                    </div>
+    {# ---------- État ---------- #}
+    <div class="bg-white shadow rounded p-6 max-w-3xl mb-6">
+        <h2 class="text-lg font-semibold mb-3">État</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+            <div class="bg-slate-50 rounded p-3">
+                <div class="text-xs uppercase text-slate-500">Buffer en attente</div>
+                <div class="text-2xl font-semibold">{{ buffer_count|number_format(0, '.', ' ') }}</div>
+                <div class="text-xs text-slate-500 mt-1">
+                    scrobble{{ buffer_count > 1 ? 's' : '' }} fetch{{ buffer_count > 1 ? 'és' : 'é' }}
+                    {% if buffer_count > 0 %}prêt{{ buffer_count > 1 ? 's' : '' }} à être traité{{ buffer_count > 1 ? 's' : '' }}{% endif %}
                 </div>
             </div>
-        {% else %}
-            <div class="bg-amber-50 border border-amber-300 text-amber-900 rounded p-3 mb-4 text-sm">
-                ⚠️ Vérifiez que <strong>Navidrome est bien arrêté</strong> avant
-                de lancer le traitement (l'écriture concurrente sur la SQLite
-                Navidrome peut corrompre le journal WAL).
-                {% if container_configured and container_status == 'unknown' %}
-                    <br>Statut conteneur indéterminé — vérifier que
-                    <code>/var/run/docker.sock</code> est monté dans navidrome-tools.
+            <div class="bg-slate-50 rounded p-3">
+                <div class="text-xs uppercase text-slate-500">Non matchés cumulés</div>
+                <div class="text-2xl font-semibold">{{ unmatched_cumulative|number_format(0, '.', ' ') }}</div>
+                <div class="text-xs text-slate-500 mt-1">
+                    sur l'ensemble des imports passés —
+                    <a href="{{ path('app_lastfm_unmatched') }}" class="text-sky-700 hover:underline">détails</a>
+                </div>
+            </div>
+        </div>
+
+        {% if container_configured %}
+            <div class="mt-3 text-xs text-slate-500">
+                Conteneur Navidrome :
+                {% if container_status == 'running' %}
+                    <span class="text-emerald-700 font-mono">running</span>
+                {% elseif container_status == 'stopped' %}
+                    <span class="text-amber-700 font-mono">stopped</span>
+                {% else %}
+                    <span class="text-rose-700 font-mono">{{ container_status }}</span>
                 {% endif %}
+                — gestion sur la card du dashboard.
             </div>
         {% endif %}
-
-        <div class="bg-sky-50 border border-sky-300 text-sky-900 rounded p-3 mb-4 text-sm">
-            <div class="flex items-start gap-2">
-                <div class="text-base">💡</div>
-                <div class="flex-1">
-                    <p class="mb-2">
-                        <strong>Recommandé : lancer le traitement depuis le CLI</strong>
-                        plutôt que ce bouton. La requête HTTP peut être interrompue
-                        par un timeout reverse-proxy sur les gros buffers, alors que
-                        la commande tient sur des centaines de milliers de
-                        scrobbles. Avec <code>--auto-stop</code>, l'arrêt et le
-                        redémarrage de Navidrome sont orchestrés automatiquement.
-                    </p>
-                    <pre class="bg-white border border-sky-200 rounded px-2 py-1 text-xs overflow-x-auto mb-2"><code>php bin/console app:lastfm:process --auto-stop</code></pre>
-                    <p class="text-xs text-sky-800 mb-1">Avec Docker Compose :</p>
-                    <pre class="bg-white border border-sky-200 rounded px-2 py-1 text-xs overflow-x-auto"><code>docker compose exec -T navidrome-tools-web \
-    php bin/console app:lastfm:process --auto-stop</code></pre>
-                </div>
-            </div>
-        </div>
-
-        <form method="post" action="{{ path('app_lastfm_process') }}"
-              onsubmit="return confirm('Lancer le traitement des {{ buffer_count }} scrobbles bufferés ?');">
-            <input type="hidden" name="_token" value="{{ csrf_token('lastfm_process') }}">
-            <button type="submit"
-                    {% if buffer_count == 0 %}disabled{% endif %}
-                    class="px-4 py-2 rounded text-sm text-white {{ buffer_count == 0 ? 'bg-slate-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700' }}">
-                ▶ Traiter le buffer depuis l'UI
-            </button>
-        </form>
     </div>
 
-    {# ---------- Cumulative rematch ---------- #}
-    {% if unmatched_cumulative > 0 %}
-        <div class="bg-white shadow rounded p-6 max-w-2xl mb-6">
-            <h2 class="text-lg font-semibold mb-1">Re-tenter le matching cumulé</h2>
-            <p class="text-sm text-slate-500 mb-3">
-                <strong>{{ unmatched_cumulative|number_format(0, '.', ' ') }}</strong>
-                scrobble{{ unmatched_cumulative > 1 ? 's' : '' }}
-                non matché{{ unmatched_cumulative > 1 ? 's' : '' }} sur l'ensemble des imports passés.
-                Re-tente avec les heuristiques courantes (utile après ajout de morceaux dans Navidrome,
-                après création d'alias, ou après déploiement de nouvelles règles de matching).
-            </p>
-            <p class="text-xs text-rose-700 mb-3">
-                ⚠️ Navidrome doit être <strong>arrêté</strong> avant de lancer le rematch.
-            </p>
-            <div class="flex flex-wrap items-center gap-3">
-                <form method="post" action="{{ path('app_lastfm_rematch') }}"
-                      onsubmit="return confirm('Lancer le rematch sur les {{ unmatched_cumulative }} scrobbles non matchés cumulés ?');">
-                    <input type="hidden" name="_token" value="{{ csrf_token('lastfm_rematch') }}">
-                    <button type="submit"
-                            class="px-4 py-2 rounded bg-emerald-600 text-white text-sm hover:bg-emerald-700">
-                        🔁 Re-tenter le matching de tous les unmatched
-                    </button>
-                </form>
-                <a href="{{ path('app_lastfm_unmatched') }}"
-                   class="text-sm text-sky-700 hover:underline">
-                    Voir la liste détaillée →
-                </a>
-            </div>
-        </div>
-    {% endif %}
+    {# ---------- 1. Fetch ---------- #}
+    <div class="bg-white shadow rounded p-6 max-w-3xl mb-6">
+        <h2 class="text-lg font-semibold mb-1">1. Récupérer depuis Last.fm</h2>
+        <p class="text-sm text-slate-500 mb-3">
+            Lit l'historique Last.fm et stocke chaque scrobble dans le buffer local.
+            <strong>Aucune écriture côté Navidrome</strong> — peut tourner pendant que Navidrome est up.
+            Idempotent grâce à la unique constraint <code>(lastfm_user, played_at, artist, title)</code>.
+        </p>
 
-    {# ---------- Result ---------- #}
-    {% if error %}
-        <div class="bg-rose-50 border border-rose-300 text-rose-800 rounded p-4 mb-6">
-            <strong>Erreur :</strong> {{ error }}
-        </div>
-    {% endif %}
+        <div class="text-xs uppercase text-slate-500 mt-2 mb-1">Localement (Symfony serve / Docker)</div>
+        <pre class="bg-slate-900 text-slate-100 rounded px-3 py-2 text-xs overflow-x-auto mb-2"><code>php bin/console app:lastfm:import{% if default_lastfm_user %} {{ default_lastfm_user }}{% else %} USERNAME{% endif %} \
+    [--api-key=KEY] [--date-min=YYYY-MM-DD] [--date-max=YYYY-MM-DD] \
+    [--max-scrobbles=N] [--dry-run]</code></pre>
+
+        <div class="text-xs uppercase text-slate-500 mt-3 mb-1">Docker Compose</div>
+        <pre class="bg-slate-900 text-slate-100 rounded px-3 py-2 text-xs overflow-x-auto mb-2"><code>docker compose exec -T navidrome-tools-web \
+    php bin/console app:lastfm:import{% if default_lastfm_user %} {{ default_lastfm_user }}{% else %} USERNAME{% endif %}</code></pre>
+
+        <div class="text-xs uppercase text-slate-500 mt-3 mb-1">Lando (dev)</div>
+        <pre class="bg-slate-900 text-slate-100 rounded px-3 py-2 text-xs overflow-x-auto"><code>lando symfony app:lastfm:import{% if default_lastfm_user %} {{ default_lastfm_user }}{% else %} USERNAME{% endif %}</code></pre>
+
+        <p class="text-xs text-slate-500 mt-3">
+            <code>LASTFM_USER</code> et <code>LASTFM_API_KEY</code> servent de défaut quand les options ne sont pas fournies.
+        </p>
+    </div>
+
+    {# ---------- 2. Process ---------- #}
+    <div class="bg-white shadow rounded p-6 max-w-3xl mb-6">
+        <h2 class="text-lg font-semibold mb-1">2. Traiter le buffer</h2>
+        <p class="text-sm text-slate-500 mb-3">
+            Stream du buffer (par <code>played_at</code> ASC), cascade de matching, insertion dans la table
+            <code>scrobbles</code> de Navidrome, audit dans <code>lastfm_import_track</code>, suppression de la
+            row du buffer (toujours, y compris <em>unmatched</em>). <strong>Navidrome doit être arrêté</strong>
+            pour éviter toute corruption SQLite.
+        </p>
+        <p class="text-xs text-rose-700 mb-3">
+            Avec <code>--auto-stop</code>, l'arrêt et le redémarrage du conteneur Navidrome sont orchestrés
+            automatiquement (snapshot SQLite + <code>PRAGMA quick_check</code> avant chaque écriture).
+        </p>
+
+        <div class="text-xs uppercase text-slate-500 mt-2 mb-1">Localement</div>
+        <pre class="bg-slate-900 text-slate-100 rounded px-3 py-2 text-xs overflow-x-auto mb-2"><code>php bin/console app:lastfm:process --auto-stop \
+    [--limit=N] [--tolerance=60] [--dry-run]</code></pre>
+
+        <div class="text-xs uppercase text-slate-500 mt-3 mb-1">Docker Compose (cron)</div>
+        <pre class="bg-slate-900 text-slate-100 rounded px-3 py-2 text-xs overflow-x-auto mb-2"><code>docker compose exec -T navidrome-tools-web \
+    php bin/console app:lastfm:process --auto-stop</code></pre>
+
+        <div class="text-xs uppercase text-slate-500 mt-3 mb-1">Lando (dev)</div>
+        <pre class="bg-slate-900 text-slate-100 rounded px-3 py-2 text-xs overflow-x-auto"><code>lando symfony app:lastfm:process --auto-stop</code></pre>
+
+        <p class="text-xs text-slate-500 mt-3">
+            Sans <code>--auto-stop</code>, la commande échoue si Navidrome tourne (pré-flight).
+            Passez <code>-f</code> pour outrepasser à vos risques.
+        </p>
+    </div>
+
+    {# ---------- 3. Rematch ---------- #}
+    <div class="bg-white shadow rounded p-6 max-w-3xl mb-6">
+        <h2 class="text-lg font-semibold mb-1">3. Re-matcher les unmatched</h2>
+        <p class="text-sm text-slate-500 mb-3">
+            Ré-applique la cascade de matching aux rows <code>lastfm_import_track</code> en status
+            <em>unmatched</em>. Utile après ajout de morceaux dans Navidrome, après création d'alias,
+            ou après déploiement de nouvelles heuristiques. <strong>Navidrome doit être arrêté</strong>
+            (mêmes contraintes que le process).
+        </p>
+
+        <div class="text-xs uppercase text-slate-500 mt-2 mb-1">Tous les unmatched cumulés</div>
+        <pre class="bg-slate-900 text-slate-100 rounded px-3 py-2 text-xs overflow-x-auto mb-2"><code>php bin/console app:lastfm:rematch --auto-stop \
+    [--limit=N] [--tolerance=60] [--random] [--dry-run]</code></pre>
+
+        <div class="text-xs uppercase text-slate-500 mt-3 mb-1">Limiter à un run précis</div>
+        <pre class="bg-slate-900 text-slate-100 rounded px-3 py-2 text-xs overflow-x-auto mb-2"><code>php bin/console app:lastfm:rematch --auto-stop --run-id=&lt;ID&gt;</code></pre>
+
+        <div class="text-xs uppercase text-slate-500 mt-3 mb-1">Docker Compose / Lando</div>
+        <pre class="bg-slate-900 text-slate-100 rounded px-3 py-2 text-xs overflow-x-auto"><code>docker compose exec -T navidrome-tools-web \
+    php bin/console app:lastfm:rematch --auto-stop
+
+lando symfony app:lastfm:rematch --auto-stop</code></pre>
+    </div>
+
+    <div class="text-sm text-slate-500 max-w-3xl">
+        Voir l'<a href="{{ path('app_history') }}" class="text-sky-700 hover:underline">historique des runs</a>
+        pour le détail des derniers imports (status, durée, métriques, erreurs).
+    </div>
 {% endblock %}

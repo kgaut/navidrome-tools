@@ -74,59 +74,10 @@ services:
       # NAVIDROME_CONTAINER_NAME to be set above.
       # - /var/run/docker.sock:/var/run/docker.sock
 
-  # Worker process for jobs launched from the UI (4 long-runners
-  # Last.fm fetch / process / rematch / sync-loved). Runs
-  # `messenger:consume async --limit=1` so jobs that write to Navidrome
-  # never run concurrently. Optional: omit if you only run jobs from
-  # the host crontab. Without this service, jobs dispatched from the UI
-  # stay in `queued` forever.
-  navidrome-tools-worker:
-    image: ghcr.io/kgaut/navidrome-tools:latest
-    restart: unless-stopped
-    environment:
-      APP_MODE: worker
-      APP_ENV: prod
-      APP_SECRET: ${APP_SECRET:?set APP_SECRET in .env}
-      APP_TIMEZONE: ${APP_TIMEZONE:-UTC}
-      NAVIDROME_DB_PATH: /data/navidrome.db
-      NAVIDROME_URL: ${NAVIDROME_URL:-http://navidrome:4533}
-      NAVIDROME_USER: ${NAVIDROME_USER:-admin}
-      NAVIDROME_PASSWORD: ${NAVIDROME_PASSWORD:?set NAVIDROME_PASSWORD in .env}
-      DATABASE_URL: "sqlite:///%kernel.project_dir%/var/data.db"
-      LIDARR_URL: ${LIDARR_URL:-}
-      LIDARR_API_KEY: ${LIDARR_API_KEY:-}
-      LIDARR_ROOT_FOLDER_PATH: ${LIDARR_ROOT_FOLDER_PATH:-/music}
-      LIDARR_QUALITY_PROFILE_ID: ${LIDARR_QUALITY_PROFILE_ID:-1}
-      LIDARR_METADATA_PROFILE_ID: ${LIDARR_METADATA_PROFILE_ID:-1}
-      LIDARR_MONITOR: ${LIDARR_MONITOR:-all}
-      NAVIDROME_CONTAINER_NAME: ${NAVIDROME_CONTAINER_NAME:-}
-      NAVIDROME_STOP_TIMEOUT_SECONDS: ${NAVIDROME_STOP_TIMEOUT_SECONDS:-60}
-      NAVIDROME_STOP_WAIT_CEILING_SECONDS: ${NAVIDROME_STOP_WAIT_CEILING_SECONDS:-30}
-      NAVIDROME_DB_BACKUP_RETENTION: ${NAVIDROME_DB_BACKUP_RETENTION:-3}
-      LASTFM_API_KEY: ${LASTFM_API_KEY:-}
-      LASTFM_API_SECRET: ${LASTFM_API_SECRET:-}
-      LASTFM_USER: ${LASTFM_USER:-}
-      LASTFM_PAGE_DELAY_SECONDS: ${LASTFM_PAGE_DELAY_SECONDS:-10}
-      LASTFM_FUZZY_MAX_DISTANCE: ${LASTFM_FUZZY_MAX_DISTANCE:-0}
-      LASTFM_MATCH_CACHE_TTL_DAYS: ${LASTFM_MATCH_CACHE_TTL_DAYS:-30}
-      MESSENGER_WORKER_TIME_LIMIT: ${MESSENGER_WORKER_TIME_LIMIT:-3600}
-      MESSENGER_WORKER_MEMORY_LIMIT: ${MESSENGER_WORKER_MEMORY_LIMIT:-128M}
-      MESSENGER_WORKER_MESSAGE_LIMIT: ${MESSENGER_WORKER_MESSAGE_LIMIT:-1}
-    volumes:
-      # Worker writes to Navidrome (process + rematch). Mount RW.
-      - ${NAVIDROME_DATA_DIR:-/srv/navidrome/data}/navidrome.db:/data/navidrome.db
-      # Share the tool's DB with the web service (queue + run history).
-      - navidrome-tools-data:/app/var
-      # Required if NAVIDROME_CONTAINER_NAME is set: the worker uses
-      # --auto-stop to stop Navidrome before write actions and restart
-      # after.
-      # - /var/run/docker.sock:/var/run/docker.sock
-    depends_on:
-      - navidrome-tools-web
-
-# Periodic jobs are NOT shipped as a separate cron service: they're
-# meant to be triggered from the host crontab (or whatever scheduler
-# you use), e.g.:
+# All jobs (stats, Last.fm fetch / process / rematch / sync-loved,
+# history purge…) run synchronously via `bin/console` and are scheduled
+# from the host crontab (or any external scheduler). No worker, no
+# queue. Example crontab lines:
 #
 #   0 */6 * * * docker compose exec -T navidrome-tools-web \
 #       php bin/console app:stats:compute
@@ -134,7 +85,11 @@ services:
 #       php bin/console app:lastfm:import
 #   0  4   * * * docker compose exec -T navidrome-tools-web \
 #       php bin/console app:lastfm:process --auto-stop
+#   15 4   * * * docker compose exec -T navidrome-tools-web \
+#       php bin/console app:lastfm:rematch --auto-stop
 #   30 4   * * * docker compose exec -T navidrome-tools-web \
+#       php bin/console app:lastfm:sync-loved
+#   45 4   * * * docker compose exec -T navidrome-tools-web \
 #       php bin/console app:history:purge
 #
 # See README for the full list of scheduling-friendly commands.

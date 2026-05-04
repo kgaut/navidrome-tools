@@ -7,6 +7,29 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+### Removed
+- **BREAKING — Worker Symfony Messenger** : la mécanique async qui
+  permettait de lancer les 4 long-runners Last.fm (`fetch`, `process`,
+  `rematch`, `sync-loved`) depuis l'UI est entièrement supprimée. Plus
+  de service `navidrome-tools-worker` (et plus de `workerserver` côté
+  Lando), plus de mode `APP_MODE=worker` dans l'entrypoint, plus de
+  table `messenger_messages`, plus de colonne
+  `run_history.progress`, plus de polling JSON
+  (`/history/{id}/progress.json`). Les dépendances `symfony/messenger`
+  et `symfony/doctrine-messenger` sont retirées. Les pages
+  `/lastfm/import` et `/lastfm/love-sync` deviennent des pages
+  d'aide CLI : compteurs (buffer, unmatched, statut auth Last.fm) +
+  blocs `<pre>` listant les commandes à copier-coller (`bin/console`,
+  `docker compose exec`, `lando symfony`). La route POST
+  `/lastfm/process`, le contrôleur `RematchController` (POST
+  `/lastfm/rematch`) et le bouton « rematch » sur `/history/{id}`
+  sont supprimés. Migration `Version20260504212838` qui drop la
+  colonne `run_history.progress` et la table `messenger_messages`.
+  Pour conserver les jobs Last.fm, planifier
+  `app:lastfm:{import,process,rematch,sync-loved}` (avec
+  `--auto-stop` quand pertinent) depuis le crontab unix de l'hôte —
+  exemples dans `docker-compose.example.yml`.
+
 ### Fixed
 - **`app:lastfm:process` / `app:lastfm:rematch` — fuite mémoire sur
   les gros volumes** : `LastFmBufferProcessor` et `LastFmRematchService`
@@ -21,7 +44,7 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
   `flushAndDetach()`, et le repo cache expose `detachPending()` pour
   vider sa map en mémoire interne en synchro. La `RunHistory`
   attachée à l'audit reste managée pour ne pas casser le callback de
-  progression (`RunHistoryRecorder::updateProgress`).
+  progression console.
 
 ### Changed
 - **Favicon** : adapte automatiquement sa couleur au thème système

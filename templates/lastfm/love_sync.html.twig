@@ -8,7 +8,7 @@
         <p class="text-sm text-slate-500 mt-1">
             Propage les ajouts dans les deux sens : un morceau ❤ sur Last.fm devient ★ dans Navidrome,
             et inversement. <strong>Adds-only</strong> : aucun morceau n'est jamais déstarré ou délové
-            automatiquement.
+            automatiquement. Lancement exclusivement en CLI.
         </p>
     </div>
 
@@ -33,120 +33,33 @@
         {% endif %}
     </div>
 
-    {% if error %}
-        <div class="bg-rose-50 border border-rose-200 text-rose-800 rounded p-4 mb-4 text-sm">
-            {{ error }}
-        </div>
-    {% endif %}
+    <div class="bg-white shadow rounded p-6 max-w-3xl mb-6">
+        <h2 class="text-lg font-semibold mb-1">Lancer la synchro</h2>
+        <p class="text-sm text-slate-500 mb-3">
+            La commande lit les loved Last.fm de l'utilisateur connecté et les starred Navidrome,
+            résout les correspondances par MBID puis par couple (artiste, titre) normalisé, et
+            applique les ajouts manquants côté Navidrome (Subsonic <code>star</code>) et/ou côté
+            Last.fm (<code>track.love</code>). Idempotent.
+        </p>
 
-    {% if auth_configured and session_user %}
-        <form method="post" class="bg-white shadow rounded p-6 mb-6">
-            <input type="hidden" name="_token" value="{{ csrf_token('lastfm-love-sync') }}">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                <div>
-                    <label class="block text-xs uppercase text-slate-500">Direction</label>
-                    <select name="direction" class="w-full border rounded px-2 py-1 text-sm">
-                        <option value="both" {{ direction == 'both' ? 'selected' : '' }}>both — propager les deux sens</option>
-                        <option value="lf-to-nd" {{ direction == 'lf-to-nd' ? 'selected' : '' }}>lf → nd — starrer Navidrome depuis Last.fm</option>
-                        <option value="nd-to-lf" {{ direction == 'nd-to-lf' ? 'selected' : '' }}>nd → lf — lover Last.fm depuis Navidrome</option>
-                    </select>
-                </div>
-                <div class="flex items-center gap-2 pb-1">
-                    <input type="checkbox" name="dry_run" id="dry_run" value="1" {{ dry_run ? 'checked' : '' }} class="h-4 w-4">
-                    <label for="dry_run" class="text-sm">Dry-run (n'écrit rien)</label>
-                </div>
-                <div class="flex justify-end">
-                    <button type="submit" class="px-4 py-2 rounded bg-slate-900 text-white text-sm"
-                            onclick="return this.form.dry_run.checked || confirm('Confirmer la propagation réelle des ajouts ?');">
-                        Synchroniser maintenant
-                    </button>
-                </div>
-            </div>
-        </form>
-    {% endif %}
+        <div class="text-xs uppercase text-slate-500 mt-2 mb-1">Localement</div>
+        <pre class="bg-slate-900 text-slate-100 rounded px-3 py-2 text-xs overflow-x-auto mb-2"><code>php bin/console app:lastfm:sync-loved \
+    [--direction=both|lf-to-nd|nd-to-lf] [--dry-run]</code></pre>
 
-    {% if report %}
-        <div class="bg-white shadow rounded p-6 mb-6">
-            <h2 class="font-semibold mb-3">Rapport</h2>
-            <div class="grid grid-cols-2 md:grid-cols-5 gap-3 text-center">
-                <div class="bg-slate-100 rounded p-3">
-                    <div class="text-xs uppercase text-slate-500">Loved (Last.fm)</div>
-                    <div class="text-2xl font-semibold">{{ report.lovedCount|number_format(0, '.', ' ') }}</div>
-                </div>
-                <div class="bg-slate-100 rounded p-3">
-                    <div class="text-xs uppercase text-slate-500">Starred (Navidrome)</div>
-                    <div class="text-2xl font-semibold">{{ report.starredCount|number_format(0, '.', ' ') }}</div>
-                </div>
-                <div class="bg-slate-100 rounded p-3" title="Présents dans les 2 ensembles (sur la base artiste+titre normalisés)">
-                    <div class="text-xs uppercase text-slate-500">En commun</div>
-                    <div class="text-2xl font-semibold">{{ report.commonCount|number_format(0, '.', ' ') }}</div>
-                </div>
-                <div class="bg-emerald-50 rounded p-3">
-                    <div class="text-xs uppercase text-emerald-700">+ Starred</div>
-                    <div class="text-2xl font-semibold text-emerald-800">{{ report.starredAdded|length|number_format(0, '.', ' ') }}</div>
-                </div>
-                <div class="bg-emerald-50 rounded p-3">
-                    <div class="text-xs uppercase text-emerald-700">+ Loved</div>
-                    <div class="text-2xl font-semibold text-emerald-800">{{ report.lovedAdded|length|number_format(0, '.', ' ') }}</div>
-                </div>
-            </div>
+        <div class="text-xs uppercase text-slate-500 mt-3 mb-1">Docker Compose (cron)</div>
+        <pre class="bg-slate-900 text-slate-100 rounded px-3 py-2 text-xs overflow-x-auto mb-2"><code>docker compose exec -T navidrome-tools-web \
+    php bin/console app:lastfm:sync-loved --direction=both</code></pre>
 
-            {% if report.errors|length > 0 %}
-                <div class="mt-4 bg-rose-50 border border-rose-200 rounded p-3 text-sm">
-                    <div class="font-semibold text-rose-800 mb-1">{{ report.errors|length }} erreur(s)</div>
-                    <ul class="list-disc pl-5 text-rose-800 text-xs space-y-1">
-                        {% for e in report.errors|slice(0, 20) %}
-                            <li><code>[{{ e.action }}]</code> {{ e.artist }} — {{ e.title }} : {{ e.error }}</li>
-                        {% endfor %}
-                    </ul>
-                </div>
-            {% endif %}
-        </div>
+        <div class="text-xs uppercase text-slate-500 mt-3 mb-1">Lando (dev)</div>
+        <pre class="bg-slate-900 text-slate-100 rounded px-3 py-2 text-xs overflow-x-auto"><code>lando symfony app:lastfm:sync-loved --direction=both</code></pre>
 
-        {% if report.lovedUnmatched|length > 0 %}
-            <div class="bg-white shadow rounded p-6 mb-6">
-                <h3 class="font-semibold mb-1">Loved Last.fm sans match Navidrome ({{ report.lovedUnmatched|length }})</h3>
-                <p class="text-xs text-slate-500 mb-3">
-                    Ces morceaux sont aimés sur Last.fm mais aucune ligne <code>media_file</code> ne matche
-                    par MBID ni par couple (artiste, titre). Créez un alias manuel pour les forcer.
-                </p>
-                <table class="w-full text-sm">
-                    <thead class="bg-slate-100 text-slate-600 text-left text-xs">
-                    <tr>
-                        <th class="px-3 py-2">Artiste</th>
-                        <th class="px-3 py-2">Titre</th>
-                        <th class="px-3 py-2">Loved le</th>
-                        <th class="px-3 py-2">MBID</th>
-                        <th class="px-3 py-2"></th>
-                    </tr>
-                    </thead>
-                    <tbody class="divide-y">
-                    {% for u in report.lovedUnmatched|slice(0, 100) %}
-                        <tr>
-                            <td class="px-3 py-1.5">{{ u.artist }}</td>
-                            <td class="px-3 py-1.5">{{ u.title }}</td>
-                            <td class="px-3 py-1.5 text-xs text-slate-500">
-                                {{ u.loved_at ? u.loved_at|date('Y-m-d') : '—' }}
-                            </td>
-                            <td class="px-3 py-1.5 text-xs text-slate-400">
-                                {{ u.mbid ? u.mbid|slice(0, 8) ~ '…' : '—' }}
-                            </td>
-                            <td class="px-3 py-1.5 text-right">
-                                <a href="{{ path('app_lastfm_alias_new', {source_artist: u.artist, source_title: u.title}) }}"
-                                   class="text-xs px-2 py-0.5 rounded bg-slate-700 text-white hover:bg-slate-800">
-                                    ✏️ Mapper
-                                </a>
-                            </td>
-                        </tr>
-                    {% endfor %}
-                    </tbody>
-                </table>
-                {% if report.lovedUnmatched|length > 100 %}
-                    <p class="text-xs text-slate-500 mt-2">
-                        Affichage limité à 100 lignes ({{ report.lovedUnmatched|length - 100 }} de plus).
-                    </p>
-                {% endif %}
-            </div>
-        {% endif %}
-    {% endif %}
+        <p class="text-xs text-slate-500 mt-3">
+            Direction par défaut : <code>both</code>. <code>--dry-run</code> calcule la diff sans rien écrire.
+        </p>
+    </div>
+
+    <div class="text-sm text-slate-500 max-w-3xl">
+        Voir l'<a href="{{ path('app_history') }}" class="text-sky-700 hover:underline">historique des runs</a>
+        pour le rapport de la dernière synchro (loved/starred, ajouts, unmatched, erreurs).
+    </div>
 {% endblock %}
