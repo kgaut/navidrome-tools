@@ -26,6 +26,8 @@ class RunHistory
     public const STATUS_SUCCESS = 'success';
     public const STATUS_ERROR = 'error';
     public const STATUS_SKIPPED = 'skipped';
+    public const STATUS_QUEUED = 'queued';
+    public const STATUS_RUNNING = 'running';
 
     #[ORM\Id]
     #[ORM\GeneratedValue]
@@ -59,6 +61,10 @@ class RunHistory
     /** @var array<string, mixed>|null */
     #[ORM\Column(type: Types::JSON, nullable: true)]
     private ?array $metrics = null;
+
+    /** @var array<string, mixed>|null */
+    #[ORM\Column(type: Types::JSON, nullable: true)]
+    private ?array $progress = null;
 
     public function __construct(string $type, string $reference, string $label)
     {
@@ -155,5 +161,53 @@ class RunHistory
     {
         $this->metrics = $metrics;
         return $this;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function getProgress(): ?array
+    {
+        return $this->progress;
+    }
+
+    /**
+     * @param array<string, mixed>|null $progress
+     */
+    public function setProgress(?array $progress): self
+    {
+        $this->progress = $progress;
+        return $this;
+    }
+
+    public function isInProgress(): bool
+    {
+        return in_array($this->status, [self::STATUS_QUEUED, self::STATUS_RUNNING], true);
+    }
+
+    /**
+     * True when a `running` row hasn't seen a progress update for too long —
+     * typically the worker died mid-job. The fallback uses startedAt for
+     * runs that never emitted progress (e.g. crashed before the first tick).
+     */
+    public function isStale(int $thresholdSeconds = 600): bool
+    {
+        if ($this->status !== self::STATUS_RUNNING) {
+            return false;
+        }
+
+        $updatedAt = null;
+        if (is_array($this->progress) && isset($this->progress['updated_at']) && is_string($this->progress['updated_at'])) {
+            try {
+                $updatedAt = new \DateTimeImmutable($this->progress['updated_at']);
+            } catch (\Exception) {
+                $updatedAt = null;
+            }
+        }
+
+        $reference = $updatedAt ?? $this->startedAt;
+        $diff = (new \DateTimeImmutable())->getTimestamp() - $reference->getTimestamp();
+
+        return $diff > $thresholdSeconds;
     }
 }

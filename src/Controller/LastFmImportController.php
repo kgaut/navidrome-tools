@@ -6,30 +6,28 @@ use App\Docker\NavidromeContainerException;
 use App\Docker\NavidromeContainerManager;
 use App\Entity\RunHistory;
 use App\Form\LastFmImportType;
-use App\LastFm\FetchReport;
-use App\LastFm\LastFmBufferProcessor;
-use App\LastFm\LastFmFetcher;
-use App\LastFm\ProcessReport;
 use App\Lidarr\LidarrConfig;
+use App\Message\RunLastFmFetchMessage;
+use App\Message\RunLastFmProcessMessage;
 use App\Repository\LastFmBufferedScrobbleRepository;
 use App\Repository\LastFmImportTrackRepository;
-use App\Service\RunHistoryRecorder;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Attribute\Route;
 
 class LastFmImportController extends AbstractController
 {
     public function __construct(
-        private readonly LastFmFetcher $fetcher,
-        private readonly LastFmBufferProcessor $processor,
         private readonly LidarrConfig $lidarrConfig,
-        private readonly RunHistoryRecorder $recorder,
         private readonly LastFmImportTrackRepository $trackRepo,
         private readonly LastFmBufferedScrobbleRepository $bufferRepo,
         private readonly NavidromeContainerManager $containerManager,
+        private readonly EntityManagerInterface $em,
+        private readonly MessageBusInterface $bus,
         private readonly string $navidromeUrl,
     ) {
     }
@@ -41,7 +39,6 @@ class LastFmImportController extends AbstractController
         $form = $this->createForm(LastFmImportType::class, $defaultUser !== '' ? ['lastfm_user' => $defaultUser] : null);
         $form->handleRequest($request);
 
-        $report = null;
         $error = null;
 
         if ($form->isSubmitted() && $form->isValid()) {
@@ -60,39 +57,36 @@ class LastFmImportController extends AbstractController
             $isDry = (bool) ($data['dry_run'] ?? false);
 
             if ($error === null) {
-                set_time_limit(0);
-                ignore_user_abort(true);
                 $dateMin = $data['date_min'] instanceof \DateTimeInterface
                     ? \DateTimeImmutable::createFromInterface($data['date_min'])
                     : null;
                 $dateMax = $data['date_max'] instanceof \DateTimeInterface
                     ? \DateTimeImmutable::createFromInterface($data['date_max'])
                     : null;
-                try {
-                    $report = $this->recorder->record(
-                        type: RunHistory::TYPE_LASTFM_FETCH,
-                        reference: $user,
-                        label: 'Last.fm fetch — ' . $user . ($isDry ? ' [dry-run]' : ''),
-                        action: fn (RunHistory $entry) => $this->fetcher->fetch(
-                            apiKey: $apiKey,
-                            lastFmUser: $user,
-                            dateMin: $dateMin,
-                            dateMax: $dateMax,
-                            maxScrobbles: $data['max_scrobbles'] !== null ? max(1, (int) $data['max_scrobbles']) : null,
-                            dryRun: $isDry,
-                        ),
-                        extractMetrics: static fn (FetchReport $r) => [
-                            'fetched' => $r->fetched,
-                            'buffered' => $r->buffered,
-                            'already_buffered' => $r->alreadyBuffered,
-                            'dry_run' => $isDry,
-                            'date_min' => $dateMin?->format('Y-m-d'),
-                            'date_max' => $dateMax?->format('Y-m-d'),
-                        ],
-                    );
-                } catch (\Throwable $e) {
-                    $error = $e->getMessage();
-                }
+                $maxScrobbles = $data['max_scrobbles'] !== null ? max(1, (int) $data['max_scrobbles']) : null;
+
+                $entry = new RunHistory(
+                    type: RunHistory::TYPE_LASTFM_FETCH,
+                    reference: $user,
+                    label: 'Last.fm fetch — ' . $user . ($isDry ? ' [dry-run]' : ''),
+                );
+                $entry->setStatus(RunHistory::STATUS_QUEUED);
+                $this->em->persist($entry);
+                $this->em->flush();
+
+                $this->bus->dispatch(new RunLastFmFetchMessage(
+                    runHistoryId: (int) $entry->getId(),
+                    apiKey: $apiKey,
+                    lastFmUser: $user,
+                    dateMin: $dateMin?->format('Y-m-d H:i:s'),
+                    dateMax: $dateMax?->format('Y-m-d H:i:s'),
+                    maxScrobbles: $maxScrobbles,
+                    dryRun: $isDry,
+                ));
+
+                $this->addFlash('success', 'Fetch Last.fm mis en file — la progression s\'affiche ci-dessous.');
+
+                return new RedirectResponse($this->generateUrl('app_history_detail', ['id' => $entry->getId()]));
             }
         }
 
@@ -100,7 +94,6 @@ class LastFmImportController extends AbstractController
 
         return $this->render('lastfm/import.html.twig', [
             'form' => $form->createView(),
-            'report' => $report,
             'error' => $error,
             'unmatched_cumulative' => $this->trackRepo->countUnmatched(),
             'buffer_count' => $this->bufferRepo->countAll(),
@@ -127,44 +120,19 @@ class LastFmImportController extends AbstractController
             return new RedirectResponse($this->generateUrl('app_lastfm_import'));
         }
 
-        set_time_limit(0);
-        ignore_user_abort(true);
+        $entry = new RunHistory(
+            type: RunHistory::TYPE_LASTFM_PROCESS,
+            reference: 'buffer',
+            label: 'Last.fm process buffer',
+        );
+        $entry->setStatus(RunHistory::STATUS_QUEUED);
+        $this->em->persist($entry);
+        $this->em->flush();
 
-        try {
-            $entry = $this->recorder->record(
-                type: RunHistory::TYPE_LASTFM_PROCESS,
-                reference: 'buffer',
-                label: 'Last.fm process buffer',
-                action: fn (RunHistory $run) => [$run, $this->processor->process(auditRun: $run)],
-                extractMetrics: static fn (array $r) => [
-                    'considered' => $r[1]->considered,
-                    'inserted' => $r[1]->inserted,
-                    'duplicates' => $r[1]->duplicates,
-                    'unmatched' => $r[1]->unmatched,
-                    'skipped' => $r[1]->skipped,
-                    'cache_hits_positive' => $r[1]->cacheHitsPositive,
-                    'cache_hits_negative' => $r[1]->cacheHitsNegative,
-                    'cache_misses' => $r[1]->cacheMisses,
-                ],
-            );
-            [$runEntry, $report] = $entry;
-            /** @var RunHistory $runEntry */
-            /** @var ProcessReport $report */
+        $this->bus->dispatch(new RunLastFmProcessMessage(runHistoryId: (int) $entry->getId()));
 
-            $this->addFlash('success', sprintf(
-                'Buffer traité : %d considérés, %d insérés, %d doublons, %d non matchés, %d ignorés.',
-                $report->considered,
-                $report->inserted,
-                $report->duplicates,
-                $report->unmatched,
-                $report->skipped,
-            ));
+        $this->addFlash('success', 'Traitement du buffer mis en file — la progression s\'affiche ci-dessous.');
 
-            return new RedirectResponse($this->generateUrl('app_history_detail', ['id' => $runEntry->getId()]));
-        } catch (\Throwable $e) {
-            $this->addFlash('error', 'Échec du traitement du buffer : ' . $e->getMessage());
-
-            return new RedirectResponse($this->generateUrl('app_lastfm_import'));
-        }
+        return new RedirectResponse($this->generateUrl('app_history_detail', ['id' => $entry->getId()]));
     }
 }

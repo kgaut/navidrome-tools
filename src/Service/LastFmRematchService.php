@@ -40,12 +40,16 @@ class LastFmRematchService
         $this->logger = $logger ?? new NullLogger();
     }
 
+    /**
+     * @param ?callable(int $considered, int $matched, int $stillUnmatched): void $progress
+     */
     public function rematch(
         ?int $runId = null,
         int $limit = 0,
         bool $dryRun = false,
         int $toleranceSeconds = 60,
         bool $random = false,
+        ?callable $progress = null,
     ): RematchReport {
         if (!$this->navidrome->hasScrobblesTable()) {
             throw new \RuntimeException(
@@ -120,10 +124,26 @@ class LastFmRematchService
                 $this->em->flush();
                 $batch = 0;
             }
+
+            if ($progress !== null && $report->considered % 50 === 0) {
+                $progress(
+                    $report->considered,
+                    $report->matchedAsInserted + $report->matchedAsDuplicate + $report->skipped,
+                    $report->stillUnmatched,
+                );
+            }
         }
 
         if (!$dryRun) {
             $this->em->flush();
+        }
+
+        if ($progress !== null) {
+            $progress(
+                $report->considered,
+                $report->matchedAsInserted + $report->matchedAsDuplicate + $report->skipped,
+                $report->stillUnmatched,
+            );
         }
 
         return $report;

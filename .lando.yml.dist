@@ -104,6 +104,10 @@ tooling:
     service: appserver
     cmd: php bin/console app:playlist:run
     description: Run one playlist (e.g. `lando playlist-run "Top 30 derniers jours" --dry-run`)
+  worker:
+    service: appserver
+    cmd: php bin/console messenger:consume async --limit=1 -vv
+    description: Consume one queued async job (Last.fm fetch/process/rematch/sync-loved). Re-run to process the next.
 
 proxy:
   appserver_nginx:

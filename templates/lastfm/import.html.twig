@@ -179,30 +179,4 @@
             <strong>Erreur :</strong> {{ error }}
         </div>
     {% endif %}
-
-    {% if report %}
-        <div class="bg-white shadow rounded p-6 mb-6">
-            <h2 class="font-semibold mb-3">Rapport de fetch</h2>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-center">
-                <div class="bg-slate-100 rounded p-3">
-                    <div class="text-xs uppercase text-slate-500">Récupérés</div>
-                    <div class="text-2xl font-semibold">{{ report.fetched|number_format(0, '.', ' ') }}</div>
-                </div>
-                <div class="bg-emerald-50 rounded p-3">
-                    <div class="text-xs uppercase text-emerald-700">Bufferés</div>
-                    <div class="text-2xl font-semibold text-emerald-800">{{ report.buffered|number_format(0, '.', ' ') }}</div>
-                </div>
-                <div class="bg-sky-50 rounded p-3">
-                    <div class="text-xs uppercase text-sky-700">Déjà bufferés</div>
-                    <div class="text-2xl font-semibold text-sky-800">{{ report.alreadyBuffered|number_format(0, '.', ' ') }}</div>
-                </div>
-            </div>
-            {% if report.buffered > 0 %}
-                <p class="text-sm text-slate-600 mt-3">
-                    💡 Lancez ensuite le traitement du buffer (section 2) pour
-                    matcher et insérer ces scrobbles dans Navidrome.
-                </p>
-            {% endif %}
-        </div>
-    {% endif %}
 {% endblock %}
