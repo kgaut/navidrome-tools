@@ -8,6 +8,22 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### Added
+- **Page `/stats/tops` — tops fenêtre libre** : nouvelle page dédiée
+  qui affiche, sur une fenêtre `[from, to]` arbitraire (sélecteur
+  date-picker, filtre optionnel par client Subsonic), le top
+  **50 artistes / 100 albums / 500 morceaux** depuis les scrobbles
+  Navidrome. Les snapshots sont mis en cache dans la nouvelle table
+  `top_snapshot` (clé unique `(window_from, window_to, client)`,
+  bornes en epoch arrondies au jour côté contrôleur pour réutiliser
+  les calculs entre clics). Bouton **« + Créer playlist Navidrome »**
+  sur le top morceaux : crée la playlist via l'API Subsonic à partir
+  des N premiers IDs (1 ≤ N ≤ 500, nom personnalisable). Listing des
+  10 dernières fenêtres calculées en bas de page pour rappel rapide.
+  Nouvelle commande `app:stats:tops:compute --from=… --to=…
+  [--client=…]` (wrappée par `RunHistoryRecorder`, type `stats-tops`)
+  pour planifier le calcul depuis le crontab. Lien ajouté dans
+  `_navbar.html.twig` (sous-menu Statistiques → « Tops fenêtre
+  libre »).
 - **Lancement des jobs Last.fm depuis l'UI sans timeout HTTP** : les
   4 long-runners (`fetch`, `process`, `rematch`, `sync-loved`) sont
   maintenant exécutés via Symfony Messenger (transport Doctrine,

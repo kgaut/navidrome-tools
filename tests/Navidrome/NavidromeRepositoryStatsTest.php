@@ -302,6 +302,79 @@ class NavidromeRepositoryStatsTest extends TestCase
         $this->assertSame(3, $tracks[1]['plays']);
     }
 
+    public function testGetTopAlbumsAggregatesPlaysAndTrackCount(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: true);
+        // Album "Discovery" — Daft Punk: 2 tracks, 7 total plays.
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-d1', 'One More Time', 'Daft Punk', 180, 'Discovery');
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-d2', 'Aerodynamic', 'Daft Punk', 180, 'Discovery');
+        // Album "Selected Ambient" — Aphex Twin: 1 track, 4 plays.
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-a1', 'Xtal', 'Aphex Twin', 180, 'Selected Ambient');
+        // Empty-album track must be ignored.
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-e1', 'Loose', 'Random', 180, '');
+
+        for ($i = 0; $i < 4; $i++) {
+            NavidromeFixtureFactory::insertScrobble($conn, 'user-1', 'mf-d1', date('Y-m-d H:i:s', strtotime("-{$i} day - 1 hour")));
+        }
+        for ($i = 0; $i < 3; $i++) {
+            NavidromeFixtureFactory::insertScrobble($conn, 'user-1', 'mf-d2', date('Y-m-d H:i:s', strtotime("-{$i} day - 2 hour")));
+        }
+        for ($i = 0; $i < 4; $i++) {
+            NavidromeFixtureFactory::insertScrobble($conn, 'user-1', 'mf-a1', date('Y-m-d H:i:s', strtotime("-{$i} day - 3 hour")));
+        }
+        NavidromeFixtureFactory::insertScrobble($conn, 'user-1', 'mf-e1', date('Y-m-d H:i:s', strtotime('-1 hour')));
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $albums = $repo->getTopAlbums(null, null, 10);
+
+        $this->assertCount(2, $albums, 'empty album skipped');
+        $this->assertSame('Discovery', $albums[0]['album']);
+        $this->assertSame('Daft Punk', $albums[0]['album_artist']);
+        $this->assertSame(7, $albums[0]['plays']);
+        $this->assertSame(2, $albums[0]['track_count']);
+        $this->assertSame('mf-d1', $albums[0]['sample_track_id'], 'most-played track in album');
+
+        $this->assertSame('Selected Ambient', $albums[1]['album']);
+        $this->assertSame(4, $albums[1]['plays']);
+        $this->assertSame(1, $albums[1]['track_count']);
+        $this->assertSame('mf-a1', $albums[1]['sample_track_id']);
+    }
+
+    public function testGetTopAlbumsRespectsWindowAndClient(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: true);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', 'Track A', 'Artist X', 180, 'Album X');
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-2', 'Track B', 'Artist Y', 180, 'Album Y');
+
+        // Outside window
+        NavidromeFixtureFactory::insertScrobble($conn, 'user-1', 'mf-1', '2024-01-01 10:00:00', 'Symfonium');
+        // Inside window, two clients
+        NavidromeFixtureFactory::insertScrobble($conn, 'user-1', 'mf-1', '2025-06-01 10:00:00', 'Symfonium');
+        NavidromeFixtureFactory::insertScrobble($conn, 'user-1', 'mf-1', '2025-06-02 10:00:00', 'Symfonium');
+        NavidromeFixtureFactory::insertScrobble($conn, 'user-1', 'mf-2', '2025-06-03 10:00:00', 'DSub');
+
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $from = new \DateTimeImmutable('2025-01-01 00:00:00');
+        $to = new \DateTimeImmutable('2026-01-01 00:00:00');
+
+        $all = $repo->getTopAlbums($from, $to, 10);
+        $this->assertCount(2, $all);
+        $this->assertSame('Album X', $all[0]['album']);
+        $this->assertSame(2, $all[0]['plays']);
+
+        $symf = $repo->getTopAlbums($from, $to, 10, 'Symfonium');
+        $this->assertCount(1, $symf);
+        $this->assertSame('Album X', $symf[0]['album']);
+        $this->assertSame(2, $symf[0]['plays']);
+    }
+
+    public function testGetTopAlbumsReturnsEmptyWhenScrobblesMissing(): void
+    {
+        NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: false);
+        $repo = new NavidromeRepository($this->dbPath, 'admin');
+        $this->assertSame([], $repo->getTopAlbums(null, null, 10));
+    }
+
     public function testTopArtistsTimelineExposesArtistIdForCovers(): void
     {
         $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: true);

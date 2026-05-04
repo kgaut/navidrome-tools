@@ -36,6 +36,18 @@ Fonctionnalités livrées :
   jsdelivr dans le block `stylesheets`.
 - **Page `/stats/heatmap`** : deux heatmaps HTML/CSS (jour×heure 90j,
   année×jour façon GitHub contribs avec sélecteur d'année).
+- **Page `/stats/tops`** : tops sur fenêtre `[from, to]` arbitraire
+  (date-picker + filtre client), top **50 artistes / 100 albums /
+  500 morceaux** depuis `scrobbles`. Cache dans la table
+  `top_snapshot` keyed par `(window_from, window_to, client)` —
+  les bornes sont arrondies au jour côté contrôleur
+  (`TopsService::normalizeWindow()`) pour réutiliser un snapshot
+  entre clics. Bouton « + Créer playlist Navidrome » sur le top
+  morceaux (Subsonic `createPlaylist` avec les N premiers IDs,
+  N borné à 500). Refresh manuel via le bouton ou via
+  `app:stats:tops:compute --from=… --to=… [--client=…]` (wrappé
+  par `RunHistoryRecorder`, type `stats-tops`). À planifier dans
+  le crontab unix si besoin.
 - **Page `/wrapped/{year}`** : rétrospective annuelle, cachée dans
   `stats_snapshot` (key `wrapped-<year>`). `WrappedService::compute()`
   agrège tout : top 25 artistes, top 50 morceaux, new artists, streak

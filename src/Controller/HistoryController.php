@@ -47,6 +47,7 @@ class HistoryController extends AbstractController
             'types' => [
                 RunHistory::TYPE_PLAYLIST => 'Playlist',
                 RunHistory::TYPE_STATS => 'Stats',
+                RunHistory::TYPE_STATS_TOPS => 'Tops fenêtre libre',
                 RunHistory::TYPE_LASTFM_FETCH => 'Fetch Last.fm',
                 RunHistory::TYPE_LASTFM_PROCESS => 'Process buffer Last.fm',
                 RunHistory::TYPE_LASTFM_IMPORT => 'Import Last.fm (legacy)',

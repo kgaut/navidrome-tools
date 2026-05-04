@@ -1,0 +1,253 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Tops fenêtre libre{% endblock %}
+
+{% block body %}
+    <div class="flex flex-wrap items-center gap-3 text-xs mb-4">
+        <span class="text-slate-500">Voir aussi :</span>
+        <a href="{{ path('app_stats') }}" class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200">Vue d'ensemble</a>
+        <a href="{{ path('app_stats_compare') }}" class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200">Comparer 2 périodes</a>
+        <a href="{{ path('app_stats_charts') }}" class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200">Graphiques</a>
+    </div>
+
+    <h1 class="text-2xl font-semibold mb-2">Tops sur fenêtre libre</h1>
+    <p class="text-sm text-slate-500 mb-6">
+        Top {{ limits.artists }} artistes, top {{ limits.albums }} albums et top {{ limits.tracks }} morceaux
+        sur la fenêtre [from, to] inclusive.
+        Les snapshots sont cachés par paire de dates.
+    </p>
+
+    {% set fromStr = from|date('Y-m-d') %}
+    {% set toStr = to|date('Y-m-d')|date_modify('-1 day')|date('Y-m-d') %}
+
+    <div class="bg-white shadow rounded p-4 mb-6">
+        <form method="get" action="{{ path('app_stats_tops') }}" class="flex flex-wrap items-end gap-3">
+            <div>
+                <label class="block text-xs text-slate-500 mb-1" for="from">Du</label>
+                <input type="date" id="from" name="from" value="{{ fromStr }}"
+                       class="border rounded px-2 py-1 text-sm">
+            </div>
+            <div>
+                <label class="block text-xs text-slate-500 mb-1" for="to">Au</label>
+                <input type="date" id="to" name="to" value="{{ toStr }}"
+                       class="border rounded px-2 py-1 text-sm">
+            </div>
+            {% if clients is not empty %}
+                <div>
+                    <label class="block text-xs text-slate-500 mb-1" for="client">Client</label>
+                    <select name="client" id="client" class="border rounded px-2 py-1 text-sm">
+                        <option value="">Tous</option>
+                        {% for c in clients %}
+                            <option value="{{ c }}" {{ c == client ? 'selected' : '' }}>{{ c }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            {% endif %}
+            <button type="submit" class="bg-slate-800 hover:bg-slate-900 text-white px-3 py-1.5 rounded text-sm">
+                Voir
+            </button>
+        </form>
+    </div>
+
+    <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+        <div class="text-sm">
+            Fenêtre :
+            <strong>{{ fromStr }}</strong> → <strong>{{ toStr }}</strong>
+            {% if client %}<span class="text-slate-500">— client : {{ client }}</span>{% endif %}
+        </div>
+
+        <form method="post" action="{{ path('app_stats_tops_refresh') }}">
+            <input type="hidden" name="from" value="{{ fromStr }}">
+            <input type="hidden" name="to" value="{{ toStr }}">
+            {% if client %}<input type="hidden" name="client" value="{{ client }}">{% endif %}
+            <input type="hidden" name="_token" value="{{ csrf_token('tops_' ~ from.timestamp ~ '_' ~ to.timestamp ~ '_' ~ (client ?? '')) }}">
+            <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded text-sm">
+                ↻ {{ snapshot ? 'Recalculer' : 'Calculer' }}
+            </button>
+        </form>
+    </div>
+
+    {% if snapshot is null %}
+        <div class="bg-amber-50 border border-amber-300 text-amber-800 rounded p-4 mb-6 text-sm">
+            Aucune donnée en cache pour cette fenêtre. Cliquez sur <strong>Calculer</strong>.
+        </div>
+    {% else %}
+        <p class="text-xs text-slate-500 mb-4">
+            Calculé le <strong>{{ snapshot.computedAt|date('Y-m-d H:i:s') }}</strong>
+        </p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div class="bg-white shadow rounded p-5">
+                <div class="text-xs uppercase text-slate-500">Total d'écoutes</div>
+                <div class="text-3xl font-semibold mt-1">{{ snapshot.data.total_plays|number_format(0, '.', ' ') }}</div>
+            </div>
+            <div class="bg-white shadow rounded p-5">
+                <div class="text-xs uppercase text-slate-500">Morceaux distincts écoutés</div>
+                <div class="text-3xl font-semibold mt-1">{{ snapshot.data.distinct_tracks|number_format(0, '.', ' ') }}</div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+            {# ---------- Top artists ---------- #}
+            <div class="bg-white shadow rounded overflow-hidden">
+                <div class="px-4 py-3 border-b bg-slate-50">
+                    <h2 class="font-semibold text-sm">Top {{ limits.artists }} artistes</h2>
+                </div>
+                {% if snapshot.data.top_artists is empty %}
+                    <div class="p-4 text-sm text-slate-500">Aucune donnée.</div>
+                {% else %}
+                    <div class="max-h-[600px] overflow-y-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-slate-100 text-slate-600 text-left text-xs sticky top-0">
+                            <tr>
+                                <th class="px-3 py-2 w-10">#</th>
+                                <th class="px-3 py-2">Artiste</th>
+                                <th class="px-3 py-2 w-20 text-right">Plays</th>
+                            </tr>
+                            </thead>
+                            <tbody class="divide-y">
+                            {% for row in snapshot.data.top_artists %}
+                                <tr>
+                                    <td class="px-3 py-1.5 text-slate-400">{{ loop.index }}</td>
+                                    <td class="px-3 py-1.5 font-medium">{{ row.artist }}</td>
+                                    <td class="px-3 py-1.5 text-right">{{ row.plays|number_format(0, '.', ' ') }}</td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% endif %}
+            </div>
+
+            {# ---------- Top albums ---------- #}
+            <div class="bg-white shadow rounded overflow-hidden">
+                <div class="px-4 py-3 border-b bg-slate-50">
+                    <h2 class="font-semibold text-sm">Top {{ limits.albums }} albums</h2>
+                </div>
+                {% if snapshot.data.top_albums is empty %}
+                    <div class="p-4 text-sm text-slate-500">Aucune donnée.</div>
+                {% else %}
+                    <div class="max-h-[600px] overflow-y-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-slate-100 text-slate-600 text-left text-xs sticky top-0">
+                            <tr>
+                                <th class="px-3 py-2 w-10">#</th>
+                                <th class="px-3 py-2">Album</th>
+                                <th class="px-3 py-2 w-20 text-right">Plays</th>
+                            </tr>
+                            </thead>
+                            <tbody class="divide-y">
+                            {% for row in snapshot.data.top_albums %}
+                                <tr>
+                                    <td class="px-3 py-1.5 text-slate-400">{{ loop.index }}</td>
+                                    <td class="px-3 py-1.5">
+                                        <div class="font-medium">{{ row.album }}</div>
+                                        <div class="text-xs text-slate-500">{{ row.album_artist }}</div>
+                                    </td>
+                                    <td class="px-3 py-1.5 text-right">{{ row.plays|number_format(0, '.', ' ') }}</td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% endif %}
+            </div>
+
+            {# ---------- Top tracks + create-playlist action ---------- #}
+            <div class="bg-white shadow rounded overflow-hidden">
+                <div class="px-4 py-3 border-b bg-slate-50 flex items-center justify-between gap-2">
+                    <h2 class="font-semibold text-sm">Top {{ limits.tracks }} morceaux</h2>
+                </div>
+
+                {% if snapshot.data.top_tracks is not empty %}
+                    <form method="post" action="{{ path('app_stats_tops_playlist') }}"
+                          class="px-4 py-3 border-b bg-emerald-50 flex flex-wrap items-end gap-2 text-xs">
+                        <input type="hidden" name="from" value="{{ fromStr }}">
+                        <input type="hidden" name="to" value="{{ toStr }}">
+                        {% if client %}<input type="hidden" name="client" value="{{ client }}">{% endif %}
+                        <input type="hidden" name="_token" value="{{ csrf_token('tops_' ~ from.timestamp ~ '_' ~ to.timestamp ~ '_' ~ (client ?? '')) }}">
+                        <div class="flex flex-col">
+                            <label for="count" class="text-slate-600 mb-1">Nb morceaux</label>
+                            <input type="number" id="count" name="count" min="1" max="{{ limits.tracks }}" value="50"
+                                   class="border rounded px-2 py-1 w-24">
+                        </div>
+                        <div class="flex flex-col flex-1 min-w-[180px]">
+                            <label for="name" class="text-slate-600 mb-1">Nom (optionnel)</label>
+                            <input type="text" id="name" name="name"
+                                   placeholder="Top X morceaux {{ fromStr }} → {{ toStr }}"
+                                   class="border rounded px-2 py-1">
+                        </div>
+                        <button type="submit"
+                                class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded">
+                            + Créer playlist Navidrome
+                        </button>
+                    </form>
+                {% endif %}
+
+                {% if snapshot.data.top_tracks is empty %}
+                    <div class="p-4 text-sm text-slate-500">Aucune donnée.</div>
+                {% else %}
+                    <div class="max-h-[600px] overflow-y-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-slate-100 text-slate-600 text-left text-xs sticky top-0">
+                            <tr>
+                                <th class="px-3 py-2 w-10">#</th>
+                                <th class="px-3 py-2">Titre</th>
+                                <th class="px-3 py-2 w-20 text-right">Plays</th>
+                            </tr>
+                            </thead>
+                            <tbody class="divide-y">
+                            {% for row in snapshot.data.top_tracks %}
+                                <tr>
+                                    <td class="px-3 py-1.5 text-slate-400">{{ loop.index }}</td>
+                                    <td class="px-3 py-1.5">
+                                        <div class="font-medium">{{ row.title }}</div>
+                                        <div class="text-xs text-slate-500">
+                                            {{ row.artist }}{% if row.album %} — {{ row.album }}{% endif %}
+                                        </div>
+                                    </td>
+                                    <td class="px-3 py-1.5 text-right">{{ row.plays|number_format(0, '.', ' ') }}</td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    {% endif %}
+
+    {% if recent is not empty %}
+        <div class="bg-white shadow rounded overflow-hidden">
+            <div class="px-4 py-3 border-b bg-slate-50">
+                <h2 class="font-semibold text-sm">Dernières fenêtres calculées</h2>
+            </div>
+            <table class="w-full text-sm">
+                <thead class="bg-slate-100 text-slate-600 text-left text-xs">
+                <tr>
+                    <th class="px-3 py-2">Fenêtre</th>
+                    <th class="px-3 py-2">Client</th>
+                    <th class="px-3 py-2">Calculé le</th>
+                </tr>
+                </thead>
+                <tbody class="divide-y">
+                {% for snap in recent %}
+                    {% set rFrom = snap.windowFrom|date('Y-m-d') %}
+                    {% set rTo = snap.windowTo|date_modify('-1 day')|date('Y-m-d') %}
+                    {% set rArgs = { from: rFrom, to: rTo } %}
+                    {% if snap.client %}{% set rArgs = rArgs|merge({ client: snap.client }) %}{% endif %}
+                    <tr>
+                        <td class="px-3 py-1.5">
+                            <a class="text-blue-700 hover:underline" href="{{ path('app_stats_tops', rArgs) }}">
+                                {{ rFrom }} → {{ rTo }}
+                            </a>
+                        </td>
+                        <td class="px-3 py-1.5 text-slate-500">{{ snap.client ?? '—' }}</td>
+                        <td class="px-3 py-1.5 text-slate-500">{{ snap.computedAt|date('Y-m-d H:i') }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
+{% endblock %}

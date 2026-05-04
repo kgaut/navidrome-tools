@@ -274,6 +274,10 @@ Cinq pages stats accessibles via le menu déroulant **Statistiques** :
 |----------------------|------------------------------------------------------------------------------|
 | `/stats`             | Vue d'ensemble par période (7d/30d/last-month/last-year/all-time), cachée    |
 |                      | dans `stats_snapshot`, refresh manuel + cron `STATS_REFRESH_SCHEDULE`.       |
+| `/stats/tops`        | Tops sur fenêtre `[from, to]` arbitraire : 50 artistes / 100 albums /        |
+|                      | 500 morceaux, filtre par client. Cache dans `top_snapshot` (clé              |
+|                      | (from, to, client)). Bouton « + Créer playlist Navidrome » sur le top        |
+|                      | morceaux. Refresh manuel ou via `app:stats:tops:compute`.                    |
 | `/stats/compare`     | Comparaison côte à côte de deux périodes : top artistes / morceaux fusionnés |
 |                      | avec deltas et badges (nouveau / disparu / ↑N / ↓N / =).                     |
 | `/stats/charts`      | Trois graphiques Chart.js : écoutes par mois, top 5 artistes au fil du       |

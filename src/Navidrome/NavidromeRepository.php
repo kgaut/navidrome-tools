@@ -598,6 +598,65 @@ class NavidromeRepository
     }
 
     /**
+     * Top albums by aggregated plays in [from, to). Pass null/null for all-time.
+     * `sample_track_id` is the most-played media_file in the album, used for
+     * cover art on the UI.
+     *
+     * @return list<array{album: string, album_artist: string, plays: int, track_count: int, sample_track_id: string}>
+     */
+    public function getTopAlbums(?\DateTimeInterface $from, ?\DateTimeInterface $to, int $limit, ?string $client = null): array
+    {
+        if (!$this->hasScrobblesTable()) {
+            return [];
+        }
+
+        $userId = $this->resolveUserId();
+
+        $sql = 'SELECT mf.album AS album,
+                       COALESCE(NULLIF(mf.album_artist, ""), mf.artist) AS album_artist,
+                       COUNT(*) AS plays,
+                       COUNT(DISTINCT mf.id) AS track_count,
+                       (SELECT s2.media_file_id
+                        FROM scrobbles s2
+                        JOIN media_file mf2 ON mf2.id = s2.media_file_id
+                        WHERE s2.user_id = :uid
+                          AND mf2.album = mf.album
+                          AND COALESCE(NULLIF(mf2.album_artist, ""), mf2.artist) = COALESCE(NULLIF(mf.album_artist, ""), mf.artist)
+                        GROUP BY s2.media_file_id
+                        ORDER BY COUNT(*) DESC, s2.media_file_id ASC
+                        LIMIT 1) AS sample_track_id
+                FROM scrobbles s
+                JOIN media_file mf ON mf.id = s.media_file_id
+                WHERE s.user_id = :uid
+                  AND mf.album != ""';
+        $params = ['uid' => $userId, 'lim' => $limit];
+        $types = ['lim' => \Doctrine\DBAL\ParameterType::INTEGER];
+        if ($from !== null && $to !== null) {
+            $sql .= ' AND s.submission_time >= :f AND s.submission_time < :t';
+            $params['f'] = $from->getTimestamp();
+            $params['t'] = $to->getTimestamp();
+            $types['f'] = \Doctrine\DBAL\ParameterType::INTEGER;
+            $types['t'] = \Doctrine\DBAL\ParameterType::INTEGER;
+        }
+        if ($client !== null && $client !== '' && $this->hasScrobbleClient()) {
+            $sql .= ' AND s.client = :client';
+            $params['client'] = $client;
+        }
+        $sql .= ' GROUP BY mf.album, COALESCE(NULLIF(mf.album_artist, ""), mf.artist)
+                  ORDER BY plays DESC, album ASC LIMIT :lim';
+
+        $rows = $this->connection()->fetchAllAssociative($sql, $params, $types);
+
+        return array_map(static fn (array $r) => [
+            'album' => (string) $r['album'],
+            'album_artist' => (string) $r['album_artist'],
+            'plays' => (int) $r['plays'],
+            'track_count' => (int) $r['track_count'],
+            'sample_track_id' => (string) ($r['sample_track_id'] ?? ''),
+        ], $rows);
+    }
+
+    /**
      * Plays per month over the last $monthsBack months. Optionally filtered
      * to a single artist. Months without scrobbles are returned with plays=0.
      *
