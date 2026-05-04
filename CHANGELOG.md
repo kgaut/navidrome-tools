@@ -111,6 +111,21 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
   (desktop + mobile).
 
 ### Fixed
+- **OAuth Last.fm : la redirection finale n'aboutissait jamais** : la
+  page `/lastfm/connect` pré-appelait `auth.getToken` puis passait le
+  token obtenu **et** `cb` à `https://www.last.fm/api/auth/`. Or c'est
+  un mélange des deux flows incompatibles documentés par Last.fm —
+  desktop (token + pas de callback, l'utilisateur copie/colle) vs web
+  (pas de token côté URL, Last.fm en génère un et le pousse via `cb`).
+  En présence d'un `token` explicite, Last.fm bascule sur le flow
+  desktop et n'effectue **pas** la redirection vers `cb` : l'utilisateur
+  voit la page « access granted » mais reste bloqué chez Last.fm, et la
+  session reste marquée non active dans les Réglages. `connect` ne
+  pré-appelle plus `auth.getToken` ; `LastFmAuthService::buildAuthorizeUrl`
+  ne prend plus que `$callbackUrl`. Le token arrive bien dans le
+  callback et est échangé contre la session via `auth.getSession` comme
+  documenté.
+
 - **`--auto-stop` corrompait la DB SQLite Navidrome après un import lourd** :
   `DockerCli::stop()` envoyait un `docker stop -t 10` (timeout codé en
   dur 10s, hérité du défaut Docker). Pas assez pour que Navidrome
