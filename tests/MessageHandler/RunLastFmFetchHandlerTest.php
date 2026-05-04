@@ -101,7 +101,7 @@ class RunLastFmFetchHandlerTest extends TestCase
                 title: 'Track ' . $i,
                 album: 'Album',
                 mbid: null,
-                playedAt: new \DateTimeImmutable('2026-04-01 10:00:00', new \DateTimeZone('UTC'))
+                playedAt: (new \DateTimeImmutable('2026-04-01 10:00:00', new \DateTimeZone('UTC')))
                     ->modify('+' . $i . ' minute'),
             );
         }
