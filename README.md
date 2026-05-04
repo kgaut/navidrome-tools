@@ -100,6 +100,9 @@ pouvez les éditer puis les activer.
 | `CRON_REGEN_INTERVAL`| non (`300`) | Intervalle en secondes entre 2 régénérations du crontab (mode cron).     |
 | `COVERS_CACHE_PATH`  | non         | Cache disque des miniatures album/artiste. Défaut : `/app/var/covers` (volume Docker dédié dans le compose). |
 | `NAVIDROME_CONTAINER_NAME` | non   | Nom du conteneur Navidrome dans la même stack docker-compose. Quand renseigné, le dashboard affiche un statut UP/DOWN avec boutons Start/Stop, et les commandes d'import refusent de tourner si Navidrome est détecté UP (`--force` pour outrepasser). Requiert le mount `/var/run/docker.sock` (cf. `docker-compose.example.yml`). |
+| `NAVIDROME_STOP_TIMEOUT_SECONDS` | non (`60`) | Fenêtre de shutdown gracieux passée à `docker stop -t` lorsqu'on arrête Navidrome via `--auto-stop`. Doit confortablement excéder le checkpoint WAL SQLite — le défaut Docker (10s) suffit pour un Navidrome inactif mais peut SIGKILL en plein flush sur une grosse librairie après un import lourd, et corrompre `navidrome.db` (cf. #118). |
+| `NAVIDROME_STOP_WAIT_CEILING_SECONDS` | non (`30`) | Après `docker stop`, on poll encore `docker inspect` jusqu'à ce que `Running=false`, plafonné à cette durée. On refuse d'écrire dans la DB tant qu'`inspect` voit Navidrome vivant — ceinture-bretelles contre un SIGTERM handler qui traîne. |
+| `NAVIDROME_DB_BACKUP_RETENTION` | non (`3`) | Nombre de snapshots `<navidrome.db>.backup-<unix_ts>` conservés. Avant chaque action `--auto-stop`, le tool copie automatiquement la DB SQLite (et ses siblings `-wal` / `-shm`) — un simple `cp` rétablit l'état précédent. `0` = pas de purge. |
 | `HOMEPAGE_API_TOKEN` | non       | Bearer token pour le widget [Homepage](https://gethomepage.dev/widgets/services/customapi/) sur l'endpoint `/api/status`. Vide = mode enrichi désactivé (seul le mode healthcheck no-auth est servi). Voir la section [Widget Homepage](#widget-homepage-gethomepage). |
 
 ### Mise à jour
@@ -406,6 +409,23 @@ la variable d'environnement `LASTFM_API_KEY`. De même, le username peut
 - Sous Lando : `lando symfony app:lastfm:import myuser --api-key=...`
   fonctionne directement (la DB Navidrome bind-mountée est en RW par
   défaut).
+
+> **Backup automatique avant chaque écriture.** Quand vous lancez
+> `app:lastfm:import --auto-stop` ou `app:lastfm:rematch --auto-stop`,
+> le tool snapshote `navidrome.db` (+ siblings `-wal`/`-shm`) en
+> `<dbPath>.backup-<unix_ts>` **avant** d'écrire. Rétention configurable
+> via `NAVIDROME_DB_BACKUP_RETENTION` (défaut 3 snapshots). Si quoi que
+> ce soit tourne mal et que Navidrome refuse de redémarrer, restauration
+> en une commande :
+>
+> ```bash
+> # Lister les backups disponibles (du plus ancien au plus récent)
+> ls -lh /srv/navidrome/data/navidrome.db.backup-*
+>
+> # Rollback : remplacer la DB par le dernier backup connu sain
+> cp /srv/navidrome/data/navidrome.db.backup-<unix_ts> /srv/navidrome/data/navidrome.db
+> docker compose start navidrome
+> ```
 
 ### Exemples
 

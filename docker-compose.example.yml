@@ -29,6 +29,17 @@ services:
       # `container_name: navidrome` in your compose file). Don't forget
       # to also mount /var/run/docker.sock below.
       NAVIDROME_CONTAINER_NAME: ${NAVIDROME_CONTAINER_NAME:-}
+      # Graceful shutdown window (s) for `docker stop` before SIGKILL —
+      # too short = WAL not checkpointed = corrupt navidrome.db on
+      # --auto-stop. 60s is comfortable for a 100k-track library.
+      NAVIDROME_STOP_TIMEOUT_SECONDS: ${NAVIDROME_STOP_TIMEOUT_SECONDS:-60}
+      # Extra ceiling polling docker inspect after stop, refusing to
+      # write while Running=true. Belt-and-braces against a stalled
+      # SIGTERM handler.
+      NAVIDROME_STOP_WAIT_CEILING_SECONDS: ${NAVIDROME_STOP_WAIT_CEILING_SECONDS:-30}
+      # Number of <db>.backup-<ts> snapshots retained — taken auto
+      # before any --auto-stop write so a `cp` rolls back trivially.
+      NAVIDROME_DB_BACKUP_RETENTION: ${NAVIDROME_DB_BACKUP_RETENTION:-3}
       RUN_HISTORY_RETENTION_DAYS: ${RUN_HISTORY_RETENTION_DAYS:-90}
       # File de chemins consommée par un beets externe (cron côté hôte
       # qui partage le même volume). Vide = bouton masqué sur
@@ -87,6 +98,9 @@ services:
       LIDARR_METADATA_PROFILE_ID: ${LIDARR_METADATA_PROFILE_ID:-1}
       LIDARR_MONITOR: ${LIDARR_MONITOR:-all}
       NAVIDROME_CONTAINER_NAME: ${NAVIDROME_CONTAINER_NAME:-}
+      NAVIDROME_STOP_TIMEOUT_SECONDS: ${NAVIDROME_STOP_TIMEOUT_SECONDS:-60}
+      NAVIDROME_STOP_WAIT_CEILING_SECONDS: ${NAVIDROME_STOP_WAIT_CEILING_SECONDS:-30}
+      NAVIDROME_DB_BACKUP_RETENTION: ${NAVIDROME_DB_BACKUP_RETENTION:-3}
       RUN_HISTORY_RETENTION_DAYS: ${RUN_HISTORY_RETENTION_DAYS:-90}
       # File de chemins consommée par un beets externe (cron côté hôte
       # qui partage le même volume). Vide = bouton masqué sur

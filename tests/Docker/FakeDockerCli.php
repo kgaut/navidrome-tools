@@ -25,6 +25,23 @@ final class FakeDockerCli extends DockerCli
     public bool $stopShouldFail = false;
 
     /**
+     * Last `timeoutSeconds` value passed to {@see stop()} — lets tests
+     * assert that the container manager is forwarding the configured
+     * graceful-shutdown window to `docker stop -t`.
+     */
+    public ?int $lastStopTimeout = null;
+
+    /**
+     * When non-null, simulates a slow-shutdown container : `stop()` does
+     * not flip `Running` to false immediately. Instead, the next N calls
+     * to `inspectState()` keep returning Running=true (counter
+     * decremented each call), and the (N+1)th call flips it. Useful to
+     * exercise the polling loop in `runWithNavidromeStopped()`. Set to
+     * a very large number to simulate a Navidrome that never stops.
+     */
+    private ?int $inspectsRemainingBeforeStopped = null;
+
+    /**
      * @param array<string, mixed>|null $state
      */
     public function __construct(
@@ -38,6 +55,15 @@ final class FakeDockerCli extends DockerCli
     {
         if ($this->throwOnInspect !== null) {
             throw new NavidromeContainerException($this->throwOnInspect);
+        }
+
+        if ($this->inspectsRemainingBeforeStopped !== null && $this->state !== null) {
+            if ($this->inspectsRemainingBeforeStopped > 0) {
+                $this->inspectsRemainingBeforeStopped--;
+            } else {
+                $this->state['Running'] = false;
+                $this->inspectsRemainingBeforeStopped = null;
+            }
         }
 
         return $this->state;
@@ -59,11 +85,22 @@ final class FakeDockerCli extends DockerCli
     {
         $this->lastAction = ['stop', $containerName];
         $this->actions[] = ['stop', $containerName];
+        $this->lastStopTimeout = $timeoutSeconds;
         if ($this->stopShouldFail) {
             throw new NavidromeContainerException('docker stop a échoué (simulé).');
+        }
+        if ($this->inspectsRemainingBeforeStopped !== null) {
+            // Slow-shutdown mode: leave Running=true and let inspectState()
+            // count down. Don't flip here.
+            return;
         }
         if ($this->state !== null) {
             $this->state['Running'] = false;
         }
+    }
+
+    public function simulateSlowShutdown(int $inspectsBeforeStopped): void
+    {
+        $this->inspectsRemainingBeforeStopped = $inspectsBeforeStopped;
     }
 }

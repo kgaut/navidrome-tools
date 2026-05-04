@@ -23,6 +23,9 @@ parameters:
     lidarr.metadata_profile_id: '%env(int:LIDARR_METADATA_PROFILE_ID)%'
     lidarr.monitor: '%env(LIDARR_MONITOR)%'
     navidrome.container_name: '%env(NAVIDROME_CONTAINER_NAME)%'
+    navidrome.container_stop_timeout: '%env(int:NAVIDROME_STOP_TIMEOUT_SECONDS)%'
+    navidrome.container_stop_wait_ceiling: '%env(int:NAVIDROME_STOP_WAIT_CEILING_SECONDS)%'
+    navidrome.db_backup_retention: '%env(int:NAVIDROME_DB_BACKUP_RETENTION)%'
     app.homepage_api_token: '%env(HOMEPAGE_API_TOKEN)%'
 
 services:
@@ -89,6 +92,13 @@ services:
     App\Docker\NavidromeContainerConfig:
         arguments:
             $containerName: '%navidrome.container_name%'
+            $stopTimeoutSeconds: '%navidrome.container_stop_timeout%'
+            $stopWaitCeilingSeconds: '%navidrome.container_stop_wait_ceiling%'
+
+    App\Navidrome\NavidromeDbBackup:
+        arguments:
+            $dbPath: '%navidrome.db_path%'
+            $retention: '%navidrome.db_backup_retention%'
 
     App\Controller\LastFmImportController:
         arguments:
