@@ -16,18 +16,10 @@ class LastFmAuthController extends AbstractController
     }
 
     #[Route('/lastfm/connect', name: 'app_lastfm_connect', methods: ['GET'])]
-    public function connect(Request $request): Response
+    public function connect(): Response
     {
         if (!$this->authService->isConfigured()) {
             $this->addFlash('error', 'LASTFM_API_KEY et LASTFM_API_SECRET doivent être renseignés pour pouvoir se connecter à Last.fm.');
-
-            return $this->redirectToRoute('app_settings');
-        }
-
-        try {
-            $token = $this->authService->getRequestToken();
-        } catch (\Throwable $e) {
-            $this->addFlash('error', 'Impossible de demander un token Last.fm : ' . $e->getMessage());
 
             return $this->redirectToRoute('app_settings');
         }
@@ -38,7 +30,7 @@ class LastFmAuthController extends AbstractController
             \Symfony\Component\Routing\Generator\UrlGeneratorInterface::ABSOLUTE_URL,
         );
 
-        return $this->redirect($this->authService->buildAuthorizeUrl($token, $callbackUrl));
+        return $this->redirect($this->authService->buildAuthorizeUrl($callbackUrl));
     }
 
     #[Route('/lastfm/connect/callback', name: 'app_lastfm_connect_callback', methods: ['GET'])]

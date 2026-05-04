@@ -13,27 +13,15 @@ use Symfony\Component\HttpClient\Response\MockResponse;
 
 class LastFmAuthServiceTest extends TestCase
 {
-    public function testGetRequestTokenReturnsTokenFromApi(): void
-    {
-        $client = new MockHttpClient([
-            new MockResponse(json_encode(['token' => 'TOK123'], JSON_THROW_ON_ERROR), [
-                'response_headers' => ['content-type: application/json'],
-            ]),
-        ]);
-
-        $service = $this->makeService($client);
-        $this->assertSame('TOK123', $service->getRequestToken());
-    }
-
-    public function testBuildAuthorizeUrlIncludesTokenAndCallback(): void
+    public function testBuildAuthorizeUrlOmitsTokenAndIncludesCallback(): void
     {
         $service = $this->makeService(new MockHttpClient([]));
-        $url = $service->buildAuthorizeUrl('TOK123', 'https://app.test/cb');
+        $url = $service->buildAuthorizeUrl('https://app.test/cb');
 
         $this->assertStringStartsWith('https://www.last.fm/api/auth/?', $url);
         $this->assertStringContainsString('api_key=KEY', $url);
-        $this->assertStringContainsString('token=TOK123', $url);
         $this->assertStringContainsString('cb=' . urlencode('https://app.test/cb'), $url);
+        $this->assertStringNotContainsString('token=', $url);
     }
 
     public function testExchangeTokenForSessionPersistsKeyAndUser(): void

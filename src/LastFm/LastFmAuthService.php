@@ -54,40 +54,28 @@ class LastFmAuthService
     }
 
     /**
-     * Step 1: ask Last.fm for a fresh request token (lifetime 60 minutes).
+     * Build the URL the user must visit to grant access (web auth flow).
+     * Last.fm generates a fresh token server-side and appends it to the
+     * callback URL as `?token=…` after the user approves.
+     *
+     * Important : ne PAS pré-appeler `auth.getToken` puis passer le token
+     * ici — c'est le flow desktop. En présence de `cb`, Last.fm ignore
+     * un `token` fourni et n'effectue pas la redirection finale, ce qui
+     * laisse l'utilisateur bloqué sur la page « access granted » sans
+     * jamais revenir.
      */
-    public function getRequestToken(): string
-    {
-        $body = $this->call([
-            'method' => 'auth.getToken',
-            'api_key' => $this->apiKey,
-            'format' => 'json',
-        ]);
-        $token = (string) ($body['token'] ?? '');
-        if ($token === '') {
-            throw new \RuntimeException('Last.fm auth.getToken returned an empty token.');
-        }
-
-        return $token;
-    }
-
-    /**
-     * Step 2: build the URL the user must visit to grant access. After
-     * approving, Last.fm redirects to $callbackUrl (which must include the
-     * token in its query string — Last.fm does this automatically).
-     */
-    public function buildAuthorizeUrl(string $token, string $callbackUrl): string
+    public function buildAuthorizeUrl(string $callbackUrl): string
     {
         return self::AUTH_BASE . '?' . http_build_query([
             'api_key' => $this->apiKey,
-            'token' => $token,
             'cb' => $callbackUrl,
         ]);
     }
 
     /**
-     * Step 3: exchange the now-authorized token for a long-lived session
-     * key. Persists `sk` + the resolved username in `setting`.
+     * Exchange the token Last.fm appended to the callback URL for a
+     * long-lived session key. Persists `sk` + the resolved username in
+     * `setting`.
      */
     public function exchangeTokenForSession(string $token): void
     {
