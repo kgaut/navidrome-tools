@@ -39,12 +39,35 @@ final class RunLastFmFetchHandler
                 dateMax: $dateMax,
                 maxScrobbles: $msg->maxScrobbles,
                 dryRun: $msg->dryRun,
-                progress: function (int $fetched, int $buffered, int $alreadyBuffered) use ($run, $msg): void {
+                progress: function (
+                    int $fetched,
+                    int $buffered,
+                    int $alreadyBuffered,
+                    ?\DateTimeImmutable $batchFirst,
+                    ?\DateTimeImmutable $batchLast,
+                ) use (
+                    $run,
+                    $msg,
+                ): void {
+                    $batchRange = '';
+                    if ($batchFirst !== null && $batchLast !== null) {
+                        $from = min($batchFirst, $batchLast);
+                        $to = max($batchFirst, $batchLast);
+                        $batchRange = $from == $to
+                            ? sprintf(' · batch %s', $from->format('Y-m-d H:i'))
+                            : sprintf(' · batch %s → %s', $from->format('Y-m-d H:i'), $to->format('Y-m-d H:i'));
+                    }
                     $this->recorder->updateProgress(
                         $run,
                         current: $fetched,
                         total: $msg->maxScrobbles,
-                        message: sprintf('%d récupérés · %d nouveaux · %d déjà bufferisés', $fetched, $buffered, $alreadyBuffered),
+                        message: sprintf(
+                            '%d récupérés · %d nouveaux · %d déjà bufferisés%s',
+                            $fetched,
+                            $buffered,
+                            $alreadyBuffered,
+                            $batchRange,
+                        ),
                     );
                 },
             ),

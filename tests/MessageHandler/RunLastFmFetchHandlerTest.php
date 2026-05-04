@@ -87,6 +87,15 @@ class RunLastFmFetchHandlerTest extends TestCase
         $this->assertSame(120, $progress['current']);
         $this->assertSame(120, $progress['total']);
         $this->assertSame(100.0, $progress['percent']);
+
+        // Last tick should carry the batch date range, as the CLI does
+        // (« batch=YYYY-MM-DD HH:MM → YYYY-MM-DD HH:MM »).
+        $this->assertIsString($progress['message']);
+        $this->assertStringContainsString('batch ', $progress['message']);
+        $this->assertMatchesRegularExpression(
+            '/batch \d{4}-\d{2}-\d{2} \d{2}:\d{2}( → \d{4}-\d{2}-\d{2} \d{2}:\d{2})?/u',
+            $progress['message'],
+        );
     }
 
     /**
