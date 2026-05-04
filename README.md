@@ -121,7 +121,7 @@ redémarrages.
 Le service `navidrome-tools-cron` livré dans le compose lance déjà
 supercronic et exécute les jobs en parallèle de Navidrome. Si vous
 préférez piloter les jobs depuis le **crontab de l'hôte** (par exemple
-parce qu'au moins un job — typiquement `app:lastfm:import` — a besoin
+parce qu'au moins un job — typiquement `app:lastfm:process` — a besoin
 que Navidrome soit arrêté pour écrire dans sa SQLite sans risque de
 lock), voici un script complet à appeler depuis le crontab de la
 machine.
@@ -193,9 +193,10 @@ Notes :
   déjà). Pas besoin d'un `run --rm` qui relancerait l'entrypoint et
   rejouerait les migrations à chaque tick.
 - Adaptez la liste de commandes selon vos besoins — vous pouvez par
-  exemple ajouter un `app:lastfm:import <user> --api-key=…` une fois
-  par jour, qui profitera de l'arrêt de Navidrome pour écrire en toute
-  sécurité dans `navidrome.db`.
+  exemple ajouter un `app:lastfm:process` une fois par jour, qui
+  profitera de l'arrêt de Navidrome pour écrire en toute sécurité dans
+  `navidrome.db` (le fetch en amont, `app:lastfm:import`, peut tourner
+  sans arrêter Navidrome — voir la section import).
 
 ## Développement local avec Lando (recommandé)
 

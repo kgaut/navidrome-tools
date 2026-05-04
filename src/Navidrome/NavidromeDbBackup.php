@@ -7,8 +7,9 @@ namespace App\Navidrome;
  *
  *  1. {@see backup()} copies `<dbPath>` (and its `-wal` / `-shm` siblings
  *     when present) to `<dbPath>.backup-<unix_ts>` just before any
- *     write-mutating operation (`app:lastfm:import --auto-stop`, etc.).
- *     Old backups beyond `$retention` are pruned.
+ *     write-mutating operation (`app:lastfm:process --auto-stop`,
+ *     `app:lastfm:rematch --auto-stop`, etc.). Old backups beyond
+ *     `$retention` are pruned.
  *  2. {@see quickCheck()} opens the file SQLite read-only and runs
  *     `PRAGMA quick_check` — a lightweight structural sanity test that
  *     catches a half-flushed WAL or a SIGKILL-truncated header *before*
