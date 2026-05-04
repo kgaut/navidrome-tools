@@ -7,6 +7,22 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+### Added
+- **Lancement des jobs Last.fm depuis l'UI sans timeout HTTP** : les
+  4 long-runners (`fetch`, `process`, `rematch`, `sync-loved`) sont
+  maintenant exécutés via Symfony Messenger (transport Doctrine,
+  table `messenger_messages` auto-créée). Le controller crée une row
+  `run_history` en `queued` puis dispatche un message ; un nouveau
+  service `navidrome-tools-worker` (`APP_MODE=worker`) consomme la
+  file via `messenger:consume async --limit=1` (sérialisation des
+  écritures Navidrome). La page `/history/{id}` affiche une **barre
+  de progression** rafraîchie via polling JSON
+  (`GET /history/{id}/progress.json`, toutes les 2s en vanilla JS,
+  recharge la page sur fin de job). Statuts ajoutés : `queued`,
+  `running` ; détection automatique des jobs `stale` (> 10 min sans
+  mise à jour de progression). Pré-flight `--auto-stop` Navidrome
+  déplacé dans le handler.
+
 ### Changed
 - **BREAKING — Suppression du cron interne (supercronic)** : le tool
   ne planifie plus rien tout seul. La commande `app:cron:dump` et la

@@ -73,7 +73,7 @@ APP_AUTH_PASSWORD=...                   # mot de passe pour l'UI
 NAVIDROME_DATA_DIR=/srv/navidrome/data  # dossier qui contient navidrome.db
 EOF
 
-# 3. Lancer les deux services (web + cron)
+# 3. Lancer les services (web + worker pour les jobs Last.fm UI)
 docker compose up -d
 
 # 4. Ouvrir l'UI
@@ -90,7 +90,7 @@ pouvez les éditer puis les activer.
 |----------------------|-------------|--------------------------------------------------------------------------|
 | `APP_SECRET`         | oui         | Secret Symfony (32 caractères hex). `openssl rand -hex 32`.              |
 | `APP_ENV`            | non (`prod`)| `prod` ou `dev`.                                                         |
-| `APP_MODE`           | non (`web`) | `web` (FrankenPHP) ou `cli` (one-shot Symfony command).                  |
+| `APP_MODE`           | non (`web`) | `web` (FrankenPHP), `cli` (one-shot Symfony command) ou `worker` (consumer Messenger pour les jobs UI asynchrones). |
 | `APP_TIMEZONE`       | non (`UTC`) | Fuseau d'affichage (PHP + Twig). Ex. `Europe/Paris`. Stockage reste UTC. |
 | `NAVIDROME_DB_PATH`  | oui         | Chemin du fichier SQLite Navidrome dans le conteneur. Bind-mounter `:ro`.|
 | `NAVIDROME_URL`      | oui         | URL HTTP(S) de Navidrome (sans slash final).                             |
@@ -116,6 +116,50 @@ docker compose up -d
 Les migrations Doctrine sont jouées automatiquement à chaque démarrage
 (idempotent). Le volume `playlist-data` préserve la configuration entre
 redémarrages.
+
+### Worker pour les jobs Last.fm lancés depuis l'UI
+
+Les 4 long-runners Last.fm — fetch, process, rematch et
+loved↔starred sync — sont lançables **depuis l'UI sans risque de
+timeout HTTP**. Les controllers ne font plus que créer un
+`run_history` (status `queued`) et déposer un message dans la file
+Doctrine (table `messenger_messages`). La consommation est confiée
+à un service **`navidrome-tools-worker`** dédié qui exécute
+`messenger:consume async --limit=1` (sérialise les jobs ; `process`
+et `rematch` ne tournent jamais en parallèle car ils écrivent dans
+Navidrome).
+
+```yaml
+# extrait de docker-compose.example.yml
+navidrome-tools-worker:
+  image: ghcr.io/kgaut/navidrome-tools:latest
+  restart: unless-stopped
+  environment:
+    APP_MODE: worker
+    # … mêmes env vars que navidrome-tools-web (DATABASE_URL,
+    # NAVIDROME_*, LASTFM_*, NAVIDROME_CONTAINER_NAME)
+  volumes:
+    - ${NAVIDROME_DATA_DIR}/navidrome.db:/data/navidrome.db   # RW (process/rematch écrivent)
+    - navidrome-tools-data:/app/var
+    # Si NAVIDROME_CONTAINER_NAME est renseigné, le worker auto-stop
+    # Navidrome avant chaque écriture — il lui faut le socket Docker :
+    # - /var/run/docker.sock:/var/run/docker.sock
+  depends_on: [navidrome-tools-web]
+```
+
+Sans ce service, les jobs déposés depuis l'UI restent bloqués en
+`queued` indéfiniment. La page `/history/{id}` affiche une **barre
+de progression** rafraîchie en quasi temps réel via polling
+JSON (`GET /history/{id}/progress.json`) ; au bout de 10 minutes
+sans mise à jour de progression, la row est marquée `stale`.
+
+Variables liées :
+
+| Variable                        | Défaut  | Description                                                            |
+|---------------------------------|---------|------------------------------------------------------------------------|
+| `MESSENGER_WORKER_TIME_LIMIT`   | `3600`  | Recyclage du process worker après cette durée (s) — borne mémoire.     |
+| `MESSENGER_WORKER_MEMORY_LIMIT` | `128M`  | Recyclage si la mémoire dépasse ce seuil.                              |
+| `MESSENGER_WORKER_MESSAGE_LIMIT`| `1`     | Nombre de messages traités par cycle. **Garder à 1** pour sérialiser. |
 
 ### Lancement des jobs récurrents
 

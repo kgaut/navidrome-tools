@@ -5,21 +5,21 @@ namespace App\Controller;
 use App\Docker\NavidromeContainerException;
 use App\Docker\NavidromeContainerManager;
 use App\Entity\RunHistory;
-use App\LastFm\RematchReport;
-use App\Service\LastFmRematchService;
-use App\Service\RunHistoryRecorder;
+use App\Message\RunLastFmRematchMessage;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Attribute\Route;
 
 class RematchController extends AbstractController
 {
     public function __construct(
-        private readonly LastFmRematchService $rematch,
-        private readonly RunHistoryRecorder $recorder,
         private readonly NavidromeContainerManager $containerManager,
+        private readonly EntityManagerInterface $em,
+        private readonly MessageBusInterface $bus,
     ) {
     }
 
@@ -47,46 +47,22 @@ class RematchController extends AbstractController
             return new RedirectResponse($back);
         }
 
-        set_time_limit(0);
-        ignore_user_abort(true);
+        $entry = new RunHistory(
+            type: RunHistory::TYPE_LASTFM_REMATCH,
+            reference: $reference,
+            label: 'Rematch unmatched — ' . $reference,
+        );
+        $entry->setStatus(RunHistory::STATUS_QUEUED);
+        $this->em->persist($entry);
+        $this->em->flush();
 
-        try {
-            $entry = $this->recorder->record(
-                type: RunHistory::TYPE_LASTFM_REMATCH,
-                reference: $reference,
-                label: 'Rematch unmatched — ' . $reference,
-                action: fn (RunHistory $run) => [$run, $this->rematch->rematch(runId: $runId)],
-                extractMetrics: static fn (array $r) => [
-                    'considered' => $r[1]->considered,
-                    'inserted' => $r[1]->matchedAsInserted,
-                    'duplicate' => $r[1]->matchedAsDuplicate,
-                    'skipped' => $r[1]->skipped,
-                    'still_unmatched' => $r[1]->stillUnmatched,
-                    'run_id_filter' => $runId,
-                ],
-            );
-            [$runEntry, $report] = $entry;
-            /** @var RunHistory $runEntry */
-            /** @var RematchReport $report */
+        $this->bus->dispatch(new RunLastFmRematchMessage(
+            runHistoryId: (int) $entry->getId(),
+            runIdFilter: $runId,
+        ));
 
-            $this->addFlash('success', sprintf(
-                'Rematch terminé : %d considérés, %d insérés, %d doublons, %d ignorés, %d toujours non matchés.',
-                $report->considered,
-                $report->matchedAsInserted,
-                $report->matchedAsDuplicate,
-                $report->skipped,
-                $report->stillUnmatched,
-            ));
+        $this->addFlash('success', 'Rematch mis en file — la progression s\'affiche ci-dessous.');
 
-            return new RedirectResponse($this->generateUrl('app_history_detail', ['id' => $runEntry->getId()]));
-        } catch (\Throwable $e) {
-            $this->addFlash('error', 'Échec du rematch : ' . $e->getMessage());
-
-            $back = $runId !== null
-                ? $this->generateUrl('app_history_detail', ['id' => $runId])
-                : $this->generateUrl('app_lastfm_import');
-
-            return new RedirectResponse($back);
-        }
+        return new RedirectResponse($this->generateUrl('app_history_detail', ['id' => $entry->getId()]));
     }
 }
