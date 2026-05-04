@@ -39,15 +39,17 @@ Fonctionnalités principales :
   une simple classe PHP. En ajouter un nouveau = créer un fichier dans
   `src/Generator/`. Voir [`docs/PLUGINS.md`](docs/PLUGINS.md).
 - **Configuration en base** (SQLite locale, Doctrine ORM) : nom, paramètres,
-  planning cron, limite, activation par playlist. Géré via l'UI.
-- **Génération automatique** par cron interne (supercronic) qui se rafraîchit
-  toutes les 5 minutes pour refléter les changements faits dans l'UI.
+  limite, activation par playlist. Géré via l'UI.
+- **Lancement des jobs** depuis le crontab unix de l'hôte (ou tout
+  scheduler maison) : `bin/console app:playlist:run <id>`,
+  `app:lastfm:import`, `app:lastfm:process`, etc. Pas de cron embarqué
+  dans le tool.
 - **Auth UI** : un seul couple login/mot de passe défini dans `.env`, pas de
   base utilisateurs.
 - **Détection automatique** de la table `scrobbles` (Navidrome ≥ 0.55, fin
   2025) pour des stats exactes ; fallback sur `annotation.play_date` sinon.
-- **Image Docker** unique qui sert au choix l'UI web ou le démon cron via
-  la variable `APP_MODE`.
+- **Image Docker** légère (FrankenPHP) qui sert l'UI web et expose les
+  commandes Symfony via `APP_MODE=cli`.
 
 ## Quickstart Docker (production / self-host)
 
@@ -88,7 +90,7 @@ pouvez les éditer puis les activer.
 |----------------------|-------------|--------------------------------------------------------------------------|
 | `APP_SECRET`         | oui         | Secret Symfony (32 caractères hex). `openssl rand -hex 32`.              |
 | `APP_ENV`            | non (`prod`)| `prod` ou `dev`.                                                         |
-| `APP_MODE`           | non (`web`) | `web` (FrankenPHP) ou `cron` (supercronic).                              |
+| `APP_MODE`           | non (`web`) | `web` (FrankenPHP) ou `cli` (one-shot Symfony command).                  |
 | `APP_TIMEZONE`       | non (`UTC`) | Fuseau d'affichage (PHP + Twig). Ex. `Europe/Paris`. Stockage reste UTC. |
 | `NAVIDROME_DB_PATH`  | oui         | Chemin du fichier SQLite Navidrome dans le conteneur. Bind-mounter `:ro`.|
 | `NAVIDROME_URL`      | oui         | URL HTTP(S) de Navidrome (sans slash final).                             |
@@ -97,7 +99,6 @@ pouvez les éditer puis les activer.
 | `APP_AUTH_USER`      | oui         | Identifiant pour se connecter à l'UI du tool.                            |
 | `APP_AUTH_PASSWORD`  | oui         | Mot de passe pour se connecter à l'UI du tool.                           |
 | `DATABASE_URL`       | non         | DSN Doctrine pour la DB locale du tool. Défaut : SQLite dans `var/data.db`. |
-| `CRON_REGEN_INTERVAL`| non (`300`) | Intervalle en secondes entre 2 régénérations du crontab (mode cron).     |
 | `COVERS_CACHE_PATH`  | non         | Cache disque des miniatures album/artiste. Défaut : `/app/var/covers` (volume Docker dédié dans le compose). |
 | `NAVIDROME_CONTAINER_NAME` | non   | Nom du conteneur Navidrome dans la même stack docker-compose. Quand renseigné, le dashboard affiche un statut UP/DOWN avec boutons Start/Stop, et les commandes d'import refusent de tourner si Navidrome est détecté UP (`--force` pour outrepasser). Requiert le mount `/var/run/docker.sock` (cf. `docker-compose.example.yml`). |
 | `NAVIDROME_STOP_TIMEOUT_SECONDS` | non (`60`) | Fenêtre de shutdown gracieux passée à `docker stop -t` lorsqu'on arrête Navidrome via `--auto-stop`. Doit confortablement excéder le checkpoint WAL SQLite — le défaut Docker (10s) suffit pour un Navidrome inactif mais peut SIGKILL en plein flush sur une grosse librairie après un import lourd, et corrompre `navidrome.db` (cf. #118). |
@@ -116,87 +117,57 @@ Les migrations Doctrine sont jouées automatiquement à chaque démarrage
 (idempotent). Le volume `playlist-data` préserve la configuration entre
 redémarrages.
 
-### Cron externe avec arrêt de Navidrome (optionnel)
+### Lancement des jobs récurrents
 
-Le service `navidrome-tools-cron` livré dans le compose lance déjà
-supercronic et exécute les jobs en parallèle de Navidrome. Si vous
-préférez piloter les jobs depuis le **crontab de l'hôte** (par exemple
-parce qu'au moins un job — typiquement `app:lastfm:process` — a besoin
-que Navidrome soit arrêté pour écrire dans sa SQLite sans risque de
-lock), voici un script complet à appeler depuis le crontab de la
-machine.
-
-> Pré-requis : Navidrome **et** les services `navidrome-tools-*` doivent
-> être déclarés dans le **même** `docker-compose.yml` (« même stack »).
-> Si vous adoptez ce script, **désactivez** le service
-> `navidrome-tools-cron` (sinon ses jobs supercronic et ceux du host
-> cron se marcheront dessus).
-
-`/usr/local/bin/navidrome-tools-cron.sh` :
+Le tool n'embarque **plus** de cron interne (pas de supercronic, pas
+de service `navidrome-tools-cron`, pas de `app:cron:dump`). Vous
+pilotez les commandes Symfony depuis votre crontab unix (ou tout
+autre scheduler). Pour exécuter une commande dans le conteneur
+existant :
 
 ```bash
-#!/usr/bin/env bash
-#
-# Stoppe Navidrome, lance les commandes cron de navidrome-tools,
-# redémarre Navidrome — quoi qu'il arrive.
-#
-# Exemple de ligne crontab (root) :
-#     0 4 * * * /usr/local/bin/navidrome-tools-cron.sh >> /var/log/navidrome-tools-cron.log 2>&1
-
-set -euo pipefail
-
-# --- Configuration ---
-STACK_DIR="/srv/navidrome"            # dossier contenant docker-compose.yml
-NAVIDROME_SERVICE="navidrome"         # nom du service Navidrome dans la stack
-TOOLS_SERVICE="navidrome-tools-web"   # service tool sur lequel taper les commandes
-COMPOSE=(docker compose)              # mettre (docker-compose) pour l'ancien CLI
-
-cd "$STACK_DIR"
-
-log() { echo "[$(date -Is)] $*"; }
-
-# Toujours relancer Navidrome, même si une commande échoue ou que le
-# script est interrompu.
-restart_navidrome() {
-    log "Redémarrage de ${NAVIDROME_SERVICE}"
-    "${COMPOSE[@]}" up -d "$NAVIDROME_SERVICE"
-}
-trap restart_navidrome EXIT
-
-log "Arrêt de ${NAVIDROME_SERVICE}"
-"${COMPOSE[@]}" stop "$NAVIDROME_SERVICE"
-
-log "Génération des playlists dues"
-"${COMPOSE[@]}" exec -T "$TOOLS_SERVICE" php bin/console app:playlist:run-all
-
-log "Recalcul du cache statistiques"
-"${COMPOSE[@]}" exec -T "$TOOLS_SERVICE" php bin/console app:stats:compute
-
-log "Purge de l'historique des runs"
-"${COMPOSE[@]}" exec -T "$TOOLS_SERVICE" php bin/console app:history:purge
-
-log "Terminé"
+docker compose exec -T navidrome-tools-web php bin/console <command>
 ```
 
-Rendez-le exécutable une fois copié :
+Exemples de lignes crontab adaptées au flux Last.fm en deux étapes
+(fetch quand Navidrome tourne, process quand il est stoppé) :
 
-```bash
-sudo chmod +x /usr/local/bin/navidrome-tools-cron.sh
+```cron
+# Génération d'une playlist (l'id vient de l'UI ou de
+# `bin/console doctrine:dbal:run-sql 'SELECT id, name FROM playlist_definition'`).
+0 3 * * * docker compose -f /srv/navidrome/docker-compose.yml exec -T navidrome-tools-web \
+    php bin/console app:playlist:run 1
+
+# Refresh du cache stats (lecture seule sur Navidrome — sans risque).
+0 */6 * * * docker compose -f /srv/navidrome/docker-compose.yml exec -T navidrome-tools-web \
+    php bin/console app:stats:compute
+
+# Fetch Last.fm dans le buffer (Navidrome up — aucune écriture sur sa DB).
+*/15 * * * * docker compose -f /srv/navidrome/docker-compose.yml exec -T navidrome-tools-web \
+    php bin/console app:lastfm:import
+
+# Drain du buffer dans Navidrome (--auto-stop orchestre stop/run/restart).
+0 4 * * * docker compose -f /srv/navidrome/docker-compose.yml exec -T navidrome-tools-web \
+    php bin/console app:lastfm:process --auto-stop
+
+# Re-match des unmatched cumulés (idem, --auto-stop).
+0 5 * * 0 docker compose -f /srv/navidrome/docker-compose.yml exec -T navidrome-tools-web \
+    php bin/console app:lastfm:rematch --auto-stop
+
+# Purge de l'historique des runs (rétention RUN_HISTORY_RETENTION_DAYS).
+30 4 * * * docker compose -f /srv/navidrome/docker-compose.yml exec -T navidrome-tools-web \
+    php bin/console app:history:purge
 ```
 
-Notes :
+`docker compose exec -T` réutilise le conteneur `navidrome-tools-web`
+déjà démarré (toutes les variables d'environnement requises y sont
+déjà). Pas besoin d'un `run --rm` qui relancerait l'entrypoint et
+rejouerait les migrations à chaque tick.
 
-- `trap … EXIT` garantit que Navidrome est relancé même si une commande
-  Symfony plante ou si le script reçoit un `SIGTERM`.
-- `docker compose exec -T` réutilise le conteneur `navidrome-tools-web`
-  déjà démarré (toutes les variables d'environnement requises y sont
-  déjà). Pas besoin d'un `run --rm` qui relancerait l'entrypoint et
-  rejouerait les migrations à chaque tick.
-- Adaptez la liste de commandes selon vos besoins — vous pouvez par
-  exemple ajouter un `app:lastfm:process` une fois par jour, qui
-  profitera de l'arrêt de Navidrome pour écrire en toute sécurité dans
-  `navidrome.db` (le fetch en amont, `app:lastfm:import`, peut tourner
-  sans arrêter Navidrome — voir la section import).
+Pour les commandes qui écrivent dans Navidrome (`app:lastfm:process`,
+`app:lastfm:rematch`), `--auto-stop` orchestre stop / write / restart
+quand `NAVIDROME_CONTAINER_NAME` est configuré. Sans cette variable,
+arrêtez Navidrome manuellement avant d'invoquer la commande.
 
 ## Développement local avec Lando (recommandé)
 
@@ -233,9 +204,6 @@ Commandes utiles :
 | `lando migrate`            | Jouer les migrations Doctrine.                                 |
 | `lando seed`               | Réinsérer les fixtures (idempotent).                           |
 | `lando playlist-run "Top 30 derniers jours" --dry-run` | Tester une définition. |
-| `lando cron-dump`          | Voir le crontab généré pour supercronic.                       |
-
-Le service `cron` lance supercronic en local, identique au mode prod.
 
 Pour activer Xdebug : éditer votre copie locale `.lando.yml` (`xdebug: debug`) puis
 `lando rebuild -y`.
@@ -752,8 +720,8 @@ d'œil les erreurs récentes, avec un lien direct vers la page
 complète.
 
 Une commande `app:history:purge` supprime les entrées plus vieilles que
-`RUN_HISTORY_RETENTION_DAYS` (défaut 90). Elle est ajoutée
-automatiquement au crontab par `app:cron:dump` (1×/jour à 4h30).
+`RUN_HISTORY_RETENTION_DAYS` (défaut 90). À planifier dans votre
+crontab unix (cf. la section [Lancement des jobs récurrents](#lancement-des-jobs-récurrents)).
 
 ## Widget Homepage (gethomepage)
 

@@ -8,6 +8,25 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### Changed
+- **BREAKING — Suppression du cron interne (supercronic)** : le tool
+  ne planifie plus rien tout seul. La commande `app:cron:dump` et la
+  commande `app:playlist:run-all` sont supprimées, le service Docker
+  `navidrome-tools-cron` disparaît du `docker-compose.example.yml`,
+  le mode `APP_MODE=cron` du Dockerfile / entrypoint disparaît, et
+  les variables d'environnement `STATS_REFRESH_SCHEDULE`,
+  `LASTFM_LOVE_SYNC_SCHEDULE`, `LASTFM_REMATCH_SCHEDULE`,
+  `LASTFM_FETCH_SCHEDULE`, `LASTFM_PROCESS_SCHEDULE` ne sont plus
+  lues. Le champ `schedule` de `playlist_definition` est retiré
+  (migration `Version20260504100000` qui drop la colonne) ainsi que
+  son tri sur le dashboard. Les jobs récurrents
+  (`app:playlist:run`, `app:stats:compute`, `app:lastfm:import`,
+  `app:lastfm:process`, `app:lastfm:rematch`, `app:history:purge`…)
+  doivent être planifiés depuis le **crontab unix de l'hôte** via
+  `docker compose exec -T navidrome-tools-web php bin/console …`.
+  La dépendance `dragonmantank/cron-expression` est retirée. Section
+  « Lancement des jobs récurrents » du README pour des exemples
+  prêts à coller.
+
 - **BREAKING — Last.fm import découplé en deux étapes** :
   `app:lastfm:import` ne fait plus que **récupérer** les scrobbles
   Last.fm dans une nouvelle table `lastfm_import_buffer` (pas de

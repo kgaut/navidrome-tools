@@ -31,7 +31,6 @@ services:
         APP_AUTH_USER: admin
         APP_AUTH_PASSWORD: changeme
         DATABASE_URL: "sqlite:///%kernel.project_dir%/var/data.db"
-        STATS_REFRESH_SCHEDULE: '0 */6 * * *'
         LIDARR_URL: ''
         LIDARR_API_KEY: ''
         LIDARR_ROOT_FOLDER_PATH: /music
@@ -75,40 +74,12 @@ services:
         LASTFM_FUZZY_MAX_DISTANCE: '0'
         # TTL (days) of negative match-cache entries. 0 = never expire.
         LASTFM_MATCH_CACHE_TTL_DAYS: '30'
-        # Cron schedule for the loved↔starred sync (app:lastfm:sync-loved).
-        # Empty = no cron line. Set e.g. '0 4 * * *' for nightly at 04:00.
-        LASTFM_LOVE_SYNC_SCHEDULE: ''
-        # Cron schedule for re-matching previously unmatched scrobbles
-        # (app:lastfm:rematch). Empty = no cron line. Requires Navidrome stopped.
-        LASTFM_REMATCH_SCHEDULE: ''
-        # Cron schedule for the Last.fm fetch into the local buffer
-        # (app:lastfm:import). Safe to run while Navidrome is up.
-        LASTFM_FETCH_SCHEDULE: ''
-        # Cron schedule for processing the Last.fm import buffer
-        # (app:lastfm:process). Requires Navidrome stopped.
-        LASTFM_PROCESS_SCHEDULE: ''
         # Local on-disk cache for album/artist cover art (proxy + cache).
         COVERS_CACHE_PATH: '/app/var/covers'
         # Homepage (gethomepage.dev) integration. Bearer token consumed
         # by the JSON endpoint /api/status. Empty = enriched mode
         # disabled, only the no-auth healthcheck mode is served.
         HOMEPAGE_API_TOKEN: ''
-
-  cron:
-    type: php:8.3
-    overrides:
-      environment: *app_env
-      command: |
-        sh -c "
-          php bin/console doctrine:migrations:migrate -n --env=dev || true;
-          php bin/console app:cron:dump --env=dev > /tmp/crontab;
-          cat /tmp/crontab;
-          /usr/local/bin/supercronic /tmp/crontab
-        "
-    build_as_root:
-      - apk add --no-cache wget || (apt-get update && apt-get install -y wget)
-      - wget -qO /usr/local/bin/supercronic https://github.com/aptible/supercronic/releases/download/v0.2.30/supercronic-linux-amd64
-      - chmod +x /usr/local/bin/supercronic
 
 tooling:
   symfony:
@@ -133,10 +104,6 @@ tooling:
     service: appserver
     cmd: php bin/console app:playlist:run
     description: Run one playlist (e.g. `lando playlist-run "Top 30 derniers jours" --dry-run`)
-  cron-dump:
-    service: appserver
-    cmd: php bin/console app:cron:dump
-    description: Print the supercronic-compatible crontab built from enabled definitions
 
 proxy:
   appserver_nginx:
