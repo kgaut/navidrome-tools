@@ -15,6 +15,7 @@ class RunHistory
 {
     public const TYPE_PLAYLIST = 'playlist';
     public const TYPE_STATS = 'stats';
+    public const TYPE_STATS_TOPS = 'stats-tops';
     public const TYPE_LASTFM_IMPORT = 'lastfm-import';
     public const TYPE_LASTFM_FETCH = 'lastfm-fetch';
     public const TYPE_LASTFM_PROCESS = 'lastfm-process';
