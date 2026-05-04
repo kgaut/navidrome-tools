@@ -7,6 +7,12 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+### Changed
+- **Favicon** : adapte automatiquement sa couleur au thème système
+  (`prefers-color-scheme`). La note reste sombre (`#0f172a`) en mode
+  clair et passe en blanc cassé (`#f8fafc`) en mode dark, pour rester
+  lisible sur les onglets sombres de Firefox/Chrome.
+
 ### Added
 - **Page `/stats/tops` — tops fenêtre libre** : nouvelle page dédiée
   qui affiche, sur une fenêtre `[from, to]` arbitraire (sélecteur
