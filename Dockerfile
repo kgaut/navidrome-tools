@@ -1,4 +1,4 @@
-FROM dunglas/frankenphp:1-php8.3-alpine
+FROM dunglas/frankenphp:1-php8.4-alpine
 
 LABEL org.opencontainers.image.title="Navidrome Tools" \
       org.opencontainers.image.description="Self-hosted Symfony app: playlist generator, listening stats, Last.fm import, Lidarr integration, run history." \

@@ -216,7 +216,7 @@ arrêtez Navidrome manuellement avant d'invoquer la commande.
 ## Développement local avec Lando (recommandé)
 
 [Lando](https://lando.dev/) fournit l'environnement Symfony complet
-(PHP 8.3 + nginx + Composer 2) sans installer quoi que ce soit sur la
+(PHP 8.4 + nginx + Composer 2) sans installer quoi que ce soit sur la
 machine hôte.
 
 ```bash
@@ -254,7 +254,7 @@ Pour activer Xdebug : éditer votre copie locale `.lando.yml` (`xdebug: debug`) 
 
 ## Développement local sans Lando
 
-Pré-requis : PHP 8.2+, ext-pdo_sqlite, Composer 2, [Symfony CLI](https://symfony.com/download).
+Pré-requis : PHP 8.4+, ext-pdo_sqlite, Composer 2, [Symfony CLI](https://symfony.com/download).
 
 ```bash
 composer install
