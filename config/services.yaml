@@ -15,6 +15,8 @@ parameters:
     lastfm.match_cache_ttl_days: '%env(int:LASTFM_MATCH_CACHE_TTL_DAYS)%'
     lastfm.love_sync_schedule: '%env(LASTFM_LOVE_SYNC_SCHEDULE)%'
     lastfm.rematch_schedule: '%env(LASTFM_REMATCH_SCHEDULE)%'
+    lastfm.fetch_schedule: '%env(LASTFM_FETCH_SCHEDULE)%'
+    lastfm.process_schedule: '%env(LASTFM_PROCESS_SCHEDULE)%'
     beets.queue_path: '%env(resolve:BEETS_QUEUE_PATH)%'
     lidarr.url: '%env(LIDARR_URL)%'
     lidarr.api_key: '%env(LIDARR_API_KEY)%'
@@ -75,6 +77,8 @@ services:
             $statsRefreshSchedule: '%app.stats_refresh_schedule%'
             $loveSyncSchedule: '%lastfm.love_sync_schedule%'
             $rematchSchedule: '%lastfm.rematch_schedule%'
+            $fetchSchedule: '%lastfm.fetch_schedule%'
+            $processSchedule: '%lastfm.process_schedule%'
 
     App\Command\PurgeHistoryCommand:
         arguments:
@@ -134,7 +138,7 @@ services:
             $cacheTtlDays: '%lastfm.match_cache_ttl_days%'
             $lastFmApiKey: '%lastfm.api_key%'
 
-    App\LastFm\LastFmImporter:
+    App\LastFm\LastFmBufferProcessor:
         arguments:
             $cacheTtlDays: '%lastfm.match_cache_ttl_days%'
 

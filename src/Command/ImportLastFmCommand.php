@@ -2,15 +2,10 @@
 
 namespace App\Command;
 
-use App\Docker\NavidromeContainerException;
-use App\Docker\NavidromeContainerManager;
-use App\Entity\LastFmImportTrack;
 use App\Entity\RunHistory;
-use App\LastFm\ImportReport;
-use App\LastFm\LastFmImporter;
-use App\LastFm\LastFmScrobble;
+use App\LastFm\FetchReport;
+use App\LastFm\LastFmFetcher;
 use App\Service\RunHistoryRecorder;
-use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -19,17 +14,22 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
+/**
+ * Fetch a Last.fm scrobble history into the local lastfm_import_buffer
+ * table. Does NOT touch the Navidrome DB — Navidrome can stay up.
+ *
+ * To match the buffered scrobbles and insert them into Navidrome, run
+ * `app:lastfm:process` afterwards (with Navidrome stopped).
+ */
 #[AsCommand(
     name: 'app:lastfm:import',
-    description: 'One-shot import of a Last.fm scrobble history into Navidrome.',
+    description: 'Fetch a Last.fm scrobble history into the local buffer (no Navidrome write).',
 )]
 class ImportLastFmCommand extends Command
 {
     public function __construct(
-        private readonly LastFmImporter $importer,
+        private readonly LastFmFetcher $fetcher,
         private readonly RunHistoryRecorder $recorder,
-        private readonly EntityManagerInterface $em,
-        private readonly NavidromeContainerManager $container,
     ) {
         parent::__construct();
     }
@@ -40,7 +40,7 @@ class ImportLastFmCommand extends Command
             ->addArgument(
                 'lastfm-user',
                 InputArgument::OPTIONAL,
-                'Last.fm username whose scrobbles you want to import. '
+                'Last.fm username whose scrobbles you want to fetch. '
                 . 'Defaults to the LASTFM_USER env var when omitted.',
             )
             ->addOption(
@@ -53,51 +53,25 @@ class ImportLastFmCommand extends Command
                 'date-min',
                 null,
                 InputOption::VALUE_REQUIRED,
-                'Only import scrobbles on or after this date (YYYY-MM-DD or ISO).',
+                'Only fetch scrobbles on or after this date (YYYY-MM-DD or ISO).',
             )
             ->addOption(
                 'date-max',
                 null,
                 InputOption::VALUE_REQUIRED,
-                'Only import scrobbles before this date (YYYY-MM-DD or ISO).',
-            )
-            ->addOption(
-                'tolerance',
-                null,
-                InputOption::VALUE_REQUIRED,
-                'Dedup tolerance window in seconds (default 60).',
-                '60',
+                'Only fetch scrobbles before this date (YYYY-MM-DD or ISO).',
             )
             ->addOption(
                 'dry-run',
                 null,
                 InputOption::VALUE_NONE,
-                'Fetch + match + count, but do not write to the Navidrome DB.',
-            )
-            ->addOption(
-                'show-unmatched',
-                null,
-                InputOption::VALUE_REQUIRED,
-                'How many unmatched (artist, title) pairs to print, ordered by scrobble count DESC. 0 to hide. "all" to show everything.',
-                '50',
+                'Stream the Last.fm history without writing to the buffer (useful to validate API connectivity).',
             )
             ->addOption(
                 'max-scrobbles',
                 null,
                 InputOption::VALUE_REQUIRED,
-                'Stop after processing N scrobbles (safety cap). Omit for no cap.',
-            )
-            ->addOption(
-                'force',
-                'f',
-                InputOption::VALUE_NONE,
-                'Bypass the Navidrome container pre-flight check (only when NAVIDROME_CONTAINER_NAME is set). Use at your own risk: writing while Navidrome runs can corrupt the SQLite WAL.',
-            )
-            ->addOption(
-                'auto-stop',
-                null,
-                InputOption::VALUE_NONE,
-                'When NAVIDROME_CONTAINER_NAME is set, stop Navidrome before the import and restart it afterwards (always, even on error). No-op when the feature is disabled or when Navidrome is already stopped. Mutually exclusive with the default pre-flight check — pass this for unattended runs (cron).',
+                'Stop after fetching N scrobbles (safety cap). Omit for no cap.',
             );
     }
 
@@ -120,23 +94,10 @@ class ImportLastFmCommand extends Command
         }
         $dateMin = $this->parseDate($input->getOption('date-min'));
         $dateMax = $this->parseDate($input->getOption('date-max'));
-        $tolerance = max(0, (int) $input->getOption('tolerance'));
         $dryRun = (bool) $input->getOption('dry-run');
-        $force = (bool) $input->getOption('force');
-        $autoStop = (bool) $input->getOption('auto-stop');
-
-        if (!$dryRun && !$autoStop) {
-            try {
-                $this->container->assertSafeToWrite($force);
-            } catch (NavidromeContainerException $e) {
-                $io->error($e->getMessage());
-
-                return Command::FAILURE;
-            }
-        }
 
         $io->section(sprintf(
-            'Importing scrobbles for Last.fm user "%s"%s%s%s',
+            'Fetching scrobbles for Last.fm user "%s"%s%s%s',
             $user,
             $dateMin ? ' from ' . $dateMin->format('Y-m-d') : '',
             $dateMax ? ' to ' . $dateMax->format('Y-m-d') : '',
@@ -146,64 +107,36 @@ class ImportLastFmCommand extends Command
         try {
             $maxScrobbles = $input->getOption('max-scrobbles');
             $maxScrobblesInt = $maxScrobbles !== null ? max(1, (int) $maxScrobbles) : null;
-            $em = $this->em;
-            $runImport = fn () => $this->recorder->record(
-                type: RunHistory::TYPE_LASTFM_IMPORT,
+
+            $report = $this->recorder->record(
+                type: RunHistory::TYPE_LASTFM_FETCH,
                 reference: $user,
-                label: 'Last.fm import — ' . $user . ($dryRun ? ' [dry-run]' : ''),
-                action: fn (RunHistory $entry) => $this->importer->import(
+                label: 'Last.fm fetch — ' . $user . ($dryRun ? ' [dry-run]' : ''),
+                action: fn (RunHistory $entry) => $this->fetcher->fetch(
                     apiKey: $apiKey,
                     lastFmUser: $user,
                     dateMin: $dateMin,
                     dateMax: $dateMax,
-                    toleranceSeconds: $tolerance,
-                    dryRun: $dryRun,
-                    progress: function (int $f, int $i, int $d, int $u) use ($io): void {
-                        // Progress signature is fixed (4 ints) — skipped is shown
-                        // only in the final summary.
-                        $io->writeln(sprintf(
-                            '  fetched=%d  inserted=%d  duplicates=%d  unmatched=%d',
-                            $f,
-                            $i,
-                            $d,
-                            $u,
-                        ));
-                    },
                     maxScrobbles: $maxScrobblesInt,
-                    onScrobble: function (LastFmScrobble $s, string $status, ?string $mfid) use ($entry, $em): void {
-                        $em->persist(new LastFmImportTrack(
-                            runHistory: $entry,
-                            artist: $s->artist,
-                            title: $s->title,
-                            album: $s->album,
-                            mbid: $s->mbid,
-                            playedAt: $s->playedAt,
-                            status: $status,
-                            matchedMediaFileId: $mfid,
+                    dryRun: $dryRun,
+                    progress: function (int $f, int $b, int $a) use ($io): void {
+                        $io->writeln(sprintf(
+                            '  fetched=%d  buffered=%d  already_buffered=%d',
+                            $f,
+                            $b,
+                            $a,
                         ));
                     },
                 ),
-                extractMetrics: static fn (ImportReport $r) => [
+                extractMetrics: static fn (FetchReport $r) => [
                     'fetched' => $r->fetched,
-                    'inserted' => $r->inserted,
-                    'duplicates' => $r->duplicates,
-                    'unmatched' => $r->unmatched,
-                    'skipped' => $r->skipped,
-                    'cache_hits_positive' => $r->cacheHitsPositive,
-                    'cache_hits_negative' => $r->cacheHitsNegative,
-                    'cache_misses' => $r->cacheMisses,
-                    'unmatched_artists' => $r->unmatchedArtistsRanking(100),
+                    'buffered' => $r->buffered,
+                    'already_buffered' => $r->alreadyBuffered,
                     'dry_run' => $dryRun,
                     'date_min' => $dateMin?->format('Y-m-d'),
                     'date_max' => $dateMax?->format('Y-m-d'),
                 ],
             );
-
-            if ($autoStop && !$dryRun) {
-                $report = $this->container->runWithNavidromeStopped($runImport);
-            } else {
-                $report = $runImport();
-            }
         } catch (\Throwable $e) {
             $io->error($e->getMessage());
 
@@ -212,48 +145,18 @@ class ImportLastFmCommand extends Command
 
         $io->newLine();
         $io->success(sprintf(
-            '%s done. fetched=%d inserted=%d duplicates=%d unmatched=%d skipped=%d',
-            $dryRun ? 'Dry-run' : 'Import',
+            '%s done. fetched=%d buffered=%d already_buffered=%d',
+            $dryRun ? 'Dry-run' : 'Fetch',
             $report->fetched,
-            $report->inserted,
-            $report->duplicates,
-            $report->unmatched,
-            $report->skipped,
+            $report->buffered,
+            $report->alreadyBuffered,
         ));
 
-        $this->renderUnmatched($io, $report, (string) $input->getOption('show-unmatched'));
+        if ($report->buffered > 0) {
+            $io->note('Run `app:lastfm:process` (Navidrome must be stopped) to match buffered scrobbles and insert them into Navidrome.');
+        }
 
         return Command::SUCCESS;
-    }
-
-    private function renderUnmatched(SymfonyStyle $io, \App\LastFm\ImportReport $report, string $showOption): void
-    {
-        if ($report->distinctUnmatched() === 0) {
-            return;
-        }
-
-        $limit = strtolower($showOption) === 'all' ? null : max(0, (int) $showOption);
-        if ($limit === 0) {
-            return;
-        }
-
-        $rows = $report->unmatchedRanking($limit);
-        $io->section(sprintf(
-            'Unmatched scrobbles by play count (showing %d of %d distinct tracks, %d total scrobbles)',
-            count($rows),
-            $report->distinctUnmatched(),
-            $report->unmatched,
-        ));
-
-        $tableRows = array_map(static fn (array $r) => [
-            $r['count'],
-            $r['artist'],
-            $r['title'],
-            $r['album'],
-        ], $rows);
-        $io->table(['Plays', 'Artist', 'Title', 'Album'], $tableRows);
-
-        $io->note('These tracks were scrobbled on Last.fm but were not found in your Navidrome library (different artist/title or absent). Import will skip them until they are added/renamed.');
     }
 
     private function parseDate(?string $raw): ?\DateTimeImmutable

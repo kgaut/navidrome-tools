@@ -18,12 +18,20 @@ final class LastFmImportSummary
      */
     public static function fromRun(RunHistory $entry): ?array
     {
-        if ($entry->getType() !== RunHistory::TYPE_LASTFM_IMPORT) {
+        if (
+            !in_array($entry->getType(), [
+            RunHistory::TYPE_LASTFM_IMPORT,
+            RunHistory::TYPE_LASTFM_PROCESS,
+            ], true)
+        ) {
             return null;
         }
 
         $metrics = $entry->getMetrics() ?? [];
-        $fetched = self::int($metrics['fetched'] ?? 0);
+        // `lastfm-process` uses `considered` rather than `fetched` (the
+        // fetch happened on a separate run) but otherwise exposes the same
+        // outcome counters.
+        $fetched = self::int($metrics['fetched'] ?? $metrics['considered'] ?? 0);
         $inserted = self::int($metrics['inserted'] ?? 0);
         $duplicates = self::int($metrics['duplicates'] ?? 0);
         $unmatched = self::int($metrics['unmatched'] ?? 0);

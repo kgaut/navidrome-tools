@@ -54,8 +54,8 @@ class LastFmRematchService
         }
         $userId = $this->navidrome->resolveUserId();
 
-        // Same auto-purge as LastFmImporter — stale negatives let the
-        // cascade re-try unmatched couples that may have become
+        // Same auto-purge as the buffer processor — stale negatives let
+        // the cascade re-try unmatched couples that may have become
         // matchable since the cache row was written.
         $this->cacheRepository?->purgeStale($this->cacheTtlDays);
 

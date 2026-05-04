@@ -8,6 +8,25 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### Changed
+- **BREAKING — Last.fm import découplé en deux étapes** :
+  `app:lastfm:import` ne fait plus que **récupérer** les scrobbles
+  Last.fm dans une nouvelle table `lastfm_import_buffer` (pas de
+  matching, pas d'écriture Navidrome — peut tourner Navidrome up).
+  Une nouvelle commande `app:lastfm:process` traite ensuite ce buffer :
+  matching cascade, insertion dans `scrobbles` Navidrome, audit dans
+  `lastfm_import_track`, suppression de la row du buffer (Navidrome
+  doit être arrêté). La page `/lastfm/import` propose les deux actions
+  côte à côte ; le dashboard affiche le compteur du buffer. Le service
+  `LastFmImporter` est remplacé par `LastFmFetcher` +
+  `LastFmBufferProcessor`. Les options `--tolerance`,
+  `--show-unmatched`, `--force`, `--auto-stop` disparaissent de
+  `app:lastfm:import` et migrent (sauf `--show-unmatched`) sur
+  `app:lastfm:process`. Nouvelles env vars `LASTFM_FETCH_SCHEDULE` et
+  `LASTFM_PROCESS_SCHEDULE` (vides par défaut). `app:lastfm:rematch`
+  inchangée — continue de retraiter les `lastfm_import_track`
+  unmatched cumulés. Migration automatique au boot
+  (`Version20260504000000`).
+
 - **Réorganisation du menu de navigation** : le top-level passe de
   10 entrées à 5 (Dashboard, Playlists ▾, Statistiques ▾, Last.fm ▾,
   Admin ▾). « Nouvelle playlist » rejoint le dropdown Playlists, les
@@ -24,6 +43,13 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
   incomplètes ») n'étaient accessibles que sur desktop. Closes #115.
 
 ### Added
+- **Compteurs Last.fm sur le dashboard** : deux nouvelles cards
+  santé affichent le nombre de scrobbles en attente dans le buffer
+  Last.fm (lien direct vers `/lastfm/import` pour les traiter) et
+  le nombre cumulé de scrobbles non matchés (lien vers
+  `/lastfm/unmatched`). Les cards passent en gris quand le compteur
+  vaut 0.
+
 - **Ajout de morceau dans une playlist depuis l'UI** : sur
   `/playlists/{id}`, nouveau bloc « Ajouter un morceau » sous la table
   des morceaux. Tape une requête (≥ 2 chars), Subsonic répond les

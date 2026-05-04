@@ -47,7 +47,9 @@ class HistoryController extends AbstractController
             'types' => [
                 RunHistory::TYPE_PLAYLIST => 'Playlist',
                 RunHistory::TYPE_STATS => 'Stats',
-                RunHistory::TYPE_LASTFM_IMPORT => 'Import Last.fm',
+                RunHistory::TYPE_LASTFM_FETCH => 'Fetch Last.fm',
+                RunHistory::TYPE_LASTFM_PROCESS => 'Process buffer Last.fm',
+                RunHistory::TYPE_LASTFM_IMPORT => 'Import Last.fm (legacy)',
                 RunHistory::TYPE_LASTFM_LOVE_SYNC => 'Sync loved/star',
                 RunHistory::TYPE_LASTFM_REMATCH => 'Rematch Last.fm',
             ],
@@ -70,7 +72,12 @@ class HistoryController extends AbstractController
         $unmatchedArtists = [];
         $lidarrReachable = true;
 
-        if ($entry->getType() === RunHistory::TYPE_LASTFM_IMPORT) {
+        if (
+            in_array($entry->getType(), [
+            RunHistory::TYPE_LASTFM_PROCESS,
+            RunHistory::TYPE_LASTFM_IMPORT,
+            ], true)
+        ) {
             $statusCounts = $tracksRepo->countByStatusForRun($entry);
 
             // Default to "unmatched" only if there are unmatched tracks for this

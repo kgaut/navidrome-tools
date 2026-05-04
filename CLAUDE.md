@@ -41,17 +41,43 @@ Fonctionnalités livrées :
   agrège tout : top 25 artistes, top 50 morceaux, new artists, streak
   jours consécutifs, mois le plus actif, durée totale estimée
   (extrapolation depuis la durée des top tracks).
-- **Page `/lastfm/import`** : import one-shot du scrobble history
-  Last.fm, dédoublonnage à ±N secondes, rapport des non-trouvés rangé
-  par fréquence. Pause configurable (`LASTFM_PAGE_DELAY_SECONDS`,
-  défaut 10s) entre 2 pages de l'API. User et API key par défaut
-  via `LASTFM_USER` / `LASTFM_API_KEY`.
+- **Page `/lastfm/import`** : import du scrobble history Last.fm en
+  **deux étapes découplées** depuis 2026-05.
+  1. **Fetch** (section 1 du form, `app:lastfm:import`,
+     `App\LastFm\LastFmFetcher`) : streame
+     `LastFmClient::streamRecentTracks` → `INSERT OR IGNORE INTO
+     lastfm_import_buffer` via DBAL pur. Aucune écriture Navidrome,
+     peut tourner Navidrome up. Idempotent grâce à la unique
+     constraint `(lastfm_user, played_at, artist, title)` ;
+     report = `fetched / buffered / already_buffered`. RunHistory
+     type `lastfm-fetch`. Cron via `LASTFM_FETCH_SCHEDULE`.
+  2. **Process** (section 2 du form + `POST /lastfm/process`,
+     `app:lastfm:process`, `App\LastFm\LastFmBufferProcessor`) :
+     stream du buffer (par `played_at ASC`) → `ScrobbleMatcher` →
+     `scrobbleExistsNear` ±N secondes → `insertScrobble` Navidrome
+     → audit `LastFmImportTrack` (FK `RunHistory`) → DELETE row du
+     buffer (toujours, y compris `unmatched` — l'audit prend le
+     relais pour le rematch). Navidrome doit être arrêté
+     (pré-flight CSRF côté UI ; `--force` / `--auto-stop` côté CLI).
+     RunHistory type `lastfm-process` ; report `considered /
+     inserted / duplicates / unmatched / skipped`. Cron via
+     `LASTFM_PROCESS_SCHEDULE` (auto-stop activé automatiquement
+     par `app:cron:dump` quand `NAVIDROME_CONTAINER_NAME`).
+
+  Pause configurable (`LASTFM_PAGE_DELAY_SECONDS`, défaut 10s)
+  entre 2 pages de l'API Last.fm. User et API key par défaut via
+  `LASTFM_USER` / `LASTFM_API_KEY`. Le service legacy
+  `LastFmImporter` a été supprimé (constante `TYPE_LASTFM_IMPORT`
+  conservée pour relire l'historique des runs antérieurs au split).
 - **Page `/history`** : audit de tous les runs cron via
   `RunHistoryRecorder` (status / durée / metrics / message). La page
-  détail d'un run `lastfm-import` affiche le **listing par-track**
-  (table `lastfm_import_track`, FK CASCADE) avec filtre par statut
-  (inserted / duplicate / unmatched, défaut « non matchés »
-  s'il y en a) et recherche full-text artiste/titre.
+  détail d'un run `lastfm-process` ou `lastfm-import` (legacy)
+  affiche le **listing par-track** (table `lastfm_import_track`,
+  FK CASCADE) avec filtre par statut (inserted / duplicate /
+  unmatched, défaut « non matchés » s'il y en a) et recherche
+  full-text artiste/titre. Les runs `lastfm-fetch` n'ont pas de
+  listing par-track (le fetch ne crée pas de `LastFmImportTrack`,
+  seulement des rows dans `lastfm_import_buffer`).
 - **Alias d'artiste** (`/lastfm/artist-aliases`) : table
   `lastfm_artist_alias` qui mappe un nom source Last.fm → nom
   canonique côté Navidrome (ex. « La Ruda Salska » → « La Ruda »).
@@ -75,17 +101,17 @@ Fonctionnalités livrées :
   statique testable + méthode publique d'instance).
 - **Re-match des unmatched** (`app:lastfm:rematch`,
   `POST /lastfm/rematch`) : ré-applique la cascade de matching
-  (`App\LastFm\ScrobbleMatcher`, extraite pour mutualisation avec
-  `LastFmImporter`) sur les rows `lastfm_import_track` en status
-  `unmatched`. Utile quand on ajoute des morceaux à Navidrome ou
-  qu'on déploie une nouvelle heuristique : pas besoin de re-télécharger
-  l'historique Last.fm. Insère dans `scrobbles` Navidrome (avec
-  `scrobbleExistsNear` pour dédup), bascule la row en
-  `inserted` / `duplicate` / `skipped`. Wrappé par `RunHistoryRecorder`
-  (type `lastfm-rematch`). Bouton sur `/history/{id}` (par run) et
-  `/lastfm/import` (cumul global). Cron via `LASTFM_REMATCH_SCHEDULE`.
-  Idempotent. Navidrome doit être arrêté (mêmes contraintes que
-  `app:lastfm:import`).
+  (`App\LastFm\ScrobbleMatcher`, partagée avec
+  `LastFmBufferProcessor`) sur les rows `lastfm_import_track` en
+  status `unmatched`. Utile quand on ajoute des morceaux à Navidrome
+  ou qu'on déploie une nouvelle heuristique : pas besoin de
+  re-télécharger l'historique Last.fm. Insère dans `scrobbles`
+  Navidrome (avec `scrobbleExistsNear` pour dédup), bascule la row
+  en `inserted` / `duplicate` / `skipped`. Wrappé par
+  `RunHistoryRecorder` (type `lastfm-rematch`). Bouton sur
+  `/history/{id}` (par run) et `/lastfm/import` (cumul global). Cron
+  via `LASTFM_REMATCH_SCHEDULE`. Idempotent. Navidrome doit être
+  arrêté (mêmes contraintes que `app:lastfm:process`).
 - **Page `/stats/lastfm-history`** : 100 derniers scrobbles cachés en
   local pour le user Last.fm, refresh manuel (table `lastfm_history`).
 - **Page `/stats/navidrome-history`** : pendant symétrique, snapshot
@@ -93,7 +119,12 @@ Fonctionnalités livrées :
   lien direct vers la fiche morceau côté Navidrome (table
   `navidrome_history`).
 - **Dashboard** : compteur de scrobbles (`COUNT(*) FROM scrobbles`)
-  affiché dans la card santé « Table scrobbles ».
+  affiché dans la card santé « Table scrobbles ». Cards
+  supplémentaires : **Buffer Last.fm** (count
+  `lastfm_import_buffer`, lien vers `/lastfm/import`) et **Scrobbles
+  non matchés** (count `lastfm_import_track` status=`unmatched`,
+  lien vers `/lastfm/unmatched`). Les deux passent en gris quand
+  elles valent 0.
 - **Preview de playlist** : la colonne Plays reflète le total
   d'écoutes **sur la fenêtre du générateur** (pas le lifetime), via
   `PlaylistGeneratorInterface::getActiveWindow()` consommé par
@@ -105,11 +136,13 @@ Fonctionnalités livrées :
   régénère le crontab toutes les 5 min.
 - **Création de playlists côté Navidrome** : **toujours via l'API
   Subsonic**, jamais d'écriture directe dans la DB Navidrome (sauf
-  `app:lastfm:import` qui doit absolument tourner Navidrome arrêté).
+  `app:lastfm:process` et `app:lastfm:rematch` qui doivent
+  absolument tourner Navidrome arrêté ; `app:lastfm:import` n'écrit
+  plus dans Navidrome depuis le split fetch/process).
 - **Pilotage du conteneur Navidrome** (optionnel, activé si
   `NAVIDROME_CONTAINER_NAME` est renseigné) : card dashboard
   affichant l'état UP/DOWN avec boutons Start/Stop, pré-flight
-  automatique sur `app:lastfm:import` / `app:lastfm:rematch` (CLI +
+  automatique sur `app:lastfm:process` / `app:lastfm:rematch` (CLI +
   HTTP) qui bloque si Navidrome tourne (CLI : `--force` pour
   outrepasser ; UI : flash error). Implémenté via `docker` CLI
   (`apk add docker-cli` + mount `/var/run/docker.sock`). Statut
@@ -119,12 +152,13 @@ Fonctionnalités livrées :
   `NavidromeContainerException`), POST routes
   `/navidrome/container/{start,stop}` avec CSRF
   `navidrome_container`. Flag CLI `--auto-stop` (sur
-  `app:lastfm:import` et `app:lastfm:rematch`) : alternative au
+  `app:lastfm:process` et `app:lastfm:rematch`) : alternative au
   pré-flight bloquant — orchestre stop Navidrome → action → restart
   via `NavidromeContainerManager::runWithNavidromeStopped()` (try/
   finally, restart même en cas d'erreur de l'action). Activé
-  automatiquement par `app:cron:dump` sur la ligne rematch quand le
-  conteneur est configuré.
+  automatiquement par `app:cron:dump` sur les lignes process /
+  rematch quand le conteneur est configuré. La commande
+  `app:lastfm:import` (fetch only) ne touche plus le conteneur.
 
 ---
 
@@ -157,17 +191,19 @@ Fonctionnalités livrées :
 ```
 src/
 ├── Command/          CLI Symfony (app:playlist:run, app:stats:compute,
-│                     app:lastfm:import, app:lastfm:rematch, app:cron:dump,
-│                     app:history:purge…)
+│                     app:lastfm:import (fetch-only), app:lastfm:process,
+│                     app:lastfm:rematch, app:cron:dump, app:history:purge…)
 ├── Controller/       Dashboard, PlaylistDefinition CRUD, Stats (index/compare/
 │                     charts/heatmap/wrapped/lastfm-history/navidrome-history),
 │                     LastFmImport, Lidarr, History, Settings, Security
 ├── Entity/           PlaylistDefinition, Setting, StatsSnapshot, RunHistory,
-│                     LastFmHistoryEntry, NavidromeHistoryEntry, LastFmImportTrack
+│                     LastFmHistoryEntry, NavidromeHistoryEntry, LastFmImportTrack,
+│                     LastFmBufferedScrobble
 ├── Form/             PlaylistDefinitionType (form dynamique selon le générateur),
 │                     LastFmImportType
 ├── Generator/        Interface + 8 générateurs + GeneratorRegistry + ParameterDefinition
-├── LastFm/           LastFmClient, LastFmImporter, LastFmScrobble, ImportReport
+├── LastFm/           LastFmClient, LastFmFetcher, LastFmBufferProcessor,
+│                     ScrobbleMatcher, LastFmScrobble, FetchReport, ProcessReport
 ├── Lidarr/           LidarrClient, LidarrConfig, LidarrConflictException
 ├── Navidrome/        NavidromeRepository (toutes les requêtes DBAL Navidrome),
 │                     TrackSummary
@@ -382,6 +418,8 @@ Le push du tag déclenche `docker-publish` (cf. `.github/workflows/ci.yml`).
 | `LASTFM_PAGE_DELAY_SECONDS`    | Pause entre 2 pages de l'API (default 10, 0 pour désactiver)|
 | `LASTFM_FUZZY_MAX_DISTANCE`    | Distance Levenshtein max pour le fallback fuzzy (default 0 = off, **2 recommandé pour les imports one-shot**) |
 | `LASTFM_REMATCH_SCHEDULE`      | Cron expr pour `app:lastfm:rematch` (vide = désactivé)      |
+| `LASTFM_FETCH_SCHEDULE`        | Cron expr pour `app:lastfm:import` — fetch buffer (vide = désactivé) |
+| `LASTFM_PROCESS_SCHEDULE`      | Cron expr pour `app:lastfm:process` — drain buffer (vide = désactivé) |
 | `NAVIDROME_CONTAINER_NAME`     | Nom du conteneur Navidrome dans la stack compose. Vide = card dashboard masquée + pré-flight désactivé. Requiert le mount `/var/run/docker.sock`. |
 
 Wirées dans : `.env` (dev), `.env.dist` (template), `phpunit.xml.dist`
@@ -400,9 +438,10 @@ Wirées dans : `.env` (dev), `.env.dist` (template), `phpunit.xml.dist`
    `config.platform.php=8.3.0` dans `composer.json` — laisser tel quel.
 3. **DBAL 4** ne prend plus `\PDO::PARAM_INT` ; utiliser
    `\Doctrine\DBAL\ParameterType::INTEGER` pour le binding du `:lim`.
-4. **Mount Navidrome `:ro`** : `app:lastfm:import` écrit dans la DB
-   Navidrome, doit donc tourner avec un mount RW **et** Navidrome
-   arrêté. La page UI affiche un gros warning rouge.
+4. **Mount Navidrome `:ro`** : `app:lastfm:process` et
+   `app:lastfm:rematch` écrivent dans la DB Navidrome, doivent donc
+   tourner avec un mount RW **et** Navidrome arrêté. `app:lastfm:import`
+   (fetch only) ne touche plus Navidrome — peut tourner Navidrome up.
 5. **Schéma Navidrome `media_file.artist_id`** : la fixture le crée
    désormais, mais c'est récent. Si on étend la fixture, ne pas
    oublier `artist_id` sinon `findArtistIdByName` casse en test.

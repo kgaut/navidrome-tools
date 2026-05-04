@@ -275,55 +275,76 @@ Cinq pages stats accessibles via le menu déroulant **Statistiques** :
 Toutes les pages requièrent la table `scrobbles` Navidrome (≥ 0.55) et
 affichent un bandeau si elle n'est pas trouvée.
 
-## Import one-shot des scrobbles Last.fm
+## Import des scrobbles Last.fm — workflow en deux étapes
 
-Deux moyens : **page web** `/lastfm/import` (pratique pour quelques
-milliers de scrobbles) ou **commande CLI** (recommandée au-delà).
+L'import Last.fm est **découplé** en deux phases :
 
-Dans les deux cas, l'outil récupère l'historique Last.fm d'un utilisateur
-et l'insère dans la table `scrobbles` de Navidrome en évitant les
-doublons.
+1. **Récupération** (`app:lastfm:import` ou section 1 de
+   `/lastfm/import`) — lit l'historique Last.fm via
+   `user.getRecentTracks` et stocke chaque scrobble dans la table
+   locale `lastfm_import_buffer`. Aucune écriture côté Navidrome :
+   **Navidrome peut tourner**.
+2. **Traitement** (`app:lastfm:process` ou section 2 de
+   `/lastfm/import`) — vide le buffer : matching cascade, insertion
+   dans la table `scrobbles` Navidrome, audit dans
+   `lastfm_import_track`, suppression de la row du buffer.
+   **Navidrome doit être arrêté** (l'écriture concurrente sur la
+   SQLite peut corrompre le journal WAL).
 
-> ⚠️ **ARRÊTEZ Navidrome avant tout import qui écrit** dans la base
-> SQLite : risque de lock SQLite, de corruption WAL et de stats
-> incohérentes. La page web affiche ce warning en gros et propose un
-> mode **Dry-run** (coché par défaut) pour vérifier le rapport sans
-> écrire. Pensez à sauvegarder votre fichier `navidrome.db` avant un
-> import en écriture.
+Cette séparation permet de fetcher régulièrement (cron léger,
+Navidrome up) puis de processer le buffer ponctuellement (manuel
+quand vous arrêtez Navidrome ou via cron `--auto-stop`).
 
 ### Via l'interface web
 
-Accédez à `/lastfm/import` une fois connecté. Le formulaire propose :
+`/lastfm/import` propose les deux étapes côte à côte. Le compteur
+du buffer (« N scrobbles en attente ») est aussi exposé sur le
+**dashboard** (card santé), avec un lien direct.
+
+#### Section 1 — Récupérer depuis Last.fm
 
 - Identifiant Last.fm + API key. Les deux peuvent venir de
   l'environnement via `LASTFM_USER` (pré-remplit le champ) et
   `LASTFM_API_KEY` (utilisée si le champ est laissé vide).
 - Filtres `date_min` / `date_max` optionnels.
-- Tolérance dedup (secondes) — un scrobble n'est pas réinséré s'il en
-  existe déjà un sur la même piste à ± cette durée.
 - Limite de sécurité (max scrobbles, défaut 5 000) pour éviter les
   timeouts HTTP.
-- Case **Dry-run** (cochée par défaut).
+- Case **Dry-run** (parcourir l'API Last.fm sans rien écrire dans
+  le buffer — utile pour vérifier la connectivité).
 
-Le bouton « Lancer l'import » demande une confirmation JS si vous avez
-décoché Dry-run. Le rapport s'affiche en bas de page : 4 cards
-(récupérés / insérés / doublons / non trouvés) puis un tableau des 100
-morceaux non trouvés les plus écoutés sur Last.fm, triés par nombre de
-scrobbles décroissant.
+Le re-fetch de la même fenêtre est **idempotent** : la contrainte
+unique sur `(lastfm_user, played_at, artist, title)` rejette les
+doublons et le rapport remonte un compteur `already_buffered`.
+
+#### Section 2 — Traiter le buffer
+
+Affiche le compteur du buffer + l'état du conteneur Navidrome.
+Bouton « ▶ Traiter le buffer » disponible une fois Navidrome
+arrêté (pré-flight via `NavidromeContainerManager`). Redirige vers
+le détail du run `lastfm-process` qui liste l'audit par-track
+(inserted / duplicate / unmatched / skipped) avec filtre par statut.
 
 ### Via la commande CLI
 
 ```bash
+# Étape 1 : peut tourner Navidrome up
 php bin/console app:lastfm:import [<lastfm-user>] [--api-key=YOUR_KEY] \
     [--date-min=YYYY-MM-DD] [--date-max=YYYY-MM-DD] \
-    [--tolerance=60] [--dry-run] [--show-unmatched=50|all|0] \
-    [--max-scrobbles=N]
+    [--dry-run] [--max-scrobbles=N]
+
+# Étape 2 : Navidrome doit être arrêté
+php bin/console app:lastfm:process [--dry-run] [--limit=N] \
+    [--tolerance=60] [--force] [--auto-stop]
 ```
 
 L'API key Last.fm s'obtient gratuitement sur
 <https://www.last.fm/api/account/create>. Elle peut aussi être passée via
 la variable d'environnement `LASTFM_API_KEY`. De même, le username peut
 être omis si `LASTFM_USER` est défini dans l'environnement.
+
+`--auto-stop` (sur `app:lastfm:process` uniquement, comme pour
+`app:lastfm:rematch`) orchestre stop → process → restart de
+Navidrome via Docker — utile pour les runs cron unattended.
 
 ### Stratégie
 
@@ -379,21 +400,24 @@ la variable d'environnement `LASTFM_API_KEY`. De même, le username peut
    Edit)`, `- Remastered 2011`, `(Live at …)`, `(Acoustic)`, etc.).
 3. **Déduplication** : un scrobble n'est pas réinséré s'il existe déjà
    dans la table `scrobbles` une ligne avec le même `media_file_id` et
-   un `submission_time` à ±`--tolerance` secondes (60 par défaut). Cela
-   absorbe les petits décalages d'horloge entre clients de scrobble.
-4. **Rapport final** : compteurs `fetched / inserted / duplicates /
-   unmatched`, plus un tableau des **morceaux non matchés** agrégés par
-   `(artist, title)`, **triés par nombre de scrobbles décroissant**.
-   Pratique pour identifier en priorité les morceaux à ajouter dans la
-   bibliothèque Navidrome.
+   un `submission_time` à ±`--tolerance` secondes (60 par défaut, option
+   sur `app:lastfm:process`). Cela absorbe les petits décalages
+   d'horloge entre clients de scrobble.
+4. **Rapport final** : compteurs `considered / inserted / duplicates /
+   unmatched / skipped` (sur le run `lastfm-process`). Le détail du
+   run liste les morceaux par statut, avec filtre par défaut sur
+   `unmatched` quand il y en a — pratique pour identifier en priorité
+   les morceaux à ajouter dans la bibliothèque Navidrome (ou à mapper
+   via un alias).
 
 ### Pré-requis
 
-- **Navidrome ≥ 0.55** (la table `scrobbles` doit exister, sinon la
-  commande échoue avec un message explicite).
-- **Accès en écriture** sur la base SQLite Navidrome. Si vous lancez la
-  commande depuis le conteneur Docker du tool, montez temporairement le
-  fichier en read-write — par exemple :
+- **Navidrome ≥ 0.55** (la table `scrobbles` doit exister, sinon
+  `app:lastfm:process` échoue avec un message explicite).
+- **Accès en écriture** sur la base SQLite Navidrome pour
+  `app:lastfm:process` (la phase fetch n'a pas besoin d'écrire). Si
+  vous lancez les commandes depuis le conteneur Docker du tool, montez
+  le fichier en read-write — par exemple :
   ```bash
   docker run --rm -it \
       -v /srv/navidrome/data/navidrome.db:/data/navidrome.db \
@@ -403,15 +427,16 @@ la variable d'environnement `LASTFM_API_KEY`. De même, le username peut
       -e NAVIDROME_USER=admin -e NAVIDROME_PASSWORD=... \
       ghcr.io/kgaut/navidrome-tools:latest \
       php bin/console app:lastfm:import myuser
+  # puis, Navidrome arrêté :
+  ghcr.io/kgaut/navidrome-tools:latest \
+      php bin/console app:lastfm:process --auto-stop
   ```
-  (volume **sans** `:ro`). Idéalement, **arrêter Navidrome** pendant
-  l'import pour éviter les locks SQLite concurrents.
 - Sous Lando : `lando symfony app:lastfm:import myuser --api-key=...`
-  fonctionne directement (la DB Navidrome bind-mountée est en RW par
-  défaut).
+  puis `lando symfony app:lastfm:process` fonctionnent directement
+  (la DB Navidrome bind-mountée est en RW par défaut).
 
 > **Backup automatique avant chaque écriture.** Quand vous lancez
-> `app:lastfm:import --auto-stop` ou `app:lastfm:rematch --auto-stop`,
+> `app:lastfm:process --auto-stop` ou `app:lastfm:rematch --auto-stop`,
 > le tool snapshote `navidrome.db` (+ siblings `-wal`/`-shm`) en
 > `<dbPath>.backup-<unix_ts>` **avant** d'écrire. Rétention configurable
 > via `NAVIDROME_DB_BACKUP_RETENTION` (défaut 3 snapshots). Si quoi que
@@ -430,15 +455,18 @@ la variable d'environnement `LASTFM_API_KEY`. De même, le username peut
 ### Exemples
 
 ```bash
-# Aperçu sans rien écrire :
+# Fetch dry-run (vérifie la connectivité API sans toucher au buffer) :
 lando symfony app:lastfm:import myuser --api-key=XXX --dry-run
 
-# Import de toute l'année 2024 :
+# Fetch de toute l'année 2024 dans le buffer :
 lando symfony app:lastfm:import myuser --api-key=XXX \
     --date-min=2024-01-01 --date-max=2025-01-01
 
-# Voir tous les morceaux non trouvés (utile pour audit complet) :
-lando symfony app:lastfm:import myuser --api-key=XXX --show-unmatched=all
+# Vidange du buffer dans Navidrome avec stop/start automatique :
+lando symfony app:lastfm:process --auto-stop
+
+# Process dry-run (matching + comptage, ne touche ni Navidrome ni le buffer) :
+lando symfony app:lastfm:process --dry-run
 ```
 
 ## Alias d'artistes (synonymes)
@@ -527,19 +555,29 @@ on retraiterait toujours les mêmes morceaux en tête de table).
 
 ### Web
 
-- Sur `/history/{id}` d'un run `lastfm-import` : bouton « 🔁 Re-tenter
-  le matching de ce run » si le run a au moins 1 unmatched.
+- Sur `/history/{id}` d'un run `lastfm-process` ou `lastfm-import` :
+  bouton « 🔁 Re-tenter le matching de ce run » si le run a au moins
+  1 unmatched.
 - Sur `/lastfm/import` : carte « Re-tenter le matching cumulé » avec
   le compteur global d'unmatched et un bouton de re-match global.
 
 ### Cron
 
-Définissez `LASTFM_REMATCH_SCHEDULE` pour ajouter une ligne cron
-automatiquement (ex. `0 5 * * 0` pour tourner chaque dimanche à 05:00).
-Vide par défaut.
+Trois variables pilotent les schedules Last.fm :
+
+- `LASTFM_FETCH_SCHEDULE` — ajoute `app:lastfm:import` au crontab
+  (peut tourner Navidrome up).
+- `LASTFM_PROCESS_SCHEDULE` — ajoute `app:lastfm:process --auto-stop`
+  au crontab quand `NAVIDROME_CONTAINER_NAME` est défini (sinon sans
+  auto-stop, à vous de stopper Navidrome).
+- `LASTFM_REMATCH_SCHEDULE` — ajoute `app:lastfm:rematch --auto-stop`
+  pour retraiter périodiquement les unmatched cumulés.
+
+Toutes vides par défaut. Exemple raisonnable : fetch toutes les
+heures, process + rematch chaque dimanche à 05:00.
 
 ⚠️ **Navidrome doit être arrêté** pendant le rematch (mêmes contraintes
-que `app:lastfm:import` : écriture dans la table `scrobbles`).
+que `app:lastfm:process` : écriture dans la table `scrobbles`).
 
 ## Connexion Last.fm authentifiée (optionnelle)
 
