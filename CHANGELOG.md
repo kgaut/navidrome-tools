@@ -66,6 +66,30 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
   (desktop + mobile).
 
 ### Fixed
+- **`--auto-stop` corrompait la DB SQLite Navidrome après un import lourd** :
+  `DockerCli::stop()` envoyait un `docker stop -t 10` (timeout codé en
+  dur 10s, hérité du défaut Docker). Pas assez pour que Navidrome
+  termine son checkpoint WAL sur une grosse librairie après une rafale
+  d'écritures (~13k scrobbles insérés en un run) — Docker basculait sur
+  SIGKILL en plein flush, laissant un `.db-wal` mi-écrit. Le pipeline
+  enchaînait ensuite directement avec `$action()` (l'`import`) sans
+  poller `docker inspect` pour confirmer l'arrêt, ouvrait la DB en
+  écriture et la corrompait.
+
+  Défense en profondeur dans `NavidromeContainerManager::runWithNavidromeStopped()` :
+  1. timeout `docker stop` configurable via `NAVIDROME_STOP_TIMEOUT_SECONDS`
+     (défaut 60s, contre 10s avant) ;
+  2. polling de `docker inspect` jusqu'à `Running:false` (ceiling
+     `NAVIDROME_STOP_WAIT_CEILING_SECONDS`, défaut 30s) — on n'écrira
+     jamais sur la DB tant que `inspect` voit Navidrome vivant ;
+  3. snapshot de la DB SQLite (+ siblings `-wal` / `-shm`) vers
+     `<dbPath>.backup-<unix_ts>` avant l'action — rollback trivial
+     en `cp`. Rétention configurable via `NAVIDROME_DB_BACKUP_RETENTION`
+     (défaut 3) ;
+  4. `PRAGMA quick_check` avant l'action — si la DB est déjà brisée
+     (résidu d'un crash antérieur), on abandonne sans aggraver et
+     l'utilisateur reçoit un message explicite. Implémenté par le
+     nouveau service `App\Navidrome\NavidromeDbBackup`. Closes #118.
 - **`Last.fm API error 6: Track not found` interrompait l'import** : à
   l'étape 7 de la cascade de matching, `ScrobbleMatcher` appelle
   `LastFmClient::trackGetInfo()` pour les scrobbles non matchés

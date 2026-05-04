@@ -441,6 +441,20 @@ Wirées dans : `.env` (dev), `.env.dist` (template), `phpunit.xml.dist`
     démarrage avec `[emerg] open() failed`, et Traefik renvoie un
     `404 page not found` text/plain qui ressemble à un "page
     inexistante" mais c'est en fait l'app qui ne tourne pas).
+12. **`docker stop -t 10` SIGKILLait Navidrome en plein checkpoint WAL
+    SQLite** = `navidrome.db` corrompue après un `--auto-stop` sur une
+    grosse librairie (cf. #118). Le manager respecte désormais quatre
+    couches avant chaque action : (a) `NAVIDROME_STOP_TIMEOUT_SECONDS`
+    (défaut 60s, cf. `DockerCli::stop()`) ; (b) polling de `docker
+    inspect` jusqu'à `Running:false` (`waitUntilStopped`) — on n'écrit
+    JAMAIS pendant que Navidrome tourne, même si `docker stop` a rendu
+    la main avec exit 0 ; (c) snapshot
+    `<dbPath>.backup-<unix_ts>` via `App\Navidrome\NavidromeDbBackup`,
+    rétention `NAVIDROME_DB_BACKUP_RETENTION` ; (d) `PRAGMA quick_check`
+    avant l'action — si la DB est déjà brisée on bloque l'écriture
+    pour ne pas aggraver. Si tu réintroduis un appel à `runProcess`
+    pour stop/start ailleurs, **passe par `NavidromeContainerManager`**
+    sinon tu by-passes les 4 garde-fous.
 
 ---
 

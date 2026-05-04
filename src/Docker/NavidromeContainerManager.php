@@ -2,11 +2,14 @@
 
 namespace App\Docker;
 
+use App\Navidrome\NavidromeDbBackup;
+
 class NavidromeContainerManager
 {
     public function __construct(
         private readonly DockerCli $cli,
         private readonly NavidromeContainerConfig $config,
+        private readonly NavidromeDbBackup $backup,
     ) {
     }
 
@@ -52,7 +55,7 @@ class NavidromeContainerManager
         if (!$this->config->isConfigured()) {
             throw new NavidromeContainerException('NAVIDROME_CONTAINER_NAME n\'est pas renseignée.');
         }
-        $this->cli->stop($this->config->containerName);
+        $this->cli->stop($this->config->containerName, $this->config->stopTimeoutSeconds);
     }
 
     /**
@@ -96,10 +99,26 @@ class NavidromeContainerManager
      * we stopped it ourselves. Restart happens in a finally-equivalent
      * block, so an action that throws still leaves Navidrome running.
      *
-     * - Feature disabled (`NAVIDROME_CONTAINER_NAME` empty) → run as-is.
-     * - Status `Stopped` / `NotFound` → run as-is, don't try to restart
-     *   something we didn't stop.
-     * - Status `Running` → stop, run, restart (always).
+     * Defense in depth before $action() touches the DB:
+     *  1. `docker stop -t <NAVIDROME_STOP_TIMEOUT_SECONDS>` — long enough
+     *     for Navidrome's SQLite WAL to checkpoint cleanly (default 60s,
+     *     vs Docker's 10s default which used to SIGKILL mid-flush and
+     *     leave a half-written WAL — the corruption pattern from #118).
+     *  2. Poll `docker inspect` until Running=false — we never trust
+     *     `docker stop` returning success alone.
+     *  3. Snapshot the SQLite file (and its `-wal`/`-shm` siblings) to
+     *     `<dbPath>.backup-<ts>` so any future write that goes wrong is
+     *     recoverable with a single `cp`. Last 3 by default (configurable).
+     *  4. `PRAGMA quick_check` — if the DB is already broken (e.g. from
+     *     a previous bad shutdown) we abort before writing into it and
+     *     making it worse.
+     *
+     * - Feature disabled (`NAVIDROME_CONTAINER_NAME` empty) → run as-is,
+     *   skip all the above (we don't know the DB lifecycle).
+     * - Status `Stopped` / `NotFound` → still backup + quickCheck before
+     *   the action (same risk profile), but don't restart something we
+     *   didn't stop.
+     * - Status `Running` → stop, wait, backup, check, run, restart (always).
      * - Status `Unknown` → throw, since we can't safely orchestrate
      *   stop/start without confirming current state.
      *
@@ -124,35 +143,44 @@ class NavidromeContainerManager
             ));
         }
 
-        if ($status !== ContainerStatus::Running) {
-            return $action();
+        $weStoppedIt = false;
+        if ($status === ContainerStatus::Running) {
+            $this->stop();
+            $weStoppedIt = true;
+            $this->waitUntilStopped($this->config->stopWaitCeilingSeconds);
         }
 
-        $this->stop();
+        // Backup + quick_check apply whether we stopped Navidrome ourselves
+        // or it was already down — either way we're about to mutate the
+        // file and we want a rollback artefact + a sanity check first.
+        $this->backup->backup();
 
         $actionException = null;
         $result = null;
         try {
+            $this->backup->quickCheck();
             $result = $action();
         } catch (\Throwable $e) {
             $actionException = $e;
         }
 
-        try {
-            $this->start();
-        } catch (\Throwable $startException) {
-            if ($actionException !== null) {
-                throw new NavidromeContainerException(
-                    sprintf(
-                        '%s — et le redémarrage du conteneur Navidrome a aussi échoué : %s',
-                        $actionException->getMessage(),
-                        $startException->getMessage(),
-                    ),
-                    0,
-                    $actionException,
-                );
+        if ($weStoppedIt) {
+            try {
+                $this->start();
+            } catch (\Throwable $startException) {
+                if ($actionException !== null) {
+                    throw new NavidromeContainerException(
+                        sprintf(
+                            '%s — et le redémarrage du conteneur Navidrome a aussi échoué : %s',
+                            $actionException->getMessage(),
+                            $startException->getMessage(),
+                        ),
+                        0,
+                        $actionException,
+                    );
+                }
+                throw $startException;
             }
-            throw $startException;
         }
 
         if ($actionException !== null) {
@@ -160,5 +188,44 @@ class NavidromeContainerManager
         }
 
         return $result;
+    }
+
+    /**
+     * Block until `docker inspect` reports Running=false, or the ceiling
+     * (in seconds) is reached. The first probe runs immediately so a
+     * cleanly-stopped container exits without a sleep ; subsequent probes
+     * are spaced 500ms apart. Throws on ceiling so the caller never
+     * proceeds to write while Navidrome is still alive.
+     */
+    private function waitUntilStopped(int $maxSeconds): void
+    {
+        $deadline = microtime(true) + max(1, $maxSeconds);
+
+        while (true) {
+            try {
+                $state = $this->cli->inspectState($this->config->containerName);
+            } catch (NavidromeContainerException $e) {
+                throw new NavidromeContainerException(sprintf(
+                    'Impossible de confirmer l\'arrêt du conteneur Navidrome « %s » : %s. Abandon avant écriture pour éviter la corruption.',
+                    $this->config->containerName,
+                    $e->getMessage(),
+                ), 0, $e);
+            }
+
+            // null = container vanished (compose down) ; Running:false = stopped.
+            if ($state === null || ($state['Running'] ?? null) !== true) {
+                return;
+            }
+
+            if (microtime(true) >= $deadline) {
+                throw new NavidromeContainerException(sprintf(
+                    'Le conteneur Navidrome « %s » est toujours en cours %ds après `docker stop`. Abandon avant écriture pour éviter la corruption SQLite.',
+                    $this->config->containerName,
+                    $maxSeconds,
+                ));
+            }
+
+            usleep(500_000);
+        }
     }
 }

@@ -42,6 +42,17 @@ services:
         # Set to your Navidrome container name to enable the dashboard
         # card + start/stop buttons (requires Docker socket mount).
         NAVIDROME_CONTAINER_NAME: ''
+        # Graceful shutdown window for `docker stop` before SIGKILL — must
+        # comfortably outlast Navidrome's WAL checkpoint to avoid SQLite
+        # corruption on --auto-stop runs.
+        NAVIDROME_STOP_TIMEOUT_SECONDS: '60'
+        # After docker stop returns, we still poll docker inspect for up to
+        # this long until Running=false, before letting any write touch
+        # the DB. Belt and braces.
+        NAVIDROME_STOP_WAIT_CEILING_SECONDS: '30'
+        # How many <db>.backup-<ts> snapshots to keep — backups are taken
+        # automatically before any --auto-stop write so a `cp` rolls back.
+        NAVIDROME_DB_BACKUP_RETENTION: '3'
         RUN_HISTORY_RETENTION_DAYS: '90'
         # File de chemins consommée par un beets externe (cron côté hôte
         # qui partage le même volume). Vide = bouton « pousser dans la
