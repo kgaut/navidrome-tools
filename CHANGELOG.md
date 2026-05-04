@@ -62,6 +62,14 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
   incomplètes ») n'étaient accessibles que sur desktop. Closes #115.
 
 ### Added
+- **Plage de dates dans la progression de `app:lastfm:import`** :
+  chaque ligne de progression (toutes les 50 scrobbles) affiche
+  désormais la fenêtre `played_at` du batch en cours
+  (`batch=YYYY-MM-DD HH:MM → YYYY-MM-DD HH:MM`), pour suivre où
+  l'import en est dans l'historique. La signature du callback
+  `LastFmFetcher::fetch(progress:)` reçoit deux nouveaux paramètres
+  `?\DateTimeImmutable` (premier / dernier `playedAt` du batch).
+
 - **Compteurs Last.fm sur le dashboard** : deux nouvelles cards
   santé affichent le nombre de scrobbles en attente dans le buffer
   Last.fm (lien direct vers `/lastfm/import` pour les traiter) et
