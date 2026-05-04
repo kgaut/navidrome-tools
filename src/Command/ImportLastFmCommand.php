@@ -119,12 +119,21 @@ class ImportLastFmCommand extends Command
                     dateMax: $dateMax,
                     maxScrobbles: $maxScrobblesInt,
                     dryRun: $dryRun,
-                    progress: function (int $f, int $b, int $a) use ($io): void {
+                    progress: function (int $f, int $b, int $a, ?\DateTimeImmutable $batchFirst, ?\DateTimeImmutable $batchLast) use ($io): void {
+                        $range = '';
+                        if ($batchFirst !== null && $batchLast !== null) {
+                            $from = min($batchFirst, $batchLast);
+                            $to = max($batchFirst, $batchLast);
+                            $range = $from == $to
+                                ? sprintf('  batch=%s', $from->format('Y-m-d H:i'))
+                                : sprintf('  batch=%s → %s', $from->format('Y-m-d H:i'), $to->format('Y-m-d H:i'));
+                        }
                         $io->writeln(sprintf(
-                            '  fetched=%d  buffered=%d  already_buffered=%d',
+                            '  fetched=%d  buffered=%d  already_buffered=%d%s',
                             $f,
                             $b,
                             $a,
+                            $range,
                         ));
                     },
                 ),

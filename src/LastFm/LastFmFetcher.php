@@ -25,7 +25,7 @@ class LastFmFetcher
     }
 
     /**
-     * @param callable(int $fetched, int $buffered, int $alreadyBuffered): void $progress
+     * @param callable(int $fetched, int $buffered, int $alreadyBuffered, ?\DateTimeImmutable $batchFirstPlayedAt, ?\DateTimeImmutable $batchLastPlayedAt): void $progress
      */
     public function fetch(
         string $apiKey,
@@ -39,6 +39,8 @@ class LastFmFetcher
         $report = new FetchReport();
         $utc = new \DateTimeZone('UTC');
         $now = (new \DateTimeImmutable('now'))->setTimezone($utc)->format('Y-m-d H:i:s');
+        $batchFirstPlayedAt = null;
+        $batchLastPlayedAt = null;
 
         foreach ($this->client->streamRecentTracks($apiKey, $lastFmUser, $dateMin, $dateMax) as $scrobble) {
             if ($maxScrobbles !== null && $report->fetched >= $maxScrobbles) {
@@ -46,11 +48,22 @@ class LastFmFetcher
             }
             $report->fetched++;
 
+            $scrobblePlayedAt = $scrobble->playedAt->setTimezone($utc);
+            if ($batchFirstPlayedAt === null) {
+                $batchFirstPlayedAt = $scrobblePlayedAt;
+            }
+            $batchLastPlayedAt = $scrobblePlayedAt;
+
             if ($dryRun) {
+                if ($progress !== null && $report->fetched % 50 === 0) {
+                    $progress($report->fetched, $report->buffered, $report->alreadyBuffered, $batchFirstPlayedAt, $batchLastPlayedAt);
+                    $batchFirstPlayedAt = null;
+                    $batchLastPlayedAt = null;
+                }
                 continue;
             }
 
-            $playedAt = $scrobble->playedAt->setTimezone($utc)->format('Y-m-d H:i:s');
+            $playedAt = $scrobblePlayedAt->format('Y-m-d H:i:s');
             $album = $scrobble->album !== '' ? $scrobble->album : null;
 
             // INSERT OR IGNORE leans on the SQLite unique constraint to drop
@@ -78,12 +91,14 @@ class LastFmFetcher
             }
 
             if ($progress !== null && $report->fetched % 50 === 0) {
-                $progress($report->fetched, $report->buffered, $report->alreadyBuffered);
+                $progress($report->fetched, $report->buffered, $report->alreadyBuffered, $batchFirstPlayedAt, $batchLastPlayedAt);
+                $batchFirstPlayedAt = null;
+                $batchLastPlayedAt = null;
             }
         }
 
         if ($progress !== null) {
-            $progress($report->fetched, $report->buffered, $report->alreadyBuffered);
+            $progress($report->fetched, $report->buffered, $report->alreadyBuffered, $batchFirstPlayedAt, $batchLastPlayedAt);
         }
 
         return $report;
