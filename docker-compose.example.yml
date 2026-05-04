@@ -17,7 +17,6 @@ services:
       APP_AUTH_USER: ${APP_AUTH_USER:-admin}
       APP_AUTH_PASSWORD: ${APP_AUTH_PASSWORD:?set APP_AUTH_PASSWORD in .env}
       DATABASE_URL: "sqlite:///%kernel.project_dir%/var/data.db"
-      STATS_REFRESH_SCHEDULE: ${STATS_REFRESH_SCHEDULE:-0 */6 * * *}
       LIDARR_URL: ${LIDARR_URL:-}
       LIDARR_API_KEY: ${LIDARR_API_KEY:-}
       LIDARR_ROOT_FOLDER_PATH: ${LIDARR_ROOT_FOLDER_PATH:-/music}
@@ -51,24 +50,23 @@ services:
       LASTFM_PAGE_DELAY_SECONDS: ${LASTFM_PAGE_DELAY_SECONDS:-10}
       LASTFM_FUZZY_MAX_DISTANCE: ${LASTFM_FUZZY_MAX_DISTANCE:-0}
       LASTFM_MATCH_CACHE_TTL_DAYS: ${LASTFM_MATCH_CACHE_TTL_DAYS:-30}
-      LASTFM_LOVE_SYNC_SCHEDULE: ${LASTFM_LOVE_SYNC_SCHEDULE:-}
-      LASTFM_REMATCH_SCHEDULE: ${LASTFM_REMATCH_SCHEDULE:-}
-      LASTFM_FETCH_SCHEDULE: ${LASTFM_FETCH_SCHEDULE:-}
-      LASTFM_PROCESS_SCHEDULE: ${LASTFM_PROCESS_SCHEDULE:-}
       COVERS_CACHE_PATH: /app/var/covers
       # Bearer token for the Homepage (gethomepage.dev) /api/status
       # endpoint. Empty = enriched mode disabled, only the no-auth
       # healthcheck mode is served. Generate with `openssl rand -hex 32`.
       HOMEPAGE_API_TOKEN: ${HOMEPAGE_API_TOKEN:-}
     volumes:
-      # Mount Navidrome's SQLite DB read-only.
+      # Mount Navidrome's SQLite DB read-only. Make it RW (drop the `:ro`)
+      # on the host where you run `app:lastfm:process` /
+      # `app:lastfm:rematch` from your unix crontab — these are the only
+      # commands that write into navidrome.db.
       - ${NAVIDROME_DATA_DIR:-/srv/navidrome/data}/navidrome.db:/data/navidrome.db:ro
       # Persistent volume for the tool's own DB (playlist definitions, settings).
       - navidrome-tools-data:/app/var
       # Dedicated volume for the cover-art cache (can grow to ~MBs).
       - navidrome-tools-covers:/app/var/covers
       # Optional: bind-mount custom playlist generators (App\Plugin\ namespace).
-      # See docs/PLUGINS.md. Mount the SAME path on the cron service below.
+      # See docs/PLUGINS.md.
       # - ./plugins:/app/plugins:ro
       # Uncomment to enable the Navidrome container management feature
       # (start/stop buttons on the dashboard, automatic block of unsafe
@@ -76,60 +74,20 @@ services:
       # NAVIDROME_CONTAINER_NAME to be set above.
       # - /var/run/docker.sock:/var/run/docker.sock
 
-  navidrome-tools-cron:
-    image: ghcr.io/kgaut/navidrome-tools:latest
-    # build: .
-    restart: unless-stopped
-    environment:
-      APP_MODE: cron
-      APP_ENV: prod
-      APP_SECRET: ${APP_SECRET:?set APP_SECRET in .env}
-      APP_TIMEZONE: ${APP_TIMEZONE:-UTC}
-      NAVIDROME_DB_PATH: /data/navidrome.db
-      NAVIDROME_URL: ${NAVIDROME_URL:-http://navidrome:4533}
-      NAVIDROME_USER: ${NAVIDROME_USER:-admin}
-      NAVIDROME_PASSWORD: ${NAVIDROME_PASSWORD:?set NAVIDROME_PASSWORD in .env}
-      APP_AUTH_USER: ${APP_AUTH_USER:-admin}
-      APP_AUTH_PASSWORD: ${APP_AUTH_PASSWORD:?set APP_AUTH_PASSWORD in .env}
-      DATABASE_URL: "sqlite:///%kernel.project_dir%/var/data.db"
-      STATS_REFRESH_SCHEDULE: ${STATS_REFRESH_SCHEDULE:-0 */6 * * *}
-      LIDARR_URL: ${LIDARR_URL:-}
-      LIDARR_API_KEY: ${LIDARR_API_KEY:-}
-      LIDARR_ROOT_FOLDER_PATH: ${LIDARR_ROOT_FOLDER_PATH:-/music}
-      LIDARR_QUALITY_PROFILE_ID: ${LIDARR_QUALITY_PROFILE_ID:-1}
-      LIDARR_METADATA_PROFILE_ID: ${LIDARR_METADATA_PROFILE_ID:-1}
-      LIDARR_MONITOR: ${LIDARR_MONITOR:-all}
-      NAVIDROME_CONTAINER_NAME: ${NAVIDROME_CONTAINER_NAME:-}
-      NAVIDROME_STOP_TIMEOUT_SECONDS: ${NAVIDROME_STOP_TIMEOUT_SECONDS:-60}
-      NAVIDROME_STOP_WAIT_CEILING_SECONDS: ${NAVIDROME_STOP_WAIT_CEILING_SECONDS:-30}
-      NAVIDROME_DB_BACKUP_RETENTION: ${NAVIDROME_DB_BACKUP_RETENTION:-3}
-      RUN_HISTORY_RETENTION_DAYS: ${RUN_HISTORY_RETENTION_DAYS:-90}
-      # File de chemins consommée par un beets externe (cron côté hôte
-      # qui partage le même volume). Vide = bouton masqué sur
-      # /tagging/missing-mbid.
-      BEETS_QUEUE_PATH: ${BEETS_QUEUE_PATH:-}
-      LASTFM_API_KEY: ${LASTFM_API_KEY:-}
-      LASTFM_API_SECRET: ${LASTFM_API_SECRET:-}
-      LASTFM_USER: ${LASTFM_USER:-}
-      LASTFM_PAGE_DELAY_SECONDS: ${LASTFM_PAGE_DELAY_SECONDS:-10}
-      LASTFM_FUZZY_MAX_DISTANCE: ${LASTFM_FUZZY_MAX_DISTANCE:-0}
-      LASTFM_MATCH_CACHE_TTL_DAYS: ${LASTFM_MATCH_CACHE_TTL_DAYS:-30}
-      LASTFM_LOVE_SYNC_SCHEDULE: ${LASTFM_LOVE_SYNC_SCHEDULE:-}
-      LASTFM_REMATCH_SCHEDULE: ${LASTFM_REMATCH_SCHEDULE:-}
-      LASTFM_FETCH_SCHEDULE: ${LASTFM_FETCH_SCHEDULE:-}
-      LASTFM_PROCESS_SCHEDULE: ${LASTFM_PROCESS_SCHEDULE:-}
-      COVERS_CACHE_PATH: /app/var/covers
-      HOMEPAGE_API_TOKEN: ${HOMEPAGE_API_TOKEN:-}
-    volumes:
-      - ${NAVIDROME_DATA_DIR:-/srv/navidrome/data}/navidrome.db:/data/navidrome.db:ro
-      - navidrome-tools-data:/app/var
-      - navidrome-tools-covers:/app/var/covers
-      # Optional: bind-mount custom playlist generators (App\Plugin\ namespace).
-      # MUST match the mount on the web service above so cron runs see the same plugins.
-      # - ./plugins:/app/plugins:ro
-      # Uncomment to allow CLI rematch cron jobs to inspect the Navidrome
-      # container before writing (NAVIDROME_CONTAINER_NAME must also be set).
-      # - /var/run/docker.sock:/var/run/docker.sock
+# Periodic jobs are NOT shipped as a separate cron service: they're
+# meant to be triggered from the host crontab (or whatever scheduler
+# you use), e.g.:
+#
+#   0 */6 * * * docker compose exec -T navidrome-tools-web \
+#       php bin/console app:stats:compute
+#   */15 *  * * * docker compose exec -T navidrome-tools-web \
+#       php bin/console app:lastfm:import
+#   0  4   * * * docker compose exec -T navidrome-tools-web \
+#       php bin/console app:lastfm:process --auto-stop
+#   30 4   * * * docker compose exec -T navidrome-tools-web \
+#       php bin/console app:history:purge
+#
+# See README for the full list of scheduling-friendly commands.
 
 volumes:
   navidrome-tools-data:

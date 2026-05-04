@@ -33,28 +33,24 @@ class SeedFixturesCommand extends Command
                 'name' => 'Top 7 derniers jours',
                 'generator_key' => 'top-last-days',
                 'parameters' => ['days' => 7],
-                'schedule' => '0 3 * * *',
                 'template' => 'Top 7j — {date}',
             ],
             [
                 'name' => 'Top 30 derniers jours',
                 'generator_key' => 'top-last-days',
                 'parameters' => ['days' => 30],
-                'schedule' => '0 3 * * *',
                 'template' => 'Top 30j — {date}',
             ],
             [
                 'name' => 'Top du mois passé',
                 'generator_key' => 'top-last-month',
                 'parameters' => [],
-                'schedule' => '0 4 1 * *',
                 'template' => 'Top {month}',
             ],
             [
                 'name' => 'Top de l\'année passée',
                 'generator_key' => 'top-last-year',
                 'parameters' => [],
-                'schedule' => '0 5 1 1 *',
                 'template' => 'Top {year}',
             ],
         ];
@@ -68,7 +64,6 @@ class SeedFixturesCommand extends Command
                 ->setName($sample['name'])
                 ->setGeneratorKey($sample['generator_key'])
                 ->setParameters($sample['parameters'])
-                ->setSchedule($sample['schedule'])
                 ->setPlaylistNameTemplate($sample['template'])
                 ->setEnabled(false)
                 ->setReplaceExisting(true);

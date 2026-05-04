@@ -11,7 +11,6 @@ use App\Repository\PlaylistDefinitionRepository;
 use App\Repository\RunHistoryRepository;
 use App\Service\SettingsService;
 use App\Subsonic\SubsonicClient;
-use Cron\CronExpression;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -19,7 +18,7 @@ use Symfony\Component\Routing\Attribute\Route;
 
 class DashboardController extends AbstractController
 {
-    private const ALLOWED_SORTS = ['name', 'last_run', 'schedule'];
+    private const ALLOWED_SORTS = ['name', 'last_run'];
 
     #[Route('/', name: 'app_dashboard')]
     public function index(
@@ -48,19 +47,9 @@ class DashboardController extends AbstractController
 
         $rows = [];
         foreach ($definitions as $def) {
-            $next = null;
-            $schedule = $def->getSchedule();
-            if ($schedule) {
-                try {
-                    $next = (new CronExpression($schedule))->getNextRunDate(new \DateTimeImmutable());
-                } catch (\Throwable) {
-                    $next = null;
-                }
-            }
             $rows[] = [
                 'def' => $def,
                 'generator' => $registry->has($def->getGeneratorKey()) ? $registry->get($def->getGeneratorKey()) : null,
-                'next_run' => $next,
             ];
         }
 

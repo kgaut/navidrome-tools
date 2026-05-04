@@ -43,9 +43,6 @@ class PlaylistDefinition
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $playlistNameTemplate = null;
 
-    #[ORM\Column(length: 100, nullable: true)]
-    private ?string $schedule = null;
-
     #[ORM\Column(type: Types::BOOLEAN, options: ['default' => true])]
     private bool $enabled = true;
 
@@ -145,17 +142,6 @@ class PlaylistDefinition
     public function setPlaylistNameTemplate(?string $template): self
     {
         $this->playlistNameTemplate = $template;
-        return $this;
-    }
-
-    public function getSchedule(): ?string
-    {
-        return $this->schedule;
-    }
-
-    public function setSchedule(?string $schedule): self
-    {
-        $this->schedule = $schedule ?: null;
         return $this;
     }
 

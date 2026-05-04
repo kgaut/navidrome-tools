@@ -58,7 +58,6 @@ class PlaylistDefinitionController extends AbstractController
             ->setParameters($def->getParameters())
             ->setLimitOverride($def->getLimitOverride())
             ->setPlaylistNameTemplate($def->getPlaylistNameTemplate())
-            ->setSchedule($def->getSchedule())
             ->setReplaceExisting($def->isReplaceExisting())
             ->setEnabled(false);
 

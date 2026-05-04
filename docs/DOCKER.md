@@ -68,19 +68,23 @@ push sur `main`. Les autres tags disponibles (`main-<sha7>`,
 docker pull ghcr.io/kgaut/navidrome-tools:latest
 ```
 
-## 4. Architecture des deux services
+## 4. Architecture du service
 
-Le compose lance **deux conteneurs** à partir de la même image, qui se
-distinguent uniquement par la variable `APP_MODE` :
+Le compose lance **un seul conteneur** à partir de l'image
+`ghcr.io/kgaut/navidrome-tools` :
 
 | Service                  | `APP_MODE` | Rôle                                              | Port |
 |--------------------------|------------|---------------------------------------------------|------|
 | `navidrome-tools-web`    | `web`      | UI HTTP (FrankenPHP + Caddy intégré)              | 8080 |
-| `navidrome-tools-cron`   | `cron`     | Démon supercronic (cron interne, regen 5 min)     | —    |
 
-Les deux services partagent les **mêmes volumes** et la **même DB
-Navidrome** (montée `:ro`). L'entrypoint joue les migrations Doctrine
-au démarrage (idempotent).
+L'entrypoint joue les migrations Doctrine au démarrage (idempotent).
+
+Les jobs récurrents (génération de playlists, refresh stats, fetch /
+process Last.fm, purge d'historique) sont **lancés depuis le crontab
+unix de l'hôte** via `docker compose exec -T navidrome-tools-web
+php bin/console <cmd>` — il n'y a plus de service cron embarqué dans
+l'image. Voir la section [« Lancement des jobs récurrents »](../README.md#lancement-des-jobs-récurrents)
+du README pour des exemples de lignes crontab.
 
 ## 5. Points de montage (volumes)
 
@@ -92,12 +96,13 @@ au démarrage (idempotent).
 | bind (opt.)| `/srv/shared/queue.txt`                | `/shared/queue.txt`      | rw   | Beets queue (cf. `BEETS_QUEUE_PATH`)                     |
 
 > **Avertissement** : le mode `:ro` sur `navidrome.db` est sans risque
-> tant qu'aucun job n'écrit dans Navidrome. La commande
-> `app:lastfm:import` (et `app:lastfm:rematch`) écrit dans la table
-> `scrobbles` de Navidrome — elle nécessite un **mount RW** *et*
-> Navidrome **arrêté** pendant l'import. Voir la section
-> [« Cron externe avec arrêt de Navidrome »](../README.md#cron-externe-avec-arrêt-de-navidrome-optionnel)
-> du README pour le script complet.
+> tant qu'aucun job n'écrit dans Navidrome. Les commandes
+> `app:lastfm:process` et `app:lastfm:rematch` écrivent dans la table
+> `scrobbles` de Navidrome — elles nécessitent un **mount RW** *et*
+> Navidrome **arrêté** pendant l'opération (le flag `--auto-stop`
+> orchestre stop/run/restart quand `NAVIDROME_CONTAINER_NAME` est
+> configuré). `app:lastfm:import` (le fetch) ne touche pas Navidrome
+> et peut tourner avec le mount `:ro`.
 
 ## 6. Networks Docker et URL internes
 
@@ -151,11 +156,6 @@ services:
     # ... (config existante)
     networks:
       - media
-
-  navidrome-tools-cron:
-    # ... (config existante)
-    networks:
-      - media
 ```
 
 **Étape 3.** Garder `NAVIDROME_URL=http://navidrome:4533` dans `.env` :
@@ -184,9 +184,9 @@ Cas typique : `/srv/media/docker-compose.yml` contient déjà
    et le coller dans le compose existant (ou utiliser un
    `compose.override.yml` chargé en plus).
 
-2. Attacher les deux services tool au network qui contient déjà
-   Navidrome (cf. §6.b). Si la stack utilise déjà un seul network par
-   défaut, il n'y a rien à faire — tous les services y sont déjà.
+2. Attacher le service `navidrome-tools-web` au network qui contient
+   déjà Navidrome (cf. §6.b). Si la stack utilise déjà un seul network
+   par défaut, il n'y a rien à faire — tous les services y sont déjà.
 
 3. Ajouter au `.env` racine de la stack les variables minimales (cf. §2)
    plus celles du tool. Compose lit `.env` automatiquement à côté du
@@ -206,11 +206,6 @@ Cas typique : `/srv/media/docker-compose.yml` contient déjà
        volumes:
          - /srv/shared:/shared           # même mount, rw
          # ... volumes existants
-
-     navidrome-tools-cron:
-       volumes:
-         - /srv/shared:/shared
-         # ... volumes existants
    ```
 
    Dans `.env` :
@@ -229,13 +224,17 @@ Cas typique : `/srv/media/docker-compose.yml` contient déjà
         sh -c "xargs -a /shared/queue.txt beet import -A --quiet && : > /shared/queue.txt"'
    ```
 
-5. Démarrer uniquement les nouveaux services pour ne pas perturber le
+5. Démarrer uniquement le nouveau service pour ne pas perturber le
    reste de la stack :
 
    ```bash
-   docker compose up -d navidrome-tools-web navidrome-tools-cron
+   docker compose up -d navidrome-tools-web
    docker compose logs -f navidrome-tools-web
    ```
+
+6. Configurer les jobs récurrents dans le **crontab unix** de l'hôte
+   (cf. [README — Lancement des jobs récurrents](../README.md#lancement-des-jobs-récurrents))
+   plutôt que dans un service cron Docker.
 
 ## 8. Scénario B : stack complète from scratch
 
@@ -277,31 +276,6 @@ services:
     restart: unless-stopped
     environment:
       APP_MODE: web
-      APP_ENV: prod
-      APP_SECRET: ${APP_SECRET:?set APP_SECRET in .env}
-      APP_TIMEZONE: ${APP_TIMEZONE:-Europe/Paris}
-      NAVIDROME_DB_PATH: /data/navidrome.db
-      NAVIDROME_URL: http://navidrome:4533
-      NAVIDROME_USER: ${NAVIDROME_USER:-admin}
-      NAVIDROME_PASSWORD: ${NAVIDROME_PASSWORD:?set NAVIDROME_PASSWORD in .env}
-      APP_AUTH_USER: ${APP_AUTH_USER:-admin}
-      APP_AUTH_PASSWORD: ${APP_AUTH_PASSWORD:?set APP_AUTH_PASSWORD in .env}
-      DATABASE_URL: "sqlite:///%kernel.project_dir%/var/data.db"
-      COVERS_CACHE_PATH: /app/var/covers
-    volumes:
-      - navidrome-data:/data:ro
-      - navidrome-tools-data:/app/var
-      - navidrome-tools-covers:/app/var/covers
-    networks:
-      - media
-    depends_on:
-      - navidrome
-
-  navidrome-tools-cron:
-    image: ghcr.io/kgaut/navidrome-tools:latest
-    restart: unless-stopped
-    environment:
-      APP_MODE: cron
       APP_ENV: prod
       APP_SECRET: ${APP_SECRET:?set APP_SECRET in .env}
       APP_TIMEZONE: ${APP_TIMEZONE:-Europe/Paris}
@@ -419,11 +393,10 @@ Points à vérifier :
   bind-mount fonctionne.
 - **Stats** : `/stats` doit afficher le top 10 artistes / top 50
   morceaux. Si la page est vide, lancer un refresh manuel.
-- **Cron** : `docker compose logs navidrome-tools-cron` — toutes les
-  5 minutes une ligne `Regenerated crontab` doit apparaître. Les
-  4 playlists d'exemple créées au premier boot sont **désactivées** ;
-  les éditer dans l'UI puis les activer pour qu'elles passent dans le
-  crontab.
+- **Jobs récurrents** : ils ne tournent **pas** dans le conteneur —
+  c'est le crontab unix de l'hôte qui les déclenche via
+  `docker compose exec`. Vérifier ses propres logs cron / le retour
+  de la commande exécutée.
 
 ## 11. Mise à jour
 
@@ -442,18 +415,18 @@ redémarrages.
 |-------------------------------------------------------|-------------------------------------------------------------------------------------------|
 | `no such file or directory: /data/navidrome.db`       | `NAVIDROME_DATA_DIR` ne pointe pas vers le bon dossier hôte, ou le fichier n'existe pas.  |
 | Dashboard : « impossible de joindre Navidrome »       | Network non partagé. Tester `docker compose exec navidrome-tools-web wget -qO- http://navidrome:4533/ping`. |
-| Cron ne se déclenche pas                              | Vérifier `APP_MODE=cron` sur le bon service et `docker compose logs navidrome-tools-cron`. Les playlists doivent être **activées** dans l'UI. |
+| Job cron ne tourne pas                                | Le tool n'a plus de cron embarqué — c'est un crontab unix qui doit invoquer `docker compose exec -T navidrome-tools-web …`. Vérifier la ligne crontab et `docker compose logs navidrome-tools-web` pour voir l'invocation arriver. |
 | 502 Bad Gateway derrière Caddy                        | Caddy n'est pas dans le même network que `navidrome-tools-web`. `docker network inspect media` doit lister les deux. |
 | Pochettes manquantes ou cassées                       | Vérifier le volume `navidrome-tools-covers` (espace disque, permissions du user FrankenPHP). |
-| Login en boucle (renvoie sur `/login` après submit)   | `APP_SECRET` vide ou différent entre les services `web` et `cron`. Doit être identique et stable. |
-| `app:lastfm:import` échoue avec « database is locked »| Navidrome doit être **arrêté** pendant l'import (cf. README §Cron externe).               |
+| Login en boucle (renvoie sur `/login` après submit)   | `APP_SECRET` vide ou changé entre redémarrages. Doit être stable.                         |
+| `app:lastfm:process` échoue avec « database is locked »| Navidrome doit être **arrêté** (ou utiliser `--auto-stop`).                              |
 
 ## 13. Pour aller plus loin
 
 - [`README.md`](../README.md#variables-denvironnement) — tableau
   exhaustif des variables d'environnement.
-- [`README.md`](../README.md#cron-externe-avec-arrêt-de-navidrome-optionnel)
-  — script crontab hôte qui arrête Navidrome avant les jobs RW.
+- [`README.md`](../README.md#lancement-des-jobs-récurrents) — lignes
+  crontab unix prêtes à coller pour les jobs récurrents.
 - [`docs/PLUGINS.md`](PLUGINS.md) — créer ses propres générateurs de
   playlist.
 - [`CHANGELOG.md`](../CHANGELOG.md) — détail chronologique des

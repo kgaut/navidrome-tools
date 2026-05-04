@@ -6,14 +6,12 @@ use App\Entity\PlaylistDefinition;
 use App\Generator\GeneratorRegistry;
 use App\Generator\ParameterDefinition;
 use App\Generator\PlaylistGeneratorInterface;
-use Cron\CronExpression;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\CheckboxType;
 use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
 use Symfony\Component\Form\Extension\Core\Type\IntegerType;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\FormBuilderInterface;
-use Symfony\Component\Form\FormError;
 use Symfony\Component\Form\FormEvent;
 use Symfony\Component\Form\FormEvents;
 use Symfony\Component\Form\FormInterface;
@@ -51,11 +49,6 @@ class PlaylistDefinitionType extends AbstractType
                 'required' => false,
                 'help' => 'Variables : {date}, {month}, {year}, {label}, {name}, {preset}, {param:xxx}.',
             ])
-            ->add('schedule', TextType::class, [
-                'label' => 'Planning (expression cron)',
-                'required' => false,
-                'help' => 'Ex. "0 3 * * *" pour tous les jours à 3h. Vide = pas de cron.',
-            ])
             ->add('enabled', CheckboxType::class, [
                 'label' => 'Activée',
                 'required' => false,
@@ -86,16 +79,6 @@ class PlaylistDefinitionType extends AbstractType
             /** @var PlaylistDefinition $def */
             $def = $event->getData();
             $form = $event->getForm();
-
-            // Validate cron expression.
-            $schedule = $def->getSchedule();
-            if ($schedule) {
-                try {
-                    new CronExpression($schedule);
-                } catch (\Throwable $e) {
-                    $form->get('schedule')->addError(new FormError('Expression cron invalide : ' . $e->getMessage()));
-                }
-            }
 
             // Collect generator parameters from dynamic fields into the entity.
             if ($form->has('_params')) {

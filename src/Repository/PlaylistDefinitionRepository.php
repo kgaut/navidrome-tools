@@ -52,11 +52,6 @@ class PlaylistDefinitionRepository extends ServiceEntityRepository
                    ->orderBy('nulls_last', 'ASC')
                    ->addOrderBy('p.lastRunAt', 'DESC');
                 break;
-            case 'schedule':
-                $qb->addSelect('CASE WHEN p.schedule IS NULL OR p.schedule = \'\' THEN 1 ELSE 0 END AS HIDDEN nulls_last')
-                   ->orderBy('nulls_last', 'ASC')
-                   ->addOrderBy('p.schedule', 'ASC');
-                break;
             case 'name':
             default:
                 $qb->orderBy('p.name', 'ASC');
@@ -85,20 +80,6 @@ class PlaylistDefinitionRepository extends ServiceEntityRepository
 
         // 1000 copies of the same definition feels exotic; fall back on a timestamp.
         return $baseName . ' (copie ' . date('Y-m-d His') . ')';
-    }
-
-    /**
-     * @return PlaylistDefinition[]
-     */
-    public function findScheduledEnabled(): array
-    {
-        return $this->createQueryBuilder('p')
-            ->andWhere('p.enabled = true')
-            ->andWhere('p.schedule IS NOT NULL')
-            ->andWhere("p.schedule != ''")
-            ->orderBy('p.id', 'ASC')
-            ->getQuery()
-            ->getResult();
     }
 
     public function findOneByName(string $name): ?PlaylistDefinition

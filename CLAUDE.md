@@ -50,7 +50,7 @@ Fonctionnalités livrées :
      peut tourner Navidrome up. Idempotent grâce à la unique
      constraint `(lastfm_user, played_at, artist, title)` ;
      report = `fetched / buffered / already_buffered`. RunHistory
-     type `lastfm-fetch`. Cron via `LASTFM_FETCH_SCHEDULE`.
+     type `lastfm-fetch`. À planifier dans le crontab unix.
   2. **Process** (section 2 du form + `POST /lastfm/process`,
      `app:lastfm:process`, `App\LastFm\LastFmBufferProcessor`) :
      stream du buffer (par `played_at ASC`) → `ScrobbleMatcher` →
@@ -60,9 +60,9 @@ Fonctionnalités livrées :
      relais pour le rematch). Navidrome doit être arrêté
      (pré-flight CSRF côté UI ; `--force` / `--auto-stop` côté CLI).
      RunHistory type `lastfm-process` ; report `considered /
-     inserted / duplicates / unmatched / skipped`. Cron via
-     `LASTFM_PROCESS_SCHEDULE` (auto-stop activé automatiquement
-     par `app:cron:dump` quand `NAVIDROME_CONTAINER_NAME`).
+     inserted / duplicates / unmatched / skipped`. À planifier
+     depuis le crontab unix de l'hôte (`--auto-stop` quand
+     `NAVIDROME_CONTAINER_NAME`).
 
   Pause configurable (`LASTFM_PAGE_DELAY_SECONDS`, défaut 10s)
   entre 2 pages de l'API Last.fm. User et API key par défaut via
@@ -109,8 +109,9 @@ Fonctionnalités livrées :
   Navidrome (avec `scrobbleExistsNear` pour dédup), bascule la row
   en `inserted` / `duplicate` / `skipped`. Wrappé par
   `RunHistoryRecorder` (type `lastfm-rematch`). Bouton sur
-  `/history/{id}` (par run) et `/lastfm/import` (cumul global). Cron
-  via `LASTFM_REMATCH_SCHEDULE`. Idempotent. Navidrome doit être
+  `/history/{id}` (par run) et `/lastfm/import` (cumul global).
+  À planifier dans le crontab unix (`--auto-stop` quand
+  `NAVIDROME_CONTAINER_NAME`). Idempotent. Navidrome doit être
   arrêté (mêmes contraintes que `app:lastfm:process`).
 - **Page `/stats/lastfm-history`** : 100 derniers scrobbles cachés en
   local pour le user Last.fm, refresh manuel (table `lastfm_history`).
@@ -132,8 +133,14 @@ Fonctionnalités livrées :
 - **Intégration Lidarr** : bouton « + Lidarr » par ligne d'unmatched
   pour ajouter l'artiste, plus liens Last.fm / Navidrome (lookup par
   nom normalisé).
-- **Cron interne** via supercronic : `app:cron:dump` lit la DB et
-  régénère le crontab toutes les 5 min.
+- **Pas de cron interne** : tous les jobs récurrents
+  (`app:playlist:run`, `app:stats:compute`, `app:lastfm:import`,
+  `app:lastfm:process`, `app:lastfm:rematch`, `app:history:purge`,
+  etc.) sont déclenchés depuis le crontab unix de l'hôte via
+  `docker compose exec -T navidrome-tools-web …`. Pas de
+  supercronic, pas de service `navidrome-tools-cron`, pas de champ
+  `schedule` sur les définitions de playlist (drop column
+  `Version20260504100000`).
 - **Création de playlists côté Navidrome** : **toujours via l'API
   Subsonic**, jamais d'écriture directe dans la DB Navidrome (sauf
   `app:lastfm:process` et `app:lastfm:rematch` qui doivent
@@ -155,9 +162,9 @@ Fonctionnalités livrées :
   `app:lastfm:process` et `app:lastfm:rematch`) : alternative au
   pré-flight bloquant — orchestre stop Navidrome → action → restart
   via `NavidromeContainerManager::runWithNavidromeStopped()` (try/
-  finally, restart même en cas d'erreur de l'action). Activé
-  automatiquement par `app:cron:dump` sur les lignes process /
-  rematch quand le conteneur est configuré. La commande
+  finally, restart même en cas d'erreur de l'action). À ajouter
+  manuellement aux lignes crontab des jobs qui écrivent
+  (`app:lastfm:process`, `app:lastfm:rematch`). La commande
   `app:lastfm:import` (fetch only) ne touche plus le conteneur.
 
 ---
@@ -178,9 +185,10 @@ Fonctionnalités livrées :
 - **DB Navidrome** : SQLite, montée en `:ro` côté Docker, requêtée via
   `App\Navidrome\NavidromeRepository` (Doctrine DBAL pur, pas d'ORM).
   Détection auto de la table `scrobbles` (Navidrome ≥ 0.55).
-- **Image Docker** : `dunglas/frankenphp:1-php8.3-alpine` +
-  `supercronic` (multi-arch). Multiplexeur `APP_MODE=web|cron|cli` dans
-  `docker/entrypoint.sh`.
+- **Image Docker** : `dunglas/frankenphp:1-php8.3-alpine`
+  (multi-arch). Multiplexeur `APP_MODE=web|cli` dans
+  `docker/entrypoint.sh` (le mode `cron` a disparu en même temps
+  que la suppression du cron interne).
 - **Auth UI** : un seul user via `APP_AUTH_USER` / `APP_AUTH_PASSWORD`,
   hashé en mémoire au boot par `App\Security\EnvUserProvider`.
 
@@ -192,7 +200,7 @@ Fonctionnalités livrées :
 src/
 ├── Command/          CLI Symfony (app:playlist:run, app:stats:compute,
 │                     app:lastfm:import (fetch-only), app:lastfm:process,
-│                     app:lastfm:rematch, app:cron:dump, app:history:purge…)
+│                     app:lastfm:rematch, app:history:purge…)
 ├── Controller/       Dashboard, PlaylistDefinition CRUD, Stats (index/compare/
 │                     charts/heatmap/wrapped/lastfm-history/navidrome-history),
 │                     LastFmImport, Lidarr, History, Settings, Security
@@ -401,13 +409,12 @@ Le push du tag déclenche `docker-publish` (cf. `.github/workflows/ci.yml`).
 |--------------------------------|-------------------------------------------------------------|
 | `APP_SECRET`                   | Symfony — `openssl rand -hex 32`                            |
 | `APP_ENV`                      | `prod` / `dev` / `test`                                     |
-| `APP_MODE`                     | `web` / `cron` / `cli` (entrypoint Docker)                  |
+| `APP_MODE`                     | `web` (FrankenPHP) / `cli` (one-shot Symfony command)       |
 | `APP_AUTH_USER` / `..._PASSWORD` | Login UI                                                  |
 | `NAVIDROME_DB_PATH`            | Chemin du fichier SQLite Navidrome (mount `:ro` en prod)    |
 | `NAVIDROME_URL`                | Base URL HTTP Navidrome                                     |
 | `NAVIDROME_USER` / `..._PASSWORD` | User Subsonic                                            |
 | `DATABASE_URL`                 | DSN Doctrine pour la DB locale du tool                      |
-| `STATS_REFRESH_SCHEDULE`       | Cron expr (default `0 */6 * * *`)                           |
 | `RUN_HISTORY_RETENTION_DAYS`   | default 90                                                  |
 | `LIDARR_URL` / `..._API_KEY`   | Vide = intégration désactivée (UI masque le bouton)         |
 | `LIDARR_ROOT_FOLDER_PATH`      | Chemin où Lidarr place les artistes                         |
@@ -417,10 +424,11 @@ Le push du tag déclenche `docker-publish` (cf. `.github/workflows/ci.yml`).
 | `LASTFM_USER`                  | Optionnel, pré-remplit le champ user / fallback CLI         |
 | `LASTFM_PAGE_DELAY_SECONDS`    | Pause entre 2 pages de l'API (default 10, 0 pour désactiver)|
 | `LASTFM_FUZZY_MAX_DISTANCE`    | Distance Levenshtein max pour le fallback fuzzy (default 0 = off, **2 recommandé pour les imports one-shot**) |
-| `LASTFM_REMATCH_SCHEDULE`      | Cron expr pour `app:lastfm:rematch` (vide = désactivé)      |
-| `LASTFM_FETCH_SCHEDULE`        | Cron expr pour `app:lastfm:import` — fetch buffer (vide = désactivé) |
-| `LASTFM_PROCESS_SCHEDULE`      | Cron expr pour `app:lastfm:process` — drain buffer (vide = désactivé) |
 | `NAVIDROME_CONTAINER_NAME`     | Nom du conteneur Navidrome dans la stack compose. Vide = card dashboard masquée + pré-flight désactivé. Requiert le mount `/var/run/docker.sock`. |
+
+Plus de variables `*_SCHEDULE` : la planification se fait dans le
+crontab unix de l'hôte (cf. `README.md` § « Lancement des jobs
+récurrents »).
 
 Wirées dans : `.env` (dev), `.env.dist` (template), `phpunit.xml.dist`
 (test), `.lando.yml.dist` (Lando), `docker-compose.example.yml`,
