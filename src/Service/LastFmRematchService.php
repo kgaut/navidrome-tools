@@ -65,6 +65,8 @@ class LastFmRematchService
 
         $report = new RematchReport();
         $batch = 0;
+        /** @var list<LastFmImportTrack> $pendingTracks */
+        $pendingTracks = [];
         foreach ($this->trackRepo->streamUnmatched($runId, $limit, $random) as $track) {
             /** @var LastFmImportTrack $track */
             $report->considered++;
@@ -119,9 +121,18 @@ class LastFmRematchService
                 ]);
             }
 
-            // Flush periodically so memory does not grow unbounded on big sweeps.
+            $pendingTracks[] = $track;
+
+            // Flush periodically so memory does not grow unbounded on big
+            // sweeps. We then detach the just-flushed LastFmImportTrack
+            // rows (their setStatus() / setMatchedMediaFileId() mutations
+            // are now safely written) and drop the matcher's pending
+            // cache entries — without that the identity map keeps every
+            // iterated track + every cache entry for the entire run,
+            // OOMing on large rematch sweeps.
             if (!$dryRun && ++$batch >= 100) {
-                $this->em->flush();
+                $this->flushAndDetach($pendingTracks);
+                $pendingTracks = [];
                 $batch = 0;
             }
 
@@ -135,7 +146,7 @@ class LastFmRematchService
         }
 
         if (!$dryRun) {
-            $this->em->flush();
+            $this->flushAndDetach($pendingTracks);
         }
 
         if ($progress !== null) {
@@ -147,5 +158,19 @@ class LastFmRematchService
         }
 
         return $report;
+    }
+
+    /**
+     * @param list<LastFmImportTrack> $pendingTracks
+     */
+    private function flushAndDetach(array $pendingTracks): void
+    {
+        $this->em->flush();
+        foreach ($pendingTracks as $track) {
+            if ($this->em->contains($track)) {
+                $this->em->detach($track);
+            }
+        }
+        $this->cacheRepository?->detachPending();
     }
 }

@@ -109,6 +109,26 @@ class LastFmMatchCacheRepository extends ServiceEntityRepository
     }
 
     /**
+     * Detach every entry queued in the in-memory pending map from the EM
+     * and forget the map. Called by long-running consumers (buffer
+     * processor, rematch service) after each batch flush so the identity
+     * map does not grow unbounded across the whole run. The DB row was
+     * already written by the flush; subsequent lookups for the same
+     * couple will hit `findOneBy()` and re-hydrate a fresh managed entity
+     * if needed.
+     */
+    public function detachPending(): void
+    {
+        $em = $this->getEntityManager();
+        foreach ($this->pendingByKey as $entry) {
+            if ($em->contains($entry)) {
+                $em->detach($entry);
+            }
+        }
+        $this->pendingByKey = [];
+    }
+
+    /**
      * Drop the row matching this exact couple. Returns the number of
      * rows deleted (0 or 1). Called when the user creates / edits /
      * deletes a track-level alias for that couple.

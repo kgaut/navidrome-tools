@@ -7,6 +7,22 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+### Fixed
+- **`app:lastfm:process` / `app:lastfm:rematch` — fuite mémoire sur
+  les gros volumes** : `LastFmBufferProcessor` et `LastFmRematchService`
+  flushaient toutes les 100 itérations mais ne vidaient jamais
+  l'identity map de Doctrine. Sur un buffer Last.fm volumineux (≥ ~10k
+  scrobbles), les entités hydratées par `toIterable()`
+  (`LastFmBufferedScrobble` / `LastFmImportTrack`) plus celles
+  persistées par le matcher (`LastFmMatchCacheEntry`) finissaient par
+  saturer les 128 Mo de PHP — `Allowed memory size of 134217728 bytes
+  exhausted in UnitOfWork.php`. Les deux services détachent maintenant
+  ces entités juste après chaque flush via un nouveau helper
+  `flushAndDetach()`, et le repo cache expose `detachPending()` pour
+  vider sa map en mémoire interne en synchro. La `RunHistory`
+  attachée à l'audit reste managée pour ne pas casser le callback de
+  progression (`RunHistoryRecorder::updateProgress`).
+
 ### Changed
 - **Favicon** : adapte automatiquement sa couleur au thème système
   (`prefers-color-scheme`). La note reste sombre (`#0f172a`) en mode
