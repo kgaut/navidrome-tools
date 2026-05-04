@@ -19,7 +19,6 @@
         <env name="NAVIDROME_URL" value="http://localhost:4533"/>
         <env name="NAVIDROME_USER" value="admin"/>
         <env name="NAVIDROME_PASSWORD" value="changeme"/>
-        <env name="STATS_REFRESH_SCHEDULE" value="0 */6 * * *"/>
         <env name="LIDARR_URL" value=""/>
         <env name="LIDARR_API_KEY" value=""/>
         <env name="LIDARR_ROOT_FOLDER_PATH" value="/music"/>
@@ -38,10 +37,6 @@
         <env name="LASTFM_PAGE_DELAY_SECONDS" value="0"/>
         <env name="LASTFM_FUZZY_MAX_DISTANCE" value="0"/>
         <env name="LASTFM_MATCH_CACHE_TTL_DAYS" value="30"/>
-        <env name="LASTFM_LOVE_SYNC_SCHEDULE" value=""/>
-        <env name="LASTFM_REMATCH_SCHEDULE" value=""/>
-        <env name="LASTFM_FETCH_SCHEDULE" value=""/>
-        <env name="LASTFM_PROCESS_SCHEDULE" value=""/>
         <env name="COVERS_CACHE_PATH" value="%kernel.project_dir%/var/covers_test"/>
         <env name="HOMEPAGE_API_TOKEN" value=""/>
     </php>

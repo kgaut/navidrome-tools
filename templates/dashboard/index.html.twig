@@ -184,7 +184,6 @@
             <select name="sort" id="filter-sort" class="border rounded px-2 py-1">
                 <option value="name" {{ filters.sort == 'name' ? 'selected' : '' }}>Par nom</option>
                 <option value="last_run" {{ filters.sort == 'last_run' ? 'selected' : '' }}>Dernier run</option>
-                <option value="schedule" {{ filters.sort == 'schedule' ? 'selected' : '' }}>Planning</option>
             </select>
         </div>
         <button type="submit" class="px-3 py-1.5 rounded bg-slate-900 text-white">Filtrer</button>
@@ -206,8 +205,6 @@
                 <tr>
                     <th class="px-3 py-2">Nom</th>
                     <th class="px-3 py-2">Générateur</th>
-                    <th class="px-3 py-2">Planning</th>
-                    <th class="px-3 py-2">Prochain</th>
                     <th class="px-3 py-2">Dernier run</th>
                     <th class="px-3 py-2">Actif</th>
                     <th class="px-3 py-2 text-right">Actions</th>
@@ -229,10 +226,6 @@
                             {% else %}
                                 <span class="text-rose-600 text-xs">⚠ inconnu : {{ def.generatorKey }}</span>
                             {% endif %}
-                        </td>
-                        <td class="px-3 py-2 font-mono text-xs">{{ def.schedule ?: '—' }}</td>
-                        <td class="px-3 py-2 text-xs">
-                            {{ row.next_run ? row.next_run|date('Y-m-d H:i') : '—' }}
                         </td>
                         <td class="px-3 py-2 text-xs">
                             {% if def.lastRunAt %}

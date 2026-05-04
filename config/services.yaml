@@ -5,7 +5,6 @@ parameters:
     navidrome.password: '%env(NAVIDROME_PASSWORD)%'
     app.auth_user: '%env(APP_AUTH_USER)%'
     app.auth_password: '%env(APP_AUTH_PASSWORD)%'
-    app.stats_refresh_schedule: '%env(STATS_REFRESH_SCHEDULE)%'
     app.run_history_retention_days: '%env(int:RUN_HISTORY_RETENTION_DAYS)%'
     app.covers_cache_path: '%env(resolve:COVERS_CACHE_PATH)%'
     lastfm.api_key: '%env(LASTFM_API_KEY)%'
@@ -13,10 +12,6 @@ parameters:
     lastfm.page_delay_seconds: '%env(int:LASTFM_PAGE_DELAY_SECONDS)%'
     lastfm.fuzzy_max_distance: '%env(int:LASTFM_FUZZY_MAX_DISTANCE)%'
     lastfm.match_cache_ttl_days: '%env(int:LASTFM_MATCH_CACHE_TTL_DAYS)%'
-    lastfm.love_sync_schedule: '%env(LASTFM_LOVE_SYNC_SCHEDULE)%'
-    lastfm.rematch_schedule: '%env(LASTFM_REMATCH_SCHEDULE)%'
-    lastfm.fetch_schedule: '%env(LASTFM_FETCH_SCHEDULE)%'
-    lastfm.process_schedule: '%env(LASTFM_PROCESS_SCHEDULE)%'
     beets.queue_path: '%env(resolve:BEETS_QUEUE_PATH)%'
     lidarr.url: '%env(LIDARR_URL)%'
     lidarr.api_key: '%env(LIDARR_API_KEY)%'
@@ -71,14 +66,6 @@ services:
         arguments:
             $username: '%app.auth_user%'
             $plainPassword: '%app.auth_password%'
-
-    App\Command\DumpCronCommand:
-        arguments:
-            $statsRefreshSchedule: '%app.stats_refresh_schedule%'
-            $loveSyncSchedule: '%lastfm.love_sync_schedule%'
-            $rematchSchedule: '%lastfm.rematch_schedule%'
-            $fetchSchedule: '%lastfm.fetch_schedule%'
-            $processSchedule: '%lastfm.process_schedule%'
 
     App\Command\PurgeHistoryCommand:
         arguments:
