@@ -91,6 +91,10 @@ services:
             $dbPath: '%navidrome.db_path%'
             $retention: '%navidrome.db_backup_retention%'
 
+    App\Command\NavidromeDbCheckCommand:
+        arguments:
+            $dbPath: '%navidrome.db_path%'
+
     App\Controller\LastFmImportController:
         arguments:
             $navidromeUrl: '%navidrome.url%'
