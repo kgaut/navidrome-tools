@@ -128,6 +128,214 @@ class LastFmBufferProcessorTest extends TestCase
         $this->assertSame(2, $report->considered);
     }
 
+    public function testCrashOnFirstBatchRollsBackEverything(): void
+    {
+        $ndConn = NavidromeFixtureFactory::createDatabase($this->navidromeDbPath, withScrobbles: true);
+        NavidromeFixtureFactory::insertTrack($ndConn, 'mf-1', 'Hit', 'Artist');
+        NavidromeFixtureFactory::insertTrack($ndConn, 'mf-2', 'Other', 'Artist');
+
+        $rows = [
+            $this->makeBuffered('Artist', 'Hit', new \DateTimeImmutable('2026-04-02 10:00:00')),
+            $this->makeBuffered('Artist', 'Other', new \DateTimeImmutable('2026-04-02 10:01:00')),
+        ];
+        $this->seedBuffer($rows);
+
+        // Crashing repo fails on the 1st INSERT — entire (and only) batch rollbacks.
+        $crashingRepo = $this->makeCrashingRepo(crashAfter: 1);
+
+        // Track persist() calls on the mocked EM to assert that no audit was
+        // flushed for the rolled-back batch.
+        $persistCount = 0;
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->method('getConnection')->willReturn($this->bufferConn);
+        $em->method('flush');
+        $em->method('persist')->willReturnCallback(function () use (&$persistCount): void {
+            $persistCount++;
+        });
+
+        $processor = new LastFmBufferProcessor(
+            $this->makeStreamingRepo($rows),
+            new ScrobbleMatcher(new NavidromeRepository($this->navidromeDbPath, 'admin')),
+            $crashingRepo,
+            $em,
+        );
+
+        $thrown = null;
+        try {
+            $processor->process(
+                auditRun: new RunHistory(RunHistory::TYPE_LASTFM_PROCESS, 'buffer', 'Crash test'),
+            );
+        } catch (\Throwable $e) {
+            $thrown = $e;
+        }
+
+        $this->assertInstanceOf(\RuntimeException::class, $thrown);
+        $this->assertSame('simulated crash mid-batch', $thrown->getMessage());
+
+        // Navidrome must be empty — the rollback discarded the only INSERT
+        // that did make it before the crashing one.
+        $count = (int) $ndConn->fetchOne('SELECT COUNT(*) FROM scrobbles');
+        $this->assertSame(0, $count, 'Rolled-back batch must leave 0 scrobbles in Navidrome');
+
+        // Buffer rows must still be there for a retry.
+        $buffered = (int) $this->bufferConn->fetchOne('SELECT COUNT(*) FROM lastfm_import_buffer');
+        $this->assertSame(2, $buffered, 'Buffer rows must survive a rolled-back batch');
+
+        // No audit was persisted for the failed batch.
+        $this->assertSame(0, $persistCount, 'Audit rows must NOT be persisted when the batch rolls back');
+    }
+
+    public function testCrashOnSecondBatchKeepsFirstBatchCommitted(): void
+    {
+        $ndConn = NavidromeFixtureFactory::createDatabase($this->navidromeDbPath, withScrobbles: true);
+
+        // 250 unique tracks + buffer rows, all matchable. With BATCH_SIZE=100
+        // we have batches at [1-100], [101-200], [201-250]. We crash on the
+        // 150th INSERT (= 50th of the 2nd batch) — batch 1 must already be
+        // committed, batch 2 fully rolled back, batch 3 never reached.
+        $rows = [];
+        for ($i = 1; $i <= 250; $i++) {
+            NavidromeFixtureFactory::insertTrack($ndConn, sprintf('mf-%03d', $i), sprintf('Track %03d', $i), 'Artist');
+            $rows[] = $this->makeBuffered(
+                'Artist',
+                sprintf('Track %03d', $i),
+                // played_at must be unique per (user, played_at, artist, title) — spread
+                // by minute to fly under the dedup tolerance + buffer UNIQUE constraint.
+                (new \DateTimeImmutable('2026-04-01 00:00:00'))->modify('+' . $i . ' minutes'),
+            );
+        }
+        $this->seedBuffer($rows);
+
+        $crashingRepo = $this->makeCrashingRepo(crashAfter: 150);
+
+        $persistCount = 0;
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->method('getConnection')->willReturn($this->bufferConn);
+        $em->method('flush');
+        $em->method('persist')->willReturnCallback(function () use (&$persistCount): void {
+            $persistCount++;
+        });
+
+        $processor = new LastFmBufferProcessor(
+            $this->makeStreamingRepo($rows),
+            new ScrobbleMatcher(new NavidromeRepository($this->navidromeDbPath, 'admin')),
+            $crashingRepo,
+            $em,
+        );
+
+        $thrown = null;
+        try {
+            $processor->process(
+                auditRun: new RunHistory(RunHistory::TYPE_LASTFM_PROCESS, 'buffer', 'Crash test'),
+            );
+        } catch (\Throwable $e) {
+            $thrown = $e;
+        }
+
+        $this->assertInstanceOf(\RuntimeException::class, $thrown);
+
+        // Batch 1 (rows 1-100) committed → 100 scrobbles + 100 buffer rows
+        // deleted + 100 audits persisted.
+        $count = (int) $ndConn->fetchOne('SELECT COUNT(*) FROM scrobbles');
+        $this->assertSame(100, $count, 'First batch must remain committed');
+
+        $buffered = (int) $this->bufferConn->fetchOne('SELECT COUNT(*) FROM lastfm_import_buffer');
+        $this->assertSame(150, $buffered, 'Rows 101-250 must still be in the buffer for retry');
+
+        $this->assertSame(100, $persistCount, 'Only the first batch must have flushed audit rows');
+    }
+
+    public function testReprocessingAfterPartialFailureIsIdempotent(): void
+    {
+        // Replay the second-batch-crash scenario but with a smaller dataset
+        // so the fixture is cheap : 3 rows, BATCH_SIZE matters less here, the
+        // important property is that on a clean re-run the leftover rows are
+        // marked DUPLICATE not re-inserted (proving dedup catches what made
+        // it through committed batches).
+        $ndConn = NavidromeFixtureFactory::createDatabase($this->navidromeDbPath, withScrobbles: true);
+        NavidromeFixtureFactory::insertTrack($ndConn, 'mf-1', 'Track 1', 'Artist');
+        NavidromeFixtureFactory::insertTrack($ndConn, 'mf-2', 'Track 2', 'Artist');
+
+        // Pre-existing scrobble at +30s relative to row 1 played_at — within
+        // tolerance, so re-processing row 1 must be marked duplicate.
+        $row1Time = new \DateTimeImmutable('2026-04-01 12:00:00');
+        NavidromeFixtureFactory::insertScrobble(
+            $ndConn,
+            'user-1',
+            'mf-1',
+            $row1Time->modify('+30 seconds')->format('Y-m-d H:i:s'),
+        );
+
+        $rows = [
+            $this->makeBuffered('Artist', 'Track 1', $row1Time),
+            $this->makeBuffered('Artist', 'Track 2', new \DateTimeImmutable('2026-04-02 12:00:00')),
+        ];
+        $this->seedBuffer($rows);
+
+        // Clean run, no crash — the dedup must mark row 1 duplicate, row 2
+        // inserted. This is the « after partial failure » re-processing
+        // outcome.
+        $processor = $this->makeProcessor($rows);
+        $report = $processor->process(
+            auditRun: new RunHistory(RunHistory::TYPE_LASTFM_PROCESS, 'buffer', 'Replay test'),
+        );
+
+        $this->assertSame(1, $report->duplicates);
+        $this->assertSame(1, $report->inserted);
+        // Total scrobbles = pre-existing (1) + freshly inserted row 2 (1).
+        $this->assertSame(2, (int) $ndConn->fetchOne('SELECT COUNT(*) FROM scrobbles'));
+    }
+
+    private function makeCrashingRepo(int $crashAfter): NavidromeRepository
+    {
+        return new class ($this->navidromeDbPath, 'admin', $crashAfter) extends NavidromeRepository {
+            public int $insertCalls = 0;
+
+            public function __construct(string $dbPath, string $userName, private int $crashOn)
+            {
+                parent::__construct($dbPath, $userName);
+            }
+
+            public function insertScrobble(string $userId, string $mediaFileId, \DateTimeInterface $time): void
+            {
+                $this->insertCalls++;
+                if ($this->insertCalls === $this->crashOn) {
+                    throw new \RuntimeException('simulated crash mid-batch');
+                }
+                parent::insertScrobble($userId, $mediaFileId, $time);
+            }
+        };
+    }
+
+    /**
+     * @param list<LastFmBufferedScrobble> $rows
+     */
+    private function makeStreamingRepo(array $rows): LastFmBufferedScrobbleRepository
+    {
+        $repo = $this->createMock(LastFmBufferedScrobbleRepository::class);
+        $repo->method('streamAll')->willReturnCallback(
+            function (int $limit = 0) use ($rows): \Generator {
+                $emitted = 0;
+                foreach ($rows as $row) {
+                    if ($limit > 0 && $emitted >= $limit) {
+                        break;
+                    }
+                    $stillThere = (int) $this->bufferConn->fetchOne(
+                        'SELECT COUNT(*) FROM lastfm_import_buffer WHERE id = ?',
+                        [$row->getId()],
+                    );
+                    if ($stillThere === 0) {
+                        continue;
+                    }
+                    $emitted++;
+                    yield $row;
+                }
+            }
+        );
+
+        return $repo;
+    }
+
     /**
      * @param list<LastFmBufferedScrobble> $rows
      */
