@@ -135,6 +135,12 @@ class LastFmBufferProcessor
                         $buffered->getPlayedAt(),
                         $toleranceSeconds,
                     )
+                    || $this->pendingBatchHasNearScrobble(
+                        $pending,
+                        $result->mediaFileId,
+                        $buffered->getPlayedAt(),
+                        $toleranceSeconds,
+                    )
                 ) {
                     $report->duplicates++;
                     $status = LastFmImportTrack::STATUS_DUPLICATE;
@@ -195,6 +201,48 @@ class LastFmBufferProcessor
         }
 
         return $report;
+    }
+
+    /**
+     * Cross-check the in-flight pending batch for a near-scrobble that the
+     * current iteration would otherwise duplicate. `scrobbleExistsNear`
+     * only sees what previous batches committed — without this helper, two
+     * buffer rows for the same scrobble (same media_file + ±tolerance
+     * seconds, e.g. a Last.fm fetch retry that double-buffered) would both
+     * be marked « inserted » and end up doubly inserted in Navidrome.
+     *
+     * @param list<array{
+     *     bufferId: int,
+     *     artist: string,
+     *     title: string,
+     *     album: ?string,
+     *     mbid: ?string,
+     *     playedAt: \DateTimeImmutable,
+     *     status: string,
+     *     matchedId: ?string,
+     *     willInsertScrobble: bool,
+     * }> $pending
+     */
+    private function pendingBatchHasNearScrobble(
+        array $pending,
+        string $mediaFileId,
+        \DateTimeImmutable $playedAt,
+        int $toleranceSeconds,
+    ): bool {
+        $ts = $playedAt->getTimestamp();
+        foreach ($pending as $row) {
+            if (!$row['willInsertScrobble']) {
+                continue;
+            }
+            if ($row['matchedId'] !== $mediaFileId) {
+                continue;
+            }
+            if (abs($row['playedAt']->getTimestamp() - $ts) <= $toleranceSeconds) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
