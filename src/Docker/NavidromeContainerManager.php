@@ -97,9 +97,11 @@ class NavidromeContainerManager
     /**
      * Run $action with Navidrome guaranteed stopped, then restart it if
      * we stopped it ourselves. Restart happens in a finally-equivalent
-     * block, so an action that throws still leaves Navidrome running.
+     * block, so an action that throws still leaves Navidrome running —
+     * unless the post-action quick_check detects corruption, in which
+     * case we restore the pre-action snapshot before restart.
      *
-     * Defense in depth before $action() touches the DB:
+     * Defense in depth around $action():
      *  1. `docker stop -t <NAVIDROME_STOP_TIMEOUT_SECONDS>` — long enough
      *     for Navidrome's SQLite WAL to checkpoint cleanly (default 60s,
      *     vs Docker's 10s default which used to SIGKILL mid-flush and
@@ -109,27 +111,42 @@ class NavidromeContainerManager
      *  3. Snapshot the SQLite file (and its `-wal`/`-shm` siblings) to
      *     `<dbPath>.backup-<ts>` so any future write that goes wrong is
      *     recoverable with a single `cp`. Last 3 by default (configurable).
-     *  4. `PRAGMA quick_check` — if the DB is already broken (e.g. from
-     *     a previous bad shutdown) we abort before writing into it and
-     *     making it worse.
+     *  4. PRE-action `PRAGMA quick_check` — if the DB is already broken
+     *     (e.g. from a previous bad shutdown) we abort before writing
+     *     into it and making it worse. Skippable via $skipPreCheck for
+     *     `app:navidrome:db:restore` which by definition runs on a DB
+     *     that's already in trouble.
+     *  5. POST-action `PRAGMA quick_check` — catches the case where
+     *     $action() crashed mid-write and left the DB inconsistent. If
+     *     it fails we automatically restore the pre-action snapshot
+     *     (step 3) before restarting Navidrome, so Navidrome never
+     *     reopens a corrupt DB.
      *
      * - Feature disabled (`NAVIDROME_CONTAINER_NAME` empty) → run as-is,
      *   skip all the above (we don't know the DB lifecycle).
      * - Status `Stopped` / `NotFound` → still backup + quickCheck before
      *   the action (same risk profile), but don't restart something we
      *   didn't stop.
-     * - Status `Running` → stop, wait, backup, check, run, restart (always).
+     * - Status `Running` → stop, wait, backup, check, run, post-check,
+     *   restart (always, unless restore failed and DB is in limbo).
      * - Status `Unknown` → throw, since we can't safely orchestrate
      *   stop/start without confirming current state.
      *
      * If both the action and the restart fail, the restart failure is
-     * raised with the action error chained as `previous`.
+     * raised with the action error chained as `previous`. If the
+     * post-action quickCheck fails AND the restore fails, Navidrome is
+     * NOT restarted (DB in unknown state) and the user is told to run
+     * `app:navidrome:db:restore` manually.
      *
      * @template T
      * @param  callable(): T $action
+     * @param  bool $skipPreCheck Skip the pre-action `PRAGMA quick_check`
+     *                            — reserved for `app:navidrome:db:restore`
+     *                            which needs to operate on a DB that the
+     *                            check would refuse to open.
      * @return T
      */
-    public function runWithNavidromeStopped(callable $action): mixed
+    public function runWithNavidromeStopped(callable $action, bool $skipPreCheck = false): mixed
     {
         if (!$this->config->isConfigured()) {
             return $action();
@@ -156,12 +173,37 @@ class NavidromeContainerManager
         $this->backup->backup();
 
         $actionException = null;
+        $actionRan = false;
         $result = null;
         try {
-            $this->backup->quickCheck();
+            if (!$skipPreCheck) {
+                $this->backup->quickCheck();
+            }
+            $actionRan = true;
             $result = $action();
         } catch (\Throwable $e) {
             $actionException = $e;
+        }
+
+        // Post-action quickCheck only if the action actually ran. When the
+        // pre-check failed, the DB was already corrupt before our action,
+        // there's no new information to gather and we shouldn't try to
+        // overwrite the existing state.
+        $postCheckFailure = null;
+        if ($actionRan) {
+            try {
+                $this->backup->quickCheck();
+            } catch (\Throwable $e) {
+                $postCheckFailure = $e;
+            }
+        }
+
+        if ($postCheckFailure !== null) {
+            return $this->handlePostActionCorruption(
+                actionException: $actionException,
+                postCheckFailure: $postCheckFailure,
+                weStoppedIt: $weStoppedIt,
+            );
         }
 
         if ($weStoppedIt) {
@@ -188,6 +230,67 @@ class NavidromeContainerManager
         }
 
         return $result;
+    }
+
+    /**
+     * Reached when the post-action quick_check detected corruption. We
+     * always try to restore the pre-action snapshot before letting
+     * Navidrome reopen the file. Two terminal states :
+     *  - restore OK + restart OK → throw an explicit corruption error so
+     *    the user knows the action was rolled back ;
+     *  - restore failed → throw compound error, do NOT restart Navidrome
+     *    (it would reopen a broken DB and propagate the corruption).
+     *
+     * Always throws ; the `mixed` return type just satisfies the parent
+     * method's signature.
+     */
+    private function handlePostActionCorruption(
+        ?\Throwable $actionException,
+        \Throwable $postCheckFailure,
+        bool $weStoppedIt,
+    ): mixed {
+        try {
+            $restoredFrom = $this->backup->restore(null);
+        } catch (\Throwable $restoreException) {
+            throw new NavidromeContainerException(
+                sprintf(
+                    'DB Navidrome corrompue après l\'action ET la restore automatique a échoué : %s. Restaurez manuellement (`app:navidrome:db:restore`) avant de redémarrer Navidrome.',
+                    $restoreException->getMessage(),
+                ),
+                0,
+                $actionException ?? $postCheckFailure,
+            );
+        }
+
+        if ($weStoppedIt) {
+            try {
+                $this->start();
+            } catch (\Throwable $startException) {
+                throw new NavidromeContainerException(
+                    sprintf(
+                        'DB Navidrome corrompue après l\'action — restaurée depuis %s, mais le redémarrage du conteneur a échoué : %s',
+                        $restoredFrom,
+                        $startException->getMessage(),
+                    ),
+                    0,
+                    $actionException ?? $postCheckFailure,
+                );
+            }
+        }
+
+        $actionDetail = $actionException !== null
+            ? sprintf(' Erreur d\'origine de l\'action : %s', $actionException->getMessage())
+            : '';
+
+        throw new NavidromeContainerException(
+            sprintf(
+                'DB Navidrome corrompue après l\'action — restaurée automatiquement depuis %s.%s',
+                $restoredFrom,
+                $actionDetail,
+            ),
+            0,
+            $actionException ?? $postCheckFailure,
+        );
     }
 
     /**

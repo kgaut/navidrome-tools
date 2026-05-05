@@ -359,6 +359,175 @@ class NavidromeContainerManagerTest extends TestCase
         $this->assertContains(['start', 'navidrome'], $cli->actions);
     }
 
+    public function testRunWithStoppedSkipsPreCheckWhenRequested(): void
+    {
+        // DB in poor shape (header garbage) — pre-check would normally throw
+        // and abort the action. With $skipPreCheck=true the action runs
+        // anyway. Then post-check still runs and the corruption is caught
+        // before Navidrome restarts.
+        $dbPath = sys_get_temp_dir() . '/nv-skip-' . bin2hex(random_bytes(4)) . '.db';
+        file_put_contents($dbPath, str_repeat("\x00", 4096));
+        $this->createdPaths[] = $dbPath;
+
+        $cli = new FakeDockerCli(state: ['Running' => true]);
+        $manager = new NavidromeContainerManager(
+            $cli,
+            new NavidromeContainerConfig('navidrome'),
+            new NavidromeDbBackup($dbPath, 3),
+        );
+
+        $actionRan = false;
+        try {
+            $manager->runWithNavidromeStopped(
+                function () use (&$actionRan, $dbPath): void {
+                    $actionRan = true;
+                    // Heal the DB so post-check passes (mimics what the future
+                    // db:restore command does — copies a backup over).
+                    $this->seedHealthySqliteAt($dbPath);
+                },
+                skipPreCheck: true,
+            );
+        } catch (\Throwable) {
+            // We don't care about the exception here — the assertion is on
+            // whether the action ran despite the broken pre-state.
+        }
+
+        $this->assertTrue($actionRan, 'skipPreCheck must let the action run despite a broken DB');
+    }
+
+    public function testRunWithStoppedRestoresWhenPostActionQuickCheckFails(): void
+    {
+        // Healthy DB → backup taken → action corrupts the DB → post-check
+        // fails → restore() puts the snapshot back → Navidrome restarts on
+        // a clean DB → an explicit corruption exception surfaces.
+        $dbPath = $this->makeRealSqliteDb();
+        $originalContent = (string) file_get_contents($dbPath);
+        $cli = new FakeDockerCli(state: ['Running' => true]);
+        $manager = new NavidromeContainerManager(
+            $cli,
+            new NavidromeContainerConfig('navidrome'),
+            new NavidromeDbBackup($dbPath, 3),
+        );
+
+        $thrown = null;
+        try {
+            $manager->runWithNavidromeStopped(function () use ($dbPath): void {
+                // Simulate the action partially writing then crashing the file
+                // by overwriting with garbage. Mimics a torn write / kill -9
+                // mid-INSERT scenario.
+                file_put_contents($dbPath, str_repeat("\xFF", 4096));
+            });
+        } catch (\Throwable $e) {
+            $thrown = $e;
+        }
+
+        $this->assertInstanceOf(NavidromeContainerException::class, $thrown);
+        $this->assertMatchesRegularExpression('/restaur[ée]e automatiquement/u', $thrown->getMessage());
+        // The DB on disk must equal the snapshot, not the corrupt payload.
+        $this->assertSame($originalContent, file_get_contents($dbPath), 'restore must put the snapshot back');
+        // Navidrome restarted on the clean DB.
+        $this->assertContains(['start', 'navidrome'], $cli->actions);
+    }
+
+    public function testRunWithStoppedSkipsRestartWhenRestoreFails(): void
+    {
+        // Backup has been taken, action corrupts. We then sabotage the
+        // backup file too — restore can't succeed → manager must NOT
+        // restart Navidrome (DB in unknown state) and surface a compound
+        // exception telling the user to recover manually.
+        $dbPath = $this->makeRealSqliteDb();
+        $cli = new FakeDockerCli(state: ['Running' => true]);
+        $manager = new NavidromeContainerManager(
+            $cli,
+            new NavidromeContainerConfig('navidrome'),
+            new NavidromeDbBackup($dbPath, 3),
+        );
+
+        $thrown = null;
+        try {
+            $manager->runWithNavidromeStopped(function () use ($dbPath): void {
+                // Corrupt the live DB.
+                file_put_contents($dbPath, str_repeat("\xFF", 4096));
+                // Also corrupt the backup that was just taken — restore
+                // will refuse to use it.
+                $backups = glob($dbPath . '.backup-*') ?: [];
+                $this->assertNotEmpty($backups);
+                file_put_contents((string) end($backups), str_repeat("\x00", 4096));
+            });
+        } catch (\Throwable $e) {
+            $thrown = $e;
+        }
+
+        $this->assertInstanceOf(NavidromeContainerException::class, $thrown);
+        $this->assertMatchesRegularExpression('/restore automatique a [ée]chou[ée]/u', $thrown->getMessage());
+        $this->assertNotContains(
+            ['start', 'navidrome'],
+            $cli->actions,
+            'Navidrome must NOT be restarted when the DB is in an unknown state',
+        );
+    }
+
+    public function testRunWithStoppedChainsActionExceptionAfterCorruption(): void
+    {
+        // Action throws AND corrupts in the same shot. Post-check catches
+        // the corruption ; the surfaced exception must keep the original
+        // action error chained as `previous` so the user can see what
+        // originally went wrong.
+        $dbPath = $this->makeRealSqliteDb();
+        $cli = new FakeDockerCli(state: ['Running' => true]);
+        $manager = new NavidromeContainerManager(
+            $cli,
+            new NavidromeContainerConfig('navidrome'),
+            new NavidromeDbBackup($dbPath, 3),
+        );
+
+        $thrown = null;
+        try {
+            $manager->runWithNavidromeStopped(function () use ($dbPath): void {
+                file_put_contents($dbPath, str_repeat("\xFF", 4096));
+                throw new \RuntimeException('action crashed mid-write');
+            });
+        } catch (\Throwable $e) {
+            $thrown = $e;
+        }
+
+        $this->assertInstanceOf(NavidromeContainerException::class, $thrown);
+        $previous = $thrown->getPrevious();
+        $this->assertInstanceOf(\RuntimeException::class, $previous);
+        $this->assertSame('action crashed mid-write', $previous->getMessage());
+    }
+
+    public function testRunWithStoppedDoesNotRunPostCheckWhenPreCheckFailed(): void
+    {
+        // Pre-check fails (corrupt DB, no skip). Action does NOT run, so
+        // post-check is also skipped — we don't double-process the same
+        // corruption.
+        $dbPath = sys_get_temp_dir() . '/nv-precheck-' . bin2hex(random_bytes(4)) . '.db';
+        file_put_contents($dbPath, str_repeat("\x00", 4096));
+        $this->createdPaths[] = $dbPath;
+
+        $cli = new FakeDockerCli(state: ['Running' => true]);
+        $manager = new NavidromeContainerManager(
+            $cli,
+            new NavidromeContainerConfig('navidrome'),
+            new NavidromeDbBackup($dbPath, 3),
+        );
+
+        $actionRan = false;
+        try {
+            $manager->runWithNavidromeStopped(function () use (&$actionRan): void {
+                $actionRan = true;
+            });
+        } catch (\Throwable) {
+            // expected
+        }
+
+        $this->assertFalse($actionRan);
+        // start() was still issued (existing behaviour) — pre-check failure
+        // means « don't write », not « never bring Navidrome back up ».
+        $this->assertContains(['start', 'navidrome'], $cli->actions);
+    }
+
     /**
      * @param array<string, mixed>|null $state
      */
@@ -382,12 +551,20 @@ class NavidromeContainerManagerTest extends TestCase
     private function makeRealSqliteDb(): string
     {
         $path = sys_get_temp_dir() . '/nv-mgr-test-' . bin2hex(random_bytes(4)) . '.db';
+        $this->seedHealthySqliteAt($path);
+        $this->createdPaths[] = $path;
+
+        return $path;
+    }
+
+    private function seedHealthySqliteAt(string $path): void
+    {
+        if (file_exists($path)) {
+            @unlink($path);
+        }
         $pdo = new \PDO('sqlite:' . $path);
         $pdo->exec('CREATE TABLE t (id INTEGER PRIMARY KEY, v TEXT)');
         $pdo->exec("INSERT INTO t (v) VALUES ('one'), ('two')");
         unset($pdo);
-        $this->createdPaths[] = $path;
-
-        return $path;
     }
 }
