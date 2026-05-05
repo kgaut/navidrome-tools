@@ -156,6 +156,75 @@ class LastFmRematchServiceTest extends TestCase
         $this->assertSame(1, (int) $count);
     }
 
+    public function testCrashMidBatchRollsBackTrackMutationsAndNavidromeWrites(): void
+    {
+        $conn = NavidromeFixtureFactory::createDatabase($this->dbPath, withScrobbles: true);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', 'T1', 'Artist');
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-2', 'T2', 'Artist');
+
+        $run = $this->makeRun();
+        $tracks = [
+            $this->makeUnmatchedTrack($run, 'Artist', 'T1', new \DateTimeImmutable('2026-04-01 10:00:00')),
+            $this->makeUnmatchedTrack($run, 'Artist', 'T2', new \DateTimeImmutable('2026-04-02 10:00:00')),
+        ];
+
+        // Crashing repo throws on the 1st INSERT — entire batch rolls back.
+        $crashingRepo = new class ($this->dbPath, 'admin') extends NavidromeRepository {
+            public int $insertCalls = 0;
+
+            public function insertScrobble(string $userId, string $mediaFileId, \DateTimeInterface $time): void
+            {
+                $this->insertCalls++;
+                if ($this->insertCalls === 1) {
+                    throw new \RuntimeException('simulated crash mid-batch');
+                }
+                parent::insertScrobble($userId, $mediaFileId, $time);
+            }
+        };
+
+        $repo = $this->createMock(LastFmImportTrackRepository::class);
+        $repo->method('streamUnmatched')->willReturnCallback(
+            function () use ($tracks): \Generator {
+                foreach ($tracks as $t) {
+                    if ($t->getStatus() === LastFmImportTrack::STATUS_UNMATCHED) {
+                        yield $t;
+                    }
+                }
+            }
+        );
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->method('flush');
+        $em->method('persist');
+
+        $service = new LastFmRematchService(
+            $repo,
+            new ScrobbleMatcher(new NavidromeRepository($this->dbPath, 'admin')),
+            $crashingRepo,
+            $em,
+        );
+
+        $thrown = null;
+        try {
+            $service->rematch();
+        } catch (\Throwable $e) {
+            $thrown = $e;
+        }
+
+        $this->assertInstanceOf(\RuntimeException::class, $thrown);
+        $this->assertSame('simulated crash mid-batch', $thrown->getMessage());
+
+        // Navidrome rollback: zero scrobbles inserted.
+        $count = (int) $conn->fetchOne('SELECT COUNT(*) FROM scrobbles');
+        $this->assertSame(0, $count, 'rollback must discard the entire batch');
+
+        // Track mutations must NOT have been applied — a retry sees them
+        // as unmatched again.
+        $this->assertSame(LastFmImportTrack::STATUS_UNMATCHED, $tracks[0]->getStatus());
+        $this->assertSame(LastFmImportTrack::STATUS_UNMATCHED, $tracks[1]->getStatus());
+        $this->assertNull($tracks[0]->getMatchedMediaFileId());
+        $this->assertNull($tracks[1]->getMatchedMediaFileId());
+    }
+
     public function testRematchHonorsRandomFlagAndLimit(): void
     {
         // 5 unmatched rows, --random + --limit=2 should process exactly 2.
