@@ -7,6 +7,17 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+### Added
+- **Suffixe + version dans le `<title>` des pages** : chaque onglet
+  affiche désormais `Dashboard - Navidrome Tools 0.1.0` (ou
+  `… - Navidrome Tools main-abc1234` sur un build de branche). Le
+  stamp est exposé via la nouvelle variable Twig globale `app_version`,
+  alimentée par `APP_VERSION` (paramètre `app.version`). Le build
+  Docker bake la valeur via un `ARG APP_VERSION` que les CI GitHub et
+  GitLab passent depuis le tag git (`v0.1.0` → `0.1.0`) ou depuis
+  `<branch>-<short_sha>` en push de branche. Défaut `dev` pour les
+  exécutions hors Docker.
+
 ### Fixed
 - **Cache Symfony hors volume persistant** : la fin d'un long
   `app:lastfm:import` plantait sporadiquement avec `Failed opening

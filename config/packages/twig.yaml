@@ -6,6 +6,7 @@ twig:
         timezone: '%env(APP_TIMEZONE)%'
     globals:
         navidrome_url: '%navidrome.url%'
+        app_version: '%app.version%'
 
 when@test:
     twig:

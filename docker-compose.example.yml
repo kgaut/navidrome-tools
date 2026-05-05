@@ -10,6 +10,11 @@ services:
       APP_ENV: prod
       APP_SECRET: ${APP_SECRET:?set APP_SECRET in .env}
       APP_TIMEZONE: ${APP_TIMEZONE:-UTC}
+      # Surfaced in the page <title> (e.g. "Dashboard - Navidrome Tools 0.1.0").
+      # Normally baked into the image at build time by CI (git tag for
+      # tagged releases, branch+short-sha otherwise). Override here only
+      # if you rebuild the image locally.
+      APP_VERSION: ${APP_VERSION:-}
       NAVIDROME_DB_PATH: /data/navidrome.db
       NAVIDROME_URL: ${NAVIDROME_URL:-http://navidrome:4533}
       NAVIDROME_USER: ${NAVIDROME_USER:-admin}
