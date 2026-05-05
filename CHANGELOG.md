@@ -8,6 +8,42 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### Added
+- **Crash-safety des écritures Navidrome** (#135) : les imports
+  Last.fm (`app:lastfm:process`, `app:lastfm:rematch`) wrappent
+  désormais chaque batch de 100 INSERT dans une transaction explicite
+  `BEGIN IMMEDIATE` / `COMMIT` côté Navidrome. Un crash mid-batch
+  (kill -9, exception PHP, OOM) déclenche un ROLLBACK SQLite, et les
+  audits + `DELETE FROM lastfm_import_buffer` sont reportés en
+  post-commit Navidrome — donc soit tout passe, soit rien (par
+  batch). La reprise est idempotente via `scrobbleExistsNear` +
+  cross-check intra-batch (`pendingBatchHasNearScrobble`) pour les
+  doublons de scrobble entre rows en vol.
+- **Restore automatique sur corruption détectée**
+  (`NavidromeContainerManager::runWithNavidromeStopped`) : un
+  `PRAGMA quick_check` tourne désormais aussi *après* l'action. S'il
+  fail, le tool restaure le snapshot pré-action (`<dbPath>.backup-…`
+  copié juste avant) et lève une exception explicite (« DB corrompue
+  après l'action — restaurée automatiquement depuis … »). Si la
+  restore échoue elle aussi, Navidrome n'est PAS redémarré et l'erreur
+  pointe vers `app:navidrome:db:restore` pour récupération manuelle.
+- **PRAGMA durabilité sur la connexion write Navidrome** :
+  `busy_timeout=30000` (retry-on-lock pendant 30s si un autre
+  processus tient la DB) et `synchronous=FULL` (fsync complet à
+  chaque COMMIT) appliqués au boot. Plus un `wal_checkpoint(TRUNCATE)`
+  forcé en fin de run pour s'assurer que le WAL est mergé avant que
+  Navidrome ne rouvre la DB.
+- **`app:navidrome:db:check [--integrity]`** : check ad-hoc de
+  l'intégrité de la DB Navidrome. Quick-check par défaut (rapide),
+  `--integrity` pour le full integrity_check (vérifie aussi la
+  cohérence row/index). Read-only, n'arrête pas Navidrome.
+- **`app:navidrome:db:restore [--timestamp=YYYYMMDDHHMMSS] [--list]`** :
+  restauration manuelle d'un snapshot. `--list` affiche les backups
+  disponibles. Sans `--timestamp`, prend le plus récent. Stoppe
+  Navidrome avant restore, le redémarre après.
+- **`NavidromeDbBackup::restore()` + `latestBackup()`** : nouvelles
+  méthodes publiques (la classe ne savait jusqu'ici que `backup()` +
+  `quickCheck()`). `restore()` vérifie le snapshot *avant* d'écraser
+  la DB live, puis re-vérifie après — refuse un restore zombie.
 - **Réglages : bouton « Vider la base tools »** dans une zone
   dangereuse de `/settings`. Vide en une opération les tables
   d'import / audit / cache / snapshots / historiques (buffer Last.fm,

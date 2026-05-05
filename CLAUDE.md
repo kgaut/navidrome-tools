@@ -534,6 +534,25 @@ Wirées dans : `.env` (dev), `.env.dist` (template), `phpunit.xml.dist`
     pour ne pas aggraver. Si tu réintroduis un appel à `runProcess`
     pour stop/start ailleurs, **passe par `NavidromeContainerManager`**
     sinon tu by-passes les 4 garde-fous.
+12. **Crash mid-batch pendant un import Last.fm = corruption SQLite**
+    (cf. #135). L'ancien code faisait des `INSERT INTO scrobbles` en
+    autocommit — un kill -9 / OOM / exception PHP en plein milieu
+    laissait des écritures partielles + un WAL incohérent que
+    Navidrome rejouait au prochain démarrage en corrompant la DB. La
+    nouvelle séquence (`runWithNavidromeStopped`) est :
+    backup → quick_check pré → action (avec batchs de 100 inserts
+    encadrés par `BEGIN IMMEDIATE`/`COMMIT` côté `LastFmBufferProcessor`
+    et `LastFmRematchService`) → quick_check post → restore auto +
+    exception explicite si fail → `wal_checkpoint(TRUNCATE)` + close
+    en `finally`. La connexion write Navidrome impose
+    `busy_timeout=30000` + `synchronous=FULL` dès l'ouverture. Si tu
+    écris une nouvelle commande qui touche `scrobbles` ou autre
+    table Navidrome, **passe par
+    `NavidromeRepository::beginWriteTransaction()` /
+    `commitWrite()` / `rollbackWrite()`**. Pas
+    d'`executeStatement('INSERT…')` direct sans tx — sinon tu
+    réintroduis le bug d'origine. Pour récupérer manuellement :
+    `app:navidrome:db:restore [--list]`.
 
 ---
 
