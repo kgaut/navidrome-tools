@@ -2002,6 +2002,11 @@ class NavidromeRepository
      * Insert a scrobble row. Caller is responsible for dedup. Throws if the
      * scrobbles table does not exist (Navidrome < 0.55) or if the DB is
      * mounted read-only.
+     *
+     * Callers that insert in batch should wrap their loop in
+     * {@see beginWriteTransaction()} / {@see commitWrite()} (or
+     * {@see rollbackWrite()} on error) — autocommit per row leaves a crash
+     * mid-batch with partial writes and a half-flushed WAL.
      */
     public function insertScrobble(string $userId, string $mediaFileId, \DateTimeInterface $time): void
     {
@@ -2016,6 +2021,72 @@ class NavidromeRepository
             [$userId, $mediaFileId, $time->getTimestamp()],
             [2 => \Doctrine\DBAL\ParameterType::INTEGER],
         );
+    }
+
+    /**
+     * Open a write transaction with `BEGIN IMMEDIATE` — takes the RESERVED
+     * lock right away and fails fast if another writer (Navidrome
+     * accidentally restarted by Docker auto-restart, a parallel
+     * `app:lastfm:process` somehow scheduled twice, etc.) is holding it.
+     * `Connection::beginTransaction()` would do `BEGIN DEFERRED` which only
+     * locks on the first INSERT, leaving a window for a concurrent writer.
+     */
+    public function beginWriteTransaction(): void
+    {
+        $this->connection()->executeStatement('BEGIN IMMEDIATE');
+    }
+
+    public function commitWrite(): void
+    {
+        $this->connection()->executeStatement('COMMIT');
+    }
+
+    public function rollbackWrite(): void
+    {
+        $this->connection()->executeStatement('ROLLBACK');
+    }
+
+    /**
+     * Force-merge any pending WAL frames into the main DB and truncate the
+     * WAL file. Should be called in a `finally` at the end of any batch
+     * write run, before {@see closeWriteConnection()} — otherwise SQLite may
+     * leave the WAL un-checkpointed across a restart, and Navidrome opening
+     * the DB next would have to recover an inconsistent WAL (risk of
+     * corruption).
+     *
+     * No-op when the journal mode is `DELETE` (Navidrome forces WAL by
+     * default, but be defensive). Errors are swallowed because this lives in
+     * a `finally` and the caller's post-action quick_check upstream is the
+     * authoritative integrity check.
+     */
+    public function walCheckpointTruncate(): void
+    {
+        if ($this->connection === null) {
+            return;
+        }
+        try {
+            $this->connection->executeQuery('PRAGMA wal_checkpoint(TRUNCATE)')->fetchAssociative();
+        } catch (\Throwable) {
+            // best-effort
+        }
+    }
+
+    /**
+     * Close the underlying PDO connection so the OS file lock is released
+     * and SQLite can do its own final checkpoint book-keeping. The
+     * connection lazily reconnects on the next access.
+     */
+    public function closeWriteConnection(): void
+    {
+        if ($this->connection === null) {
+            return;
+        }
+        try {
+            $this->connection->close();
+        } catch (\Throwable) {
+            // best-effort
+        }
+        $this->connection = null;
     }
 
     /**
@@ -2086,6 +2157,22 @@ class NavidromeRepository
         if ($native instanceof \PDO) {
             $native->sqliteCreateFunction('np_normalize', [self::class, 'normalize'], 1);
         }
+
+        // Durability + concurrency knobs:
+        //  - busy_timeout: retry-on-lock window. If Navidrome got restarted
+        //    by Docker auto-restart while we were writing, every INSERT
+        //    waits up to 30s for the lock instead of failing instantly.
+        //    Cost: zero in the happy path.
+        //  - synchronous=FULL: every COMMIT waits for fsync of both the WAL
+        //    page and the WAL header. Slower than NORMAL but absolutely
+        //    necessary on a SQLite file that another process (Navidrome)
+        //    will reopen — a power-cut / OOM-kill must not leave a torn
+        //    write that corrupts the DB. This is what Navidrome itself
+        //    runs by default, we just make sure to match it.
+        //  - We deliberately do NOT touch journal_mode: it is persistent
+        //    (stored in the DB header) and Navidrome owns that decision.
+        $this->connection->executeStatement('PRAGMA busy_timeout = 30000');
+        $this->connection->executeStatement('PRAGMA synchronous = FULL');
 
         return $this->connection;
     }
