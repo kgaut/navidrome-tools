@@ -3,7 +3,7 @@
 namespace App\Navidrome;
 
 /**
- * Safety net around the Navidrome SQLite file. Two responsibilities:
+ * Safety net around the Navidrome SQLite file. Three responsibilities:
  *
  *  1. {@see backup()} copies `<dbPath>` (and its `-wal` / `-shm` siblings
  *     when present) to `<dbPath>.backup-<unix_ts>` just before any
@@ -14,11 +14,17 @@ namespace App\Navidrome;
  *     `PRAGMA quick_check` — a lightweight structural sanity test that
  *     catches a half-flushed WAL or a SIGKILL-truncated header *before*
  *     we open the DB for writes (which would aggravate the corruption).
+ *  3. {@see restore()} copies a previously-taken backup back over the
+ *     live DB (with sibling WAL/SHM handling). Sanity-checks the backup
+ *     first to refuse a zombie restore. Caller must ensure Navidrome is
+ *     stopped — this class does no orchestration.
  *
- * Only used by `NavidromeContainerManager::runWithNavidromeStopped()` so
- * far. Not a Doctrine connection: stays out of the DBAL UDF setup
- * (`np_normalize`) so it can run on a potentially broken file without
- * dragging the whole repository's machinery in.
+ * Used by `NavidromeContainerManager::runWithNavidromeStopped()` for the
+ * pre-action snapshot + post-action restore-on-corruption, and by
+ * `app:navidrome:db:restore` for manual rollbacks. Not a Doctrine
+ * connection: stays out of the DBAL UDF setup (`np_normalize`) so it can
+ * run on a potentially broken file without dragging the whole
+ * repository's machinery in.
  */
 class NavidromeDbBackup
 {
@@ -58,7 +64,7 @@ class NavidromeDbBackup
     }
 
     /**
-     * Throws when the SQLite file fails the structural sanity test.
+     * Throws when the live DB fails the structural sanity test.
      * No-op when the file is missing (treated as « nothing to check »).
      */
     public function quickCheck(): void
@@ -67,30 +73,53 @@ class NavidromeDbBackup
             return;
         }
 
-        try {
-            $pdo = new \PDO('sqlite:' . $this->dbPath, null, null, [
-                \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
-            ]);
-            // Read-only intent: SQLite still mounts the WAL on open and
-            // recovers any clean-but-unmerged frames, which is desirable
-            // here (this is also how we « heal » a soft-stop residue).
-            $stmt = $pdo->query('PRAGMA quick_check');
-            $result = $stmt !== false ? $stmt->fetchColumn() : false;
-        } catch (\PDOException $e) {
-            throw new \RuntimeException(sprintf(
-                'La base SQLite Navidrome (%s) est illisible : %s. Restaurez un backup avant toute écriture.',
-                $this->dbPath,
-                $e->getMessage(),
-            ), 0, $e);
+        $this->quickCheckFile($this->dbPath);
+    }
+
+    /**
+     * Copies a previously-taken backup over the live DB. Verifies the
+     * backup is itself sound before clobbering anything — restoring a
+     * corrupted snapshot would be worse than the situation we're trying
+     * to recover from. Handles WAL/SHM siblings:
+     *  - if the backup has them, restore them too;
+     *  - if it doesn't, wipe any live siblings so SQLite doesn't try to
+     *    replay a stale WAL on top of the restored main DB.
+     *
+     * @param string|null $timestamp Backup timestamp `YYYYMMDDHHMMSS`.
+     *                               `null` = use the most recent backup.
+     * @return string Path of the backup that was used as the source.
+     * @throws \RuntimeException If no backup matches, the backup itself
+     *                           fails quick_check, or the copy/rename
+     *                           fails. The live DB is left untouched on
+     *                           any pre-write failure.
+     */
+    public function restore(?string $timestamp = null): string
+    {
+        $backupPath = $this->resolveBackup($timestamp);
+
+        // Sanity-check the backup BEFORE clobbering the live DB.
+        $this->quickCheckFile($backupPath);
+
+        $this->copyAtomic($backupPath, $this->dbPath);
+
+        // Sync siblings: the backup either has them (replicate) or
+        // doesn't (drop the live ones to avoid a stale-WAL replay).
+        foreach (['-wal', '-shm'] as $suffix) {
+            $backupSibling = $backupPath . $suffix;
+            $liveSibling = $this->dbPath . $suffix;
+            if (is_file($backupSibling)) {
+                $this->copyAtomic($backupSibling, $liveSibling);
+            } elseif (is_file($liveSibling)) {
+                @unlink($liveSibling);
+            }
         }
 
-        if ($result !== 'ok') {
-            throw new \RuntimeException(sprintf(
-                'PRAGMA quick_check a échoué sur %s : « %s ». La DB est corrompue, on bloque l\'écriture pour ne pas aggraver. Restaurez un backup.',
-                $this->dbPath,
-                is_string($result) ? $result : 'résultat inattendu',
-            ));
-        }
+        // Confirm the live DB is sound after restore. If something went
+        // wrong (FS issue, partial copy), surface it now rather than at
+        // the next Navidrome start.
+        $this->quickCheck();
+
+        return $backupPath;
     }
 
     /**
@@ -108,6 +137,78 @@ class NavidromeDbBackup
         sort($main);
 
         return $main;
+    }
+
+    /**
+     * Returns the timestamp (`YYYYMMDDHHMMSS`) of the most recent backup,
+     * or `null` if none exist. Convenience for CLI listings.
+     */
+    public function latestBackup(): ?string
+    {
+        $backups = $this->listBackups();
+        if ($backups === []) {
+            return null;
+        }
+        $path = end($backups);
+        if (preg_match('/\.backup-(\d+)$/', $path, $m) === 1) {
+            return $m[1];
+        }
+        return null;
+    }
+
+    private function resolveBackup(?string $timestamp): string
+    {
+        if ($timestamp !== null) {
+            $candidate = $this->dbPath . '.backup-' . $timestamp;
+            if (!is_file($candidate)) {
+                throw new \RuntimeException(sprintf(
+                    'Aucun backup trouvé pour le timestamp « %s » (cherché : %s).',
+                    $timestamp,
+                    $candidate,
+                ));
+            }
+            return $candidate;
+        }
+
+        $backups = $this->listBackups();
+        if ($backups === []) {
+            throw new \RuntimeException(sprintf(
+                'Aucun backup disponible à côté de %s.',
+                $this->dbPath,
+            ));
+        }
+
+        return end($backups);
+    }
+
+    private function quickCheckFile(string $path): void
+    {
+        try {
+            // URI form `mode=ro` opens the DB strictly read-only — without
+            // it, PDO defaults to RW which would have SQLite truncate or
+            // delete an unrecognized -wal sibling (we hit this with fake
+            // siblings during backup-restore round-trips). Read-only also
+            // suffices for `PRAGMA quick_check`.
+            $pdo = new \PDO('sqlite:file:' . $path . '?mode=ro', null, null, [
+                \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
+            ]);
+            $stmt = $pdo->query('PRAGMA quick_check');
+            $result = $stmt !== false ? $stmt->fetchColumn() : false;
+        } catch (\PDOException $e) {
+            throw new \RuntimeException(sprintf(
+                'Le fichier SQLite %s est illisible : %s.',
+                $path,
+                $e->getMessage(),
+            ), 0, $e);
+        }
+
+        if ($result !== 'ok') {
+            throw new \RuntimeException(sprintf(
+                'PRAGMA quick_check a échoué sur %s : « %s ».',
+                $path,
+                is_string($result) ? $result : 'résultat inattendu',
+            ));
+        }
     }
 
     private function prune(): void

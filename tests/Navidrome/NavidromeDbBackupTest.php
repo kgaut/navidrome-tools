@@ -138,6 +138,172 @@ class NavidromeDbBackupTest extends TestCase
         (new NavidromeDbBackup($truncated))->quickCheck();
     }
 
+    public function testRestoreLatestWhenTimestampNull(): void
+    {
+        $dbPath = $this->makeSqliteDb();
+        $backup = new NavidromeDbBackup($dbPath, retention: 5);
+
+        $backupPath = $backup->backup();
+        $this->assertNotNull($backupPath);
+        $originalContent = (string) file_get_contents($dbPath);
+
+        // Mutate the live DB — restore must overwrite this with the snapshot.
+        $pdo = new \PDO('sqlite:' . $dbPath);
+        $pdo->exec("INSERT INTO t (v) VALUES ('mutated-after-backup')");
+        unset($pdo);
+
+        $restoredFrom = $backup->restore();
+        $this->assertSame($backupPath, $restoredFrom);
+        $this->assertSame($originalContent, file_get_contents($dbPath));
+    }
+
+    public function testRestoreSpecificTimestamp(): void
+    {
+        $dbPath = $this->makeSqliteDb();
+        $backup = new NavidromeDbBackup($dbPath, retention: 5);
+
+        // Plant two SQLite-valid forged backups with distinguishable content.
+        $oldStamp = '20200101000001';
+        $oldBackup = $dbPath . '.backup-' . $oldStamp;
+        $this->makeSqliteDbAt($oldBackup, "INSERT INTO t (v) VALUES ('from-old-backup')");
+
+        $newerStamp = '20200101000002';
+        $newerBackup = $dbPath . '.backup-' . $newerStamp;
+        $this->makeSqliteDbAt($newerBackup, "INSERT INTO t (v) VALUES ('from-newer-backup')");
+
+        // Restore the older one explicitly.
+        $restoredFrom = $backup->restore($oldStamp);
+        $this->assertSame($oldBackup, $restoredFrom);
+
+        $pdo = new \PDO('sqlite:' . $dbPath);
+        $stmt = $pdo->query('SELECT v FROM t ORDER BY id');
+        $rows = $stmt !== false ? $stmt->fetchAll(\PDO::FETCH_COLUMN) : [];
+        $this->assertContains('from-old-backup', $rows);
+        $this->assertNotContains('from-newer-backup', $rows);
+    }
+
+    public function testRestorePropagatesWalAndShmSiblings(): void
+    {
+        $dbPath = $this->makeSqliteDb();
+        $backup = new NavidromeDbBackup($dbPath, retention: 5);
+
+        // Plant fake siblings on the live DB so backup() snapshots them.
+        file_put_contents($dbPath . '-wal', 'wal-snapshot');
+        file_put_contents($dbPath . '-shm', 'shm-snapshot');
+
+        $backupPath = $backup->backup();
+        $this->assertNotNull($backupPath);
+        // The backup must carry the -wal payload byte-for-byte.
+        $this->assertSame('wal-snapshot', file_get_contents($backupPath . '-wal'));
+
+        // Wipe the live siblings, restore must recreate them from the backup.
+        @unlink($dbPath . '-wal');
+        @unlink($dbPath . '-shm');
+
+        $backup->restore();
+
+        // SQLite (called via the post-restore quick_check) may grow / rewrite
+        // the -shm file to its real internal layout, even in ro mode. We only
+        // assert sibling presence — content fidelity is checked on the backup
+        // file above, where SQLite hasn't touched anything.
+        $this->assertFileExists($dbPath . '-wal');
+        $this->assertFileExists($dbPath . '-shm');
+        $this->assertSame('wal-snapshot', file_get_contents($dbPath . '-wal'));
+    }
+
+    public function testRestoreWipesLiveWalWhenBackupHasNone(): void
+    {
+        $dbPath = $this->makeSqliteDb();
+        $backup = new NavidromeDbBackup($dbPath, retention: 5);
+
+        // Backup taken without any siblings.
+        $backupPath = $backup->backup();
+        $this->assertNotNull($backupPath);
+        $this->assertFileDoesNotExist($backupPath . '-wal');
+
+        // Plant stale siblings on the live DB AFTER the backup. SQLite
+        // would try to replay these on top of the restored main DB → bad.
+        file_put_contents($dbPath . '-wal', 'stale-wal');
+        file_put_contents($dbPath . '-shm', 'stale-shm');
+
+        $backup->restore();
+
+        $this->assertFileDoesNotExist($dbPath . '-wal', 'stale -wal must be wiped');
+        $this->assertFileDoesNotExist($dbPath . '-shm', 'stale -shm must be wiped');
+    }
+
+    public function testRestoreReturnsSourceBackupPath(): void
+    {
+        $dbPath = $this->makeSqliteDb();
+        $backup = new NavidromeDbBackup($dbPath, retention: 5);
+        $backupPath = $backup->backup();
+        $this->assertNotNull($backupPath);
+
+        $this->assertSame($backupPath, $backup->restore());
+    }
+
+    public function testRestoreThrowsWhenNoBackupExists(): void
+    {
+        $dbPath = $this->makeSqliteDb();
+        $backup = new NavidromeDbBackup($dbPath, retention: 5);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/Aucun backup disponible/');
+        $backup->restore();
+    }
+
+    public function testRestoreThrowsWhenSpecificTimestampNotFound(): void
+    {
+        $dbPath = $this->makeSqliteDb();
+        $backup = new NavidromeDbBackup($dbPath, retention: 5);
+        $backup->backup();
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/Aucun backup trouvé pour le timestamp/');
+        $backup->restore('99999999999999');
+    }
+
+    public function testRestoreThrowsWhenBackupItselfIsCorruptedAndLeavesLiveDbUntouched(): void
+    {
+        $dbPath = $this->makeSqliteDb();
+        $backup = new NavidromeDbBackup($dbPath, retention: 5);
+
+        // Plant a corrupt backup directly (not via backup() which would copy
+        // a healthy DB).
+        $stamp = '20200101000001';
+        file_put_contents($dbPath . '.backup-' . $stamp, str_repeat("\xFF", 4096));
+
+        $liveContentBefore = (string) file_get_contents($dbPath);
+
+        try {
+            $backup->restore($stamp);
+            $this->fail('restore() should have thrown on a corrupt backup');
+        } catch (\RuntimeException) {
+            // expected
+        }
+
+        // The live DB must not have been touched — restore vets the backup
+        // before copying.
+        $this->assertSame($liveContentBefore, file_get_contents($dbPath));
+    }
+
+    public function testLatestBackupReturnsTimestampOfNewest(): void
+    {
+        $dbPath = $this->makeSqliteDb();
+        foreach (['20200101000001', '20200101000002', '20200101000003'] as $stamp) {
+            file_put_contents($dbPath . '.backup-' . $stamp, 'x');
+        }
+        $backup = new NavidromeDbBackup($dbPath, retention: 5);
+        $this->assertSame('20200101000003', $backup->latestBackup());
+    }
+
+    public function testLatestBackupReturnsNullWhenNoBackups(): void
+    {
+        $dbPath = $this->makeSqliteDb();
+        $backup = new NavidromeDbBackup($dbPath, retention: 5);
+        $this->assertNull($backup->latestBackup());
+    }
+
     private function makeSqliteDb(): string
     {
         $path = sys_get_temp_dir() . '/nv-bk-test-' . bin2hex(random_bytes(4)) . '.db';
@@ -148,5 +314,19 @@ class NavidromeDbBackupTest extends TestCase
         $this->createdPaths[] = $path;
 
         return $path;
+    }
+
+    private function makeSqliteDbAt(string $path, string $extraSql = ''): void
+    {
+        $pdo = new \PDO('sqlite:' . $path);
+        $pdo->exec('CREATE TABLE t (id INTEGER PRIMARY KEY, v TEXT)');
+        $pdo->exec("INSERT INTO t (v) VALUES ('one'), ('two')");
+        if ($extraSql !== '') {
+            $pdo->exec($extraSql);
+        }
+        unset($pdo);
+        // tearDown wipes by .backup-* glob next to the source DB, so this is
+        // covered when $path lives next to a tracked dbPath. For standalone
+        // paths, register manually.
     }
 }
