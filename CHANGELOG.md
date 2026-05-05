@@ -7,6 +7,24 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+### Fixed
+- **Cache Symfony hors volume persistant** : la fin d'un long
+  `app:lastfm:import` plantait sporadiquement avec `Failed opening
+  required '/app/var/cache/prod/Container…/getConsole_ErrorListenerService.php'`
+  au moment du `ConsoleTerminateEvent`. Cause : le cache compilé du
+  conteneur DI vivait dans `/app/var/cache/prod`, sous le volume
+  persistant `/app/var` partagé entre instances ; chaque entrypoint
+  qui démarrait (web qui redémarre, container `cli` one-shot lancé
+  via `docker compose run`) faisait un `rm -rf var/cache/prod` avant
+  son `cache:warmup`, supprimant les fichiers de service que la CLI
+  en cours allait charger paresseusement à la sortie. Fix : la
+  variable `APP_CACHE_DIR` (positionnée à `/app/.symfony-cache` dans
+  l'image) sort le cache du volume — chaque conteneur a désormais
+  son propre cache dans son layer image, plus de course possible.
+  `App\Kernel::getCacheDir()` honore `APP_CACHE_DIR` ; les setups
+  hors Docker (Lando, dev local, tests) gardent le défaut Symfony
+  (`var/cache/<env>`).
+
 ### Added
 - **Crash-safety des écritures Navidrome** (#135) : les imports
   Last.fm (`app:lastfm:process`, `app:lastfm:rematch`) wrappent
