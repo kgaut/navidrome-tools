@@ -112,13 +112,16 @@ docker-publish:
         for t in "$VERSION" "$MAJOR.$MINOR" "$MAJOR" "latest"; do
           TAG_ARGS="$TAG_ARGS -t $REGISTRY_IMAGE:$t"
         done
+        APP_VERSION="$VERSION"
       else
         # default branch → latest + main-<short_sha>
         TAG_ARGS="-t $REGISTRY_IMAGE:latest -t $REGISTRY_IMAGE:main-$SHORT_SHA"
+        APP_VERSION="${CI_COMMIT_REF_NAME}-$SHORT_SHA"
       fi
-      echo "Pushing tags:$TAG_ARGS"
+      echo "Pushing tags:$TAG_ARGS  APP_VERSION=$APP_VERSION"
       docker buildx build \
         --platform linux/amd64,linux/arm64 \
+        --build-arg APP_VERSION="$APP_VERSION" \
         $TAG_ARGS \
         --push \
         .

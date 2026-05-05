@@ -24,6 +24,11 @@ parameters:
     navidrome.container_stop_wait_ceiling: '%env(int:NAVIDROME_STOP_WAIT_CEILING_SECONDS)%'
     navidrome.db_backup_retention: '%env(int:NAVIDROME_DB_BACKUP_RETENTION)%'
     app.homepage_api_token: '%env(HOMEPAGE_API_TOKEN)%'
+    # Build-time version stamp — surfaced in the page title so a user
+    # can tell at a glance which release/sha is deployed. Baked into the
+    # image via Dockerfile ARG/ENV (CI passes the git tag on a tagged
+    # release, branch+short-sha otherwise) ; defaults to `dev` localement.
+    app.version: '%env(default::APP_VERSION)%'
 
 services:
     _defaults:

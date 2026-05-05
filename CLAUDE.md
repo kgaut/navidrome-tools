@@ -441,6 +441,7 @@ Le push du tag déclenche `docker-publish` (cf. `.github/workflows/ci.yml`).
 | `APP_SECRET`                   | Symfony — `openssl rand -hex 32`                            |
 | `APP_ENV`                      | `prod` / `dev` / `test`                                     |
 | `APP_MODE`                     | `web` (FrankenPHP) / `cli` (one-shot Symfony command)       |
+| `APP_VERSION`                  | Stamp de version baked à la build Docker (`ARG APP_VERSION` → `ENV`). Affiché dans le `<title>` après ` - Navidrome Tools`. CI : tag git → `0.1.0`, branche → `<branch>-<sha7>`. Défaut `dev`. |
 | `APP_AUTH_USER` / `..._PASSWORD` | Login UI                                                  |
 | `NAVIDROME_DB_PATH`            | Chemin du fichier SQLite Navidrome (mount `:ro` en prod)    |
 | `NAVIDROME_URL`                | Base URL HTTP Navidrome                                     |

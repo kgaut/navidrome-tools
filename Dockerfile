@@ -23,6 +23,11 @@ RUN composer dump-autoload --optimize --no-dev \
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
+# Build version stamp surfaced in the page <title>. CI passes the git
+# tag on a tagged release (e.g. "0.1.0") and "<branch>-<sha7>" on a
+# branch push ; defaults to "dev" for a hand-built local image.
+ARG APP_VERSION=dev
+
 # APP_CACHE_DIR points the compiled-container cache at the image layer
 # (per-container, ephemeral) instead of /app/var (persistent volume,
 # shared across container instances). Sharing the cache caused
@@ -33,6 +38,7 @@ RUN chmod +x /entrypoint.sh
 ENV APP_ENV=prod \
     APP_DEBUG=0 \
     APP_MODE=web \
+    APP_VERSION=${APP_VERSION} \
     APP_CACHE_DIR=/app/.symfony-cache \
     SERVER_NAME=":8080"
 
