@@ -553,6 +553,22 @@ Wirées dans : `.env` (dev), `.env.dist` (template), `phpunit.xml.dist`
     d'`executeStatement('INSERT…')` direct sans tx — sinon tu
     réintroduis le bug d'origine. Pour récupérer manuellement :
     `app:navidrome:db:restore [--list]`.
+13. **Cache Symfony jamais dans un volume partagé.** Les fichiers
+    compilés `var/cache/<env>/Container<hash>/getXxxService.php` sont
+    chargés *paresseusement* — `console.error_listener` typiquement
+    n'est require'é qu'au `ConsoleTerminateEvent`, à la fin de la
+    commande. Si entre-temps un autre conteneur partageant le même
+    volume `/app/var` a fait `rm -rf var/cache/prod` dans son
+    entrypoint (web qui redémarre, `docker compose run --rm` pour un
+    one-shot CLI…), le require échoue : `Failed opening required …
+    getConsole_ErrorListenerService.php`. Symptôme classique après
+    un long `app:lastfm:import` (cf. issue Symfony #24885 même
+    cause). Fix : `App\Kernel::getCacheDir()` honore `APP_CACHE_DIR`,
+    qui pointe sur `/app/.symfony-cache` (image layer, hors volume)
+    via `ENV` du Dockerfile. Si tu ajoutes un nouveau service à
+    `docker-compose.example.yml` qui exécute du PHP, **assure-toi
+    que tu ne montes pas `/app/.symfony-cache`** depuis le host —
+    chaque conteneur DOIT avoir son cache privé.
 
 ---
 
