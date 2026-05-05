@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\LastFm\LastFmAuthService;
 use App\Service\SettingsService;
+use App\Service\ToolsDatabaseWiper;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -34,6 +35,27 @@ class SettingsController extends AbstractController
             'default_template' => $settings->getDefaultNameTemplate(),
             'lastfm_auth_configured' => $lastfmAuth->isConfigured(),
             'lastfm_session_user' => $lastfmAuth->getStoredSessionUser(),
+            'wipeable_tables' => ToolsDatabaseWiper::wipedTables(),
         ]);
+    }
+
+    #[Route('/settings/wipe-tools-database', name: 'app_settings_wipe_database', methods: ['POST'])]
+    public function wipeToolsDatabase(Request $request, ToolsDatabaseWiper $wiper): Response
+    {
+        if (!$this->isCsrfTokenValid('settings_wipe_database', (string) $request->request->get('_token'))) {
+            throw $this->createAccessDeniedException();
+        }
+        if (trim((string) $request->request->get('confirm', '')) !== 'WIPE') {
+            $this->addFlash('warning', 'Confirmation manquante : tapez WIPE pour vider la base.');
+            return $this->redirectToRoute('app_settings');
+        }
+
+        $deleted = $wiper->wipe();
+        $total = array_sum($deleted);
+        $this->addFlash(
+            'success',
+            sprintf('Base tools vidée : %d lignes supprimées (alias et réglages conservés).', $total),
+        );
+        return $this->redirectToRoute('app_settings');
     }
 }

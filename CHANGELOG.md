@@ -7,6 +7,19 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+### Added
+- **Réglages : bouton « Vider la base tools »** dans une zone
+  dangereuse de `/settings`. Vide en une opération les tables
+  d'import / audit / cache / snapshots / historiques (buffer Last.fm,
+  `lastfm_import_track`, `lastfm_match_cache`, `lastfm_history`,
+  `navidrome_history`, `stats_snapshot`, `top_snapshot`,
+  `run_history`) tout en **conservant** les réglages, les
+  définitions de playlists et les deux tables d'alias
+  (`lastfm_alias` track-level + `lastfm_artist_alias` artist-level).
+  Confirmation par saisie de « WIPE » + dialogue navigateur, CSRF
+  dédié `settings_wipe_database`. Implémenté par
+  `App\Service\ToolsDatabaseWiper` (DBAL pur, ordre FK-safe).
+
 ### Removed
 - **BREAKING — Worker Symfony Messenger** : la mécanique async qui
   permettait de lancer les 4 long-runners Last.fm (`fetch`, `process`,
