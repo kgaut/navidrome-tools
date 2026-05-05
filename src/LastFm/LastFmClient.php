@@ -2,12 +2,15 @@
 
 namespace App\LastFm;
 
+use Symfony\Contracts\HttpClient\Exception\HttpExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 class LastFmClient
 {
     private const BASE_URL = 'https://ws.audioscrobbler.com/2.0/';
     private const PAGE_SIZE = 200;
+    private const MAX_ATTEMPTS = 3;
 
     public function __construct(
         private readonly HttpClientInterface $httpClient,
@@ -338,19 +341,38 @@ class LastFmClient
      */
     private function call(array $params): array
     {
-        try {
-            $response = $this->httpClient->request('GET', self::BASE_URL, [
-                'query' => $params,
-                'timeout' => 30,
-            ]);
-            $body = $response->toArray(throw: true);
-        } catch (\Throwable $e) {
-            throw new \RuntimeException(sprintf(
-                'Last.fm API call failed (method=%s page=%s): %s',
-                $params['method'] ?? '?',
-                $params['page'] ?? '?',
-                $e->getMessage(),
-            ), 0, $e);
+        $attempt = 0;
+        while (true) {
+            $attempt++;
+            try {
+                $response = $this->httpClient->request('GET', self::BASE_URL, [
+                    'query' => $params,
+                    'timeout' => 30,
+                ]);
+                $body = $response->toArray(throw: true);
+                break;
+            } catch (\Throwable $e) {
+                // Transient errors (network blips, 5xx, 429) are common on
+                // long imports — Last.fm sometimes 500s mid-history. Retry
+                // up to MAX_ATTEMPTS using the configured page delay before
+                // bubbling up. Application-level errors (`error` key in the
+                // body) are NOT caught here since they reach us only after
+                // a successful HTTP exchange.
+                if ($attempt < self::MAX_ATTEMPTS && $this->isTransientHttpError($e)) {
+                    if ($this->pageDelaySeconds > 0) {
+                        sleep($this->pageDelaySeconds);
+                    }
+                    continue;
+                }
+
+                throw new \RuntimeException(sprintf(
+                    'Last.fm API call failed (method=%s page=%s) after %d attempt(s): %s',
+                    $params['method'] ?? '?',
+                    $params['page'] ?? '?',
+                    $attempt,
+                    $e->getMessage(),
+                ), 0, $e);
+            }
         }
 
         if (isset($body['error'])) {
@@ -361,5 +383,19 @@ class LastFmClient
         }
 
         return $body;
+    }
+
+    private function isTransientHttpError(\Throwable $e): bool
+    {
+        if ($e instanceof TransportExceptionInterface) {
+            return true;
+        }
+        if ($e instanceof HttpExceptionInterface) {
+            $status = $e->getResponse()->getStatusCode();
+
+            return $status === 429 || $status >= 500;
+        }
+
+        return false;
     }
 }

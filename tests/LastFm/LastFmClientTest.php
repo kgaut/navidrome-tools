@@ -192,6 +192,87 @@ class LastFmClientTest extends TestCase
         $this->assertNull($similar[1]['mbid'], 'empty MBID coerced to null');
     }
 
+    public function testCallRetriesOnTransient500AndSucceeds(): void
+    {
+        // Last.fm sometimes 500s mid-history during long imports — the
+        // client must absorb up to two transient failures and resume on
+        // the third attempt without bubbling up.
+        $http = new MockHttpClient([
+            new MockResponse('boom', ['http_code' => 500]),
+            new MockResponse('boom', ['http_code' => 500]),
+            new MockResponse(json_encode([
+                'similarartists' => ['artist' => []],
+            ], JSON_THROW_ON_ERROR)),
+        ]);
+
+        $client = new LastFmClient($http, 0);
+
+        // Should not throw — third attempt succeeds.
+        $similar = $client->artistGetSimilar('apikey', 'Daft Punk');
+        $this->assertSame([], $similar);
+        $this->assertSame(3, $http->getRequestsCount());
+    }
+
+    public function testCallGivesUpAfterThreeFailedAttempts(): void
+    {
+        $http = new MockHttpClient([
+            new MockResponse('boom', ['http_code' => 500]),
+            new MockResponse('boom', ['http_code' => 500]),
+            new MockResponse('boom', ['http_code' => 500]),
+        ]);
+
+        $client = new LastFmClient($http, 0);
+
+        try {
+            $client->artistGetSimilar('apikey', 'Daft Punk');
+            $this->fail('Expected RuntimeException to be thrown');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('after 3 attempt(s)', $e->getMessage());
+            $this->assertSame(3, $http->getRequestsCount());
+        }
+    }
+
+    public function testCallDoesNotRetryOnApplicationLevelErrorPayload(): void
+    {
+        // `error` in the JSON body is an application-level failure (e.g.
+        // invalid API key) — retrying just hammers the API. Must surface
+        // immediately as LastFmApiException.
+        $http = new MockHttpClient([
+            new MockResponse(json_encode([
+                'error' => 10,
+                'message' => 'Invalid API key',
+            ], JSON_THROW_ON_ERROR)),
+        ]);
+
+        $client = new LastFmClient($http, 0);
+
+        $this->expectException(LastFmApiException::class);
+        try {
+            $client->artistGetSimilar('badkey', 'Daft Punk');
+        } finally {
+            $this->assertSame(1, $http->getRequestsCount());
+        }
+    }
+
+    public function testCallDoesNotRetryOn4xxClientErrors(): void
+    {
+        // 4xx is the caller's fault (bad params, missing key) — retrying
+        // wastes calls. Only 5xx and 429 are treated as transient.
+        $http = new MockHttpClient([
+            new MockResponse('not found', ['http_code' => 404]),
+        ]);
+
+        $client = new LastFmClient($http, 0);
+
+        try {
+            $client->artistGetSimilar('apikey', 'Daft Punk');
+            $this->fail('Expected RuntimeException to be thrown');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('after 1 attempt(s)', $e->getMessage());
+            $this->assertSame(1, $http->getRequestsCount());
+        }
+    }
+
     public function testArtistGetSimilarHandlesSingleObjectShape(): void
     {
         // Last.fm collapses to a single object when only one neighbour is found.

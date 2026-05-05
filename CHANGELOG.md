@@ -80,6 +80,17 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
   exemples dans `docker-compose.example.yml`.
 
 ### Fixed
+- **`app:lastfm:import` — retry sur erreurs HTTP transitoires de
+  l'API Last.fm** : `LastFmClient::call()` intercepte désormais les
+  500/5xx, 429 et erreurs réseau (`TransportExceptionInterface`) et
+  réessaie jusqu'à 3 fois en attendant `LASTFM_PAGE_DELAY_SECONDS`
+  entre chaque tentative. Évite qu'un long fetch (`Last.fm API call
+  failed (method=user.getRecentTracks page=215): HTTP/2 500`) ne tue
+  toute la run alors que la prochaine page passerait sans souci. Les
+  erreurs applicatives (clé d'API invalide, etc., signalées via le
+  champ `error` du JSON) ne sont pas retentées — elles surfacent
+  immédiatement. Le message d'erreur final inclut le compteur
+  d'attempts pour diagnostiquer.
 - **`app:lastfm:process` / `app:lastfm:rematch` — fuite mémoire sur
   les gros volumes** : `LastFmBufferProcessor` et `LastFmRematchService`
   flushaient toutes les 100 itérations mais ne vidaient jamais
