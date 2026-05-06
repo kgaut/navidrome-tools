@@ -19,6 +19,26 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
   exécutions hors Docker.
 
 ### Fixed
+- **`UNIQUE constraint failed: lastfm_match_cache.source_artist_norm,
+  lastfm_match_cache.source_title_norm` (récidive)** pendant
+  `app:lastfm:process` : l'ancien fix (#117) maintenait un index
+  in-memory `pendingByKey` des entités `persist()`-ées non flushées
+  pour dédupliquer les couples normalisés. Cette mécanique restait
+  fragile dès qu'une mutation de la unit-of-work se désynchronisait
+  de la map (entité chargée par un `findOneBy()` antérieur, purge
+  qui vidait la map sans détacher l'entité, …) — un `persist()`
+  doublon pouvait alors atteindre `flush()` et exploser sur l'index
+  unique. `LastFmMatchCacheRepository` lit et écrit désormais en
+  SQL brut (`INSERT … ON CONFLICT (source_artist_norm,
+  source_title_norm) DO UPDATE SET …`), la dédup est atomique
+  côté DB. `findByCouple()` retourne une entité détachée hydratée
+  depuis la row ; les setters d'entité (`setSource`, `setResolution`)
+  ne sont plus consommés par le repo et restent utilisables par les
+  appelants existants. `detachPending()` devient un no-op gardé
+  pour la rétro-compat avec le buffer processor / rematch service.
+  Couvert par `tests/Repository/LastFmMatchCacheRepositoryDoctrineTest.php`
+  qui spinne un EM Doctrine + SQLite en mémoire et rejoue les
+  scénarios qui crashaient en prod.
 - **Cache Symfony hors volume persistant** : la fin d'un long
   `app:lastfm:import` plantait sporadiquement avec `Failed opening
   required '/app/var/cache/prod/Container…/getConsole_ErrorListenerService.php'`

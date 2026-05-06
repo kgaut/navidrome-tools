@@ -5,37 +5,37 @@ namespace App\Repository;
 use App\Entity\LastFmMatchCacheEntry;
 use App\Navidrome\NavidromeRepository;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
+use Doctrine\DBAL\Connection;
 use Doctrine\Persistence\ManagerRegistry;
 
 /**
  * @extends ServiceEntityRepository<LastFmMatchCacheEntry>
+ *
+ * Reads and writes go through raw SQL on the underlying DBAL connection
+ * rather than the ORM unit-of-work. The cache is just a memoization table
+ * (no relations, no lifecycle), and the previous ORM-based `persist()` +
+ * `findOneBy()` dance kept stumbling on the unique index
+ * `uniq_lastfm_match_cache_source_norm` whenever Doctrine's identity-map /
+ * pending-state diverged from the actual row state — typically when a
+ * persisted-but-unflushed entity was forgotten and a duplicate persist for
+ * the same normalized couple slipped through to flush. SQLite UPSERT
+ * (`INSERT … ON CONFLICT … DO UPDATE`) handles dedup atomically at the DB
+ * level, so the in-memory bookkeeping is no longer necessary.
  */
 class LastFmMatchCacheRepository extends ServiceEntityRepository
 {
-    /**
-     * In-memory map of entries `persist()`ed during the current request,
-     * keyed by `"<artistNorm>\0<titleNorm>"`. `findOneBy()` only sees rows
-     * that already hit the DB, so without this index a long import (which
-     * never flushes between scrobbles) would `persist()` a second entity
-     * for the same normalized couple — the unique index
-     * `uniq_lastfm_match_cache_source_norm` then blows up at flush time.
-     * The map also catches inputs that differ in the source columns but
-     * collapse to the same normalized form.
-     *
-     * @var array<string, LastFmMatchCacheEntry>
-     */
-    private array $pendingByKey = [];
-
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, LastFmMatchCacheEntry::class);
     }
 
     /**
-     * Look up a memoized resolution by normalized `(artist, title)`. Checks
-     * the in-memory pending map first so an entry persisted earlier in the
-     * same request (and not yet flushed) is reused instead of triggering a
-     * fresh persist.
+     * Look up a memoized resolution by normalized `(artist, title)`. Returns a
+     * detached `LastFmMatchCacheEntry` hydrated from the row — sufficient for
+     * the matcher's getters (`getTargetMediaFileId`, `getStrategy`,
+     * `isPositive`, `isStale`). The entity is intentionally unmanaged: any
+     * subsequent `recordPositive/Negative` must go through `upsert()` (raw
+     * SQL UPSERT) rather than mutating this object.
      */
     public function findByCouple(string $artist, string $title): ?LastFmMatchCacheEntry
     {
@@ -45,21 +45,21 @@ class LastFmMatchCacheRepository extends ServiceEntityRepository
             return null;
         }
 
-        $pending = $this->pendingByKey[$this->key($artistNorm, $titleNorm)] ?? null;
-        if ($pending !== null) {
-            return $pending;
+        $row = $this->connection()->fetchAssociative(
+            'SELECT source_artist, source_title, target_media_file_id, strategy, confidence_score, resolved_at
+             FROM lastfm_match_cache
+             WHERE source_artist_norm = :a AND source_title_norm = :t',
+            ['a' => $artistNorm, 't' => $titleNorm],
+        );
+        if ($row === false) {
+            return null;
         }
 
-        return $this->findOneBy([
-            'sourceArtistNorm' => $artistNorm,
-            'sourceTitleNorm' => $titleNorm,
-        ]);
+        return LastFmMatchCacheEntry::fromRow($row);
     }
 
     /**
-     * Upsert a positive resolution. Only `persist()`s — caller flushes
-     * (per-scrobble flush would tank import performance on large
-     * histories).
+     * Upsert a positive resolution. Atomic via SQLite UPSERT.
      */
     public function recordPositive(
         string $artist,
@@ -73,8 +73,7 @@ class LastFmMatchCacheRepository extends ServiceEntityRepository
 
     /**
      * Upsert a negative resolution. Strategy is fixed to `negative` so we
-     * can later distinguish « we tried and gave up » from a positive
-     * match. Caller flushes.
+     * can later distinguish « we tried and gave up » from a positive match.
      */
     public function recordNegative(string $artist, string $title): void
     {
@@ -96,42 +95,47 @@ class LastFmMatchCacheRepository extends ServiceEntityRepository
         if ($artistNorm === '' || $titleNorm === '') {
             return;
         }
-        $existing = $this->findByCouple($artist, $title);
-        if ($existing !== null) {
-            $existing->setSource($artist, $title);
-            $existing->setResolution($mediaFileId, $strategy, $confidenceScore);
 
-            return;
-        }
-        $entry = new LastFmMatchCacheEntry($artist, $title, $mediaFileId, $strategy, $confidenceScore);
-        $this->getEntityManager()->persist($entry);
-        $this->pendingByKey[$this->key($artistNorm, $titleNorm)] = $entry;
+        $this->connection()->executeStatement(
+            'INSERT INTO lastfm_match_cache
+                (source_artist, source_title, source_artist_norm, source_title_norm,
+                 target_media_file_id, strategy, confidence_score, resolved_at)
+             VALUES (:sa, :st, :san, :stn, :tid, :strat, :conf, :rat)
+             ON CONFLICT (source_artist_norm, source_title_norm) DO UPDATE SET
+                source_artist = excluded.source_artist,
+                source_title = excluded.source_title,
+                target_media_file_id = excluded.target_media_file_id,
+                strategy = excluded.strategy,
+                confidence_score = excluded.confidence_score,
+                resolved_at = excluded.resolved_at',
+            [
+                'sa' => trim($artist),
+                'st' => trim($title),
+                'san' => $artistNorm,
+                'stn' => $titleNorm,
+                'tid' => $mediaFileId,
+                'strat' => $strategy,
+                'conf' => $confidenceScore,
+                'rat' => (new \DateTimeImmutable())->format('Y-m-d H:i:s'),
+            ],
+        );
     }
 
     /**
-     * Detach every entry queued in the in-memory pending map from the EM
-     * and forget the map. Called by long-running consumers (buffer
-     * processor, rematch service) after each batch flush so the identity
-     * map does not grow unbounded across the whole run. The DB row was
-     * already written by the flush; subsequent lookups for the same
-     * couple will hit `findOneBy()` and re-hydrate a fresh managed entity
-     * if needed.
+     * No-op kept for backwards compatibility with callers
+     * ({@see \App\LastFm\LastFmBufferProcessor},
+     * {@see \App\Service\LastFmRematchService}). The previous implementation
+     * maintained an in-memory map of un-flushed entities to dedup persists
+     * within a batch; raw SQL UPSERT removes that need.
      */
     public function detachPending(): void
     {
-        $em = $this->getEntityManager();
-        foreach ($this->pendingByKey as $entry) {
-            if ($em->contains($entry)) {
-                $em->detach($entry);
-            }
-        }
-        $this->pendingByKey = [];
     }
 
     /**
-     * Drop the row matching this exact couple. Returns the number of
-     * rows deleted (0 or 1). Called when the user creates / edits /
-     * deletes a track-level alias for that couple.
+     * Drop the row matching this exact couple. Returns the number of rows
+     * deleted (0 or 1). Called when the user creates / edits / deletes a
+     * track-level alias for that couple.
      */
     public function purgeByCouple(string $artist, string $title): int
     {
@@ -141,23 +145,18 @@ class LastFmMatchCacheRepository extends ServiceEntityRepository
             return 0;
         }
 
-        unset($this->pendingByKey[$this->key($artistNorm, $titleNorm)]);
-
-        return (int) $this->createQueryBuilder('c')
-            ->delete()
-            ->where('c.sourceArtistNorm = :a')
-            ->andWhere('c.sourceTitleNorm = :t')
-            ->setParameter('a', $artistNorm)
-            ->setParameter('t', $titleNorm)
-            ->getQuery()
-            ->execute();
+        return (int) $this->connection()->executeStatement(
+            'DELETE FROM lastfm_match_cache
+             WHERE source_artist_norm = :a AND source_title_norm = :t',
+            ['a' => $artistNorm, 't' => $titleNorm],
+        );
     }
 
     /**
-     * Drop every row whose source artist matches `$artist`. Called when
-     * the user creates / edits an artist-level alias on `$artist` (the
-     * source side of the alias) so the next cascade re-resolves through
-     * the new alias.
+     * Drop every row whose source artist matches `$artist`. Called when the
+     * user creates / edits an artist-level alias on `$artist` (the source
+     * side of the alias) so the next cascade re-resolves through the new
+     * alias.
      */
     public function purgeByArtist(string $artist): int
     {
@@ -166,23 +165,15 @@ class LastFmMatchCacheRepository extends ServiceEntityRepository
             return 0;
         }
 
-        foreach ($this->pendingByKey as $key => $entry) {
-            if ($entry->getSourceArtistNorm() === $artistNorm) {
-                unset($this->pendingByKey[$key]);
-            }
-        }
-
-        return (int) $this->createQueryBuilder('c')
-            ->delete()
-            ->where('c.sourceArtistNorm = :a')
-            ->setParameter('a', $artistNorm)
-            ->getQuery()
-            ->execute();
+        return (int) $this->connection()->executeStatement(
+            'DELETE FROM lastfm_match_cache WHERE source_artist_norm = :a',
+            ['a' => $artistNorm],
+        );
     }
 
     /**
-     * Drop every negative cache row older than `$ttlDays`. Called once
-     * at the start of each import / rematch run. `$ttlDays <= 0` means
+     * Drop every negative cache row older than `$ttlDays`. Called once at
+     * the start of each import / rematch run. `$ttlDays <= 0` means
      * « never expire », so it's a no-op.
      */
     public function purgeStale(int $ttlDays): int
@@ -190,15 +181,15 @@ class LastFmMatchCacheRepository extends ServiceEntityRepository
         if ($ttlDays <= 0) {
             return 0;
         }
-        $threshold = (new \DateTimeImmutable())->modify(sprintf('-%d days', $ttlDays));
+        $threshold = (new \DateTimeImmutable())
+            ->modify(sprintf('-%d days', $ttlDays))
+            ->format('Y-m-d H:i:s');
 
-        return (int) $this->createQueryBuilder('c')
-            ->delete()
-            ->where('c.targetMediaFileId IS NULL')
-            ->andWhere('c.resolvedAt < :threshold')
-            ->setParameter('threshold', $threshold)
-            ->getQuery()
-            ->execute();
+        return (int) $this->connection()->executeStatement(
+            'DELETE FROM lastfm_match_cache
+             WHERE target_media_file_id IS NULL AND resolved_at < :threshold',
+            ['threshold' => $threshold],
+        );
     }
 
     /**
@@ -209,23 +200,15 @@ class LastFmMatchCacheRepository extends ServiceEntityRepository
      */
     public function purgeAll(bool $negativeOnly = false): int
     {
-        $qb = $this->createQueryBuilder('c')->delete();
-        if ($negativeOnly) {
-            $qb->where('c.targetMediaFileId IS NULL');
-            foreach ($this->pendingByKey as $key => $entry) {
-                if (!$entry->isPositive()) {
-                    unset($this->pendingByKey[$key]);
-                }
-            }
-        } else {
-            $this->pendingByKey = [];
-        }
+        $sql = $negativeOnly
+            ? 'DELETE FROM lastfm_match_cache WHERE target_media_file_id IS NULL'
+            : 'DELETE FROM lastfm_match_cache';
 
-        return (int) $qb->getQuery()->execute();
+        return (int) $this->connection()->executeStatement($sql);
     }
 
-    private function key(string $artistNorm, string $titleNorm): string
+    private function connection(): Connection
     {
-        return $artistNorm . "\0" . $titleNorm;
+        return $this->getEntityManager()->getConnection();
     }
 }

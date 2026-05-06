@@ -84,6 +84,31 @@ class LastFmMatchCacheEntry
         $this->resolvedAt = new \DateTimeImmutable();
     }
 
+    /**
+     * Build a transient (unmanaged) entry from a raw DB row. Used by
+     * {@see \App\Repository\LastFmMatchCacheRepository::findByCouple} to
+     * hand the matcher an object it can read getters off of without
+     * roundtripping through the ORM identity map.
+     *
+     * @param array<string, mixed> $row
+     */
+    public static function fromRow(array $row): self
+    {
+        $entry = new self(
+            (string) $row['source_artist'],
+            (string) $row['source_title'],
+            isset($row['target_media_file_id']) && $row['target_media_file_id'] !== '' ? (string) $row['target_media_file_id'] : null,
+            (string) $row['strategy'],
+            isset($row['confidence_score']) ? (int) $row['confidence_score'] : null,
+        );
+        // The constructor stamps resolvedAt = now ; restore the DB value so
+        // isStale() compares against the actual age of the cached resolution.
+        (new \ReflectionProperty(self::class, 'resolvedAt'))
+            ->setValue($entry, new \DateTimeImmutable((string) $row['resolved_at']));
+
+        return $entry;
+    }
+
     public function setSource(string $sourceArtist, string $sourceTitle): void
     {
         $this->sourceArtist = trim($sourceArtist);
