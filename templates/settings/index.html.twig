@@ -63,6 +63,72 @@
         {% endif %}
     </div>
 
+    <div class="bg-white shadow rounded p-6 max-w-xl mt-6 space-y-3">
+        <h2 class="text-lg font-semibold">Notifications</h2>
+        {% if notifier_drivers is empty %}
+            <p class="text-sm text-slate-600">
+                Aucun driver de notification n'est enregistré (build étrange — vérifier <code>config/services.yaml</code>).
+            </p>
+        {% else %}
+            <p class="text-sm">
+                État : {% if notifier_enabled %}
+                    <span class="inline-block px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-xs">✓ actif</span>
+                {% else %}
+                    <span class="inline-block px-2 py-0.5 rounded bg-slate-200 text-slate-700 text-xs">✗ désactivé</span>
+                {% endif %}
+                — filtre <code>NOTIFY_ON</code> : <code>{{ notifier_on }}</code>
+                {% if notifier_on == 'error' %}<span class="text-slate-500">(uniquement les échecs)</span>
+                {% else %}<span class="text-slate-500">(succès aussi)</span>{% endif %}
+            </p>
+
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-xs uppercase text-slate-500">
+                        <th class="py-1">Driver</th>
+                        <th class="py-1">Listé <code>NOTIFY_DRIVERS</code></th>
+                        <th class="py-1">Configuré</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for d in notifier_drivers %}
+                        <tr class="border-t">
+                            <td class="py-1 font-mono">{{ d.name }}</td>
+                            <td class="py-1">{% if d.listed %}✓{% else %}—{% endif %}</td>
+                            <td class="py-1">
+                                {% if d.configured %}✓{% else %}
+                                    <span class="text-amber-700">✗ creds manquants</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            <form method="post" action="{{ path('app_settings_test_notification') }}" class="flex flex-wrap gap-2 pt-2 border-t border-slate-100">
+                <input type="hidden" name="_token" value="{{ csrf_token('settings_test_notification') }}">
+                <button type="submit" name="kind" value="success"
+                        {% if not notifier_enabled %}disabled{% endif %}
+                        class="px-3 py-1.5 text-sm rounded bg-emerald-600 hover:bg-emerald-700 text-white disabled:bg-slate-300 disabled:cursor-not-allowed">
+                    Envoyer un test (succès)
+                </button>
+                <button type="submit" name="kind" value="error"
+                        {% if not notifier_enabled %}disabled{% endif %}
+                        class="px-3 py-1.5 text-sm rounded bg-rose-600 hover:bg-rose-700 text-white disabled:bg-slate-300 disabled:cursor-not-allowed">
+                    Envoyer un test (erreur)
+                </button>
+                {% if not notifier_enabled %}
+                    <p class="text-xs text-slate-500 basis-full">
+                        Renseignez <code>NOTIFY_DRIVERS</code> (par ex. <code>gotify</code>, <code>slack</code>) pour activer l'envoi.
+                    </p>
+                {% else %}
+                    <p class="text-xs text-slate-500 basis-full">
+                        Les boutons dispatchent immédiatement (le filtre <code>NOTIFY_ON</code> est ignoré pour les tests).
+                    </p>
+                {% endif %}
+            </form>
+        {% endif %}
+    </div>
+
     <div class="bg-white shadow rounded p-6 max-w-xl mt-6 border border-rose-200 space-y-3">
         <h2 class="text-lg font-semibold text-rose-800">Zone dangereuse</h2>
         <p class="text-sm text-slate-700">
