@@ -32,3 +32,10 @@
 .lando.local.yml
 ###< lando ###
 /.claude/settings.local.json
+
+###> cron scripts ###
+# Les fichiers *.sh.example sont commités comme templates ; les copies
+# de travail (sans le .example) sont gitignored — adaptez-les à votre
+# stack sans pollution du repo.
+/cron-*.sh
+###< cron scripts ###
