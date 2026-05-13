@@ -40,6 +40,15 @@
         <env name="LASTFM_MATCH_CACHE_TTL_DAYS" value="30"/>
         <env name="COVERS_CACHE_PATH" value="%kernel.project_dir%/var/covers_test"/>
         <env name="HOMEPAGE_API_TOKEN" value=""/>
+        <env name="NOTIFY_DRIVERS" value=""/>
+        <env name="NOTIFY_ON" value="error"/>
+        <env name="NOTIFY_GOTIFY_URL" value=""/>
+        <env name="NOTIFY_GOTIFY_TOKEN" value=""/>
+        <env name="NOTIFY_GOTIFY_PRIORITY" value="5"/>
+        <env name="NOTIFY_SLACK_WEBHOOK_URL" value=""/>
+        <env name="NOTIFY_DISCORD_WEBHOOK_URL" value=""/>
+        <env name="NOTIFY_PUSHOVER_TOKEN" value=""/>
+        <env name="NOTIFY_PUSHOVER_USER" value=""/>
     </php>
 
     <testsuites>

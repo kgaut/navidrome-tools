@@ -60,6 +60,19 @@ services:
       # endpoint. Empty = enriched mode disabled, only the no-auth
       # healthcheck mode is served. Generate with `openssl rand -hex 32`.
       HOMEPAGE_API_TOKEN: ${HOMEPAGE_API_TOKEN:-}
+      # Notifications fan-out après chaque run wrappé par
+      # RunHistoryRecorder (backup, import, process, rematch, stats…).
+      # CSV des drivers actifs (gotify,slack,discord,pushover) — vide = off.
+      NOTIFY_DRIVERS: ${NOTIFY_DRIVERS:-}
+      # `error` (défaut) = uniquement les échecs ; `all` = succès aussi.
+      NOTIFY_ON: ${NOTIFY_ON:-error}
+      NOTIFY_GOTIFY_URL: ${NOTIFY_GOTIFY_URL:-}
+      NOTIFY_GOTIFY_TOKEN: ${NOTIFY_GOTIFY_TOKEN:-}
+      NOTIFY_GOTIFY_PRIORITY: ${NOTIFY_GOTIFY_PRIORITY:-5}
+      NOTIFY_SLACK_WEBHOOK_URL: ${NOTIFY_SLACK_WEBHOOK_URL:-}
+      NOTIFY_DISCORD_WEBHOOK_URL: ${NOTIFY_DISCORD_WEBHOOK_URL:-}
+      NOTIFY_PUSHOVER_TOKEN: ${NOTIFY_PUSHOVER_TOKEN:-}
+      NOTIFY_PUSHOVER_USER: ${NOTIFY_PUSHOVER_USER:-}
     volumes:
       # Mount Navidrome's SQLite DB read-only. Make it RW (drop the `:ro`)
       # on the host where you run `app:lastfm:process` /

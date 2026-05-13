@@ -24,6 +24,15 @@ parameters:
     navidrome.container_stop_wait_ceiling: '%env(int:NAVIDROME_STOP_WAIT_CEILING_SECONDS)%'
     navidrome.db_backup_retention: '%env(int:NAVIDROME_DB_BACKUP_RETENTION)%'
     app.homepage_api_token: '%env(HOMEPAGE_API_TOKEN)%'
+    notify.drivers: '%env(NOTIFY_DRIVERS)%'
+    notify.on: '%env(NOTIFY_ON)%'
+    notify.gotify.url: '%env(NOTIFY_GOTIFY_URL)%'
+    notify.gotify.token: '%env(NOTIFY_GOTIFY_TOKEN)%'
+    notify.gotify.priority: '%env(int:NOTIFY_GOTIFY_PRIORITY)%'
+    notify.slack.webhook_url: '%env(NOTIFY_SLACK_WEBHOOK_URL)%'
+    notify.discord.webhook_url: '%env(NOTIFY_DISCORD_WEBHOOK_URL)%'
+    notify.pushover.token: '%env(NOTIFY_PUSHOVER_TOKEN)%'
+    notify.pushover.user: '%env(NOTIFY_PUSHOVER_USER)%'
     # Build-time version stamp — surfaced in the page title so a user
     # can tell at a glance which release/sha is deployed. Baked into the
     # image via Dockerfile ARG/ENV (CI passes the git tag on a tagged
@@ -41,6 +50,8 @@ services:
     _instanceof:
         App\Generator\PlaylistGeneratorInterface:
             tags: ['app.playlist_generator']
+        App\Notifier\NotifierDriverInterface:
+            tags: ['app.notifier_driver']
 
     App\:
         resource: '../src/'
@@ -159,3 +170,28 @@ services:
     App\Service\BeetsQueueService:
         arguments:
             $queuePath: '%beets.queue_path%'
+
+    App\Notifier\Notifier:
+        arguments:
+            $drivers: !tagged_iterator app.notifier_driver
+            $enabledDriversCsv: '%notify.drivers%'
+            $notifyOn: '%notify.on%'
+
+    App\Notifier\Driver\GotifyDriver:
+        arguments:
+            $url: '%notify.gotify.url%'
+            $token: '%notify.gotify.token%'
+            $priority: '%notify.gotify.priority%'
+
+    App\Notifier\Driver\SlackDriver:
+        arguments:
+            $webhookUrl: '%notify.slack.webhook_url%'
+
+    App\Notifier\Driver\DiscordDriver:
+        arguments:
+            $webhookUrl: '%notify.discord.webhook_url%'
+
+    App\Notifier\Driver\PushoverDriver:
+        arguments:
+            $token: '%notify.pushover.token%'
+            $user: '%notify.pushover.user%'

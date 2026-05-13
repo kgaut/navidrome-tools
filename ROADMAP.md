@@ -65,7 +65,6 @@ l'ordre d'attaque recommandé.
 | #     | Titre                                                              | Effort |
 |-------|--------------------------------------------------------------------|--------|
 | [#99] | Note libre éditable sur un RunHistory                              | S      |
-| [#7]  | Notifications cron (Discord / Slack / Pushover)                    | M      |
 | [#9]  | Webhooks sortants génériques (POST JSON après chaque run)          | M      |
 | [#94] | Synthèse hebdo/mensuelle automatique (digest + RSS)                | M      |
 

@@ -3,12 +3,16 @@
 namespace App\Service;
 
 use App\Entity\RunHistory;
+use App\Notifier\Notification;
+use App\Notifier\Notifier;
 use Doctrine\ORM\EntityManagerInterface;
 
 class RunHistoryRecorder
 {
-    public function __construct(private readonly EntityManagerInterface $em)
-    {
+    public function __construct(
+        private readonly EntityManagerInterface $em,
+        private readonly ?Notifier $notifier = null,
+    ) {
     }
 
     /**
@@ -50,6 +54,7 @@ class RunHistoryRecorder
             $entry->setFinishedAt(new \DateTimeImmutable());
             $entry->setDurationMs((int) round((microtime(true) - $startedMicrotime) * 1000));
             $this->em->flush();
+            $this->notify($entry);
             throw $e;
         }
 
@@ -66,7 +71,22 @@ class RunHistoryRecorder
         }
 
         $this->em->flush();
+        $this->notify($entry);
 
         return $result;
+    }
+
+    private function notify(RunHistory $entry): void
+    {
+        if ($this->notifier === null) {
+            return;
+        }
+        try {
+            $this->notifier->notify(Notification::fromRunHistory($entry));
+        } catch (\Throwable) {
+            // Notification dispatch must never abort the job. The
+            // orchestrator already catches per-driver, this is a final
+            // safety net.
+        }
     }
 }

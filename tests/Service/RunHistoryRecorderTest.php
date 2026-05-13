@@ -3,7 +3,9 @@
 namespace App\Tests\Service;
 
 use App\Entity\RunHistory;
+use App\Notifier\Notifier;
 use App\Service\RunHistoryRecorder;
+use App\Tests\Notifier\FakeRecordingDriver;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 
@@ -85,6 +87,68 @@ class RunHistoryRecorderTest extends TestCase
         $entry = $em['persisted'][0];
         $this->assertSame(RunHistory::STATUS_SUCCESS, $entry->getStatus());
         $this->assertNull($entry->getMetrics());
+    }
+
+    public function testNotifierReceivesNotificationOnSuccessWhenOnAll(): void
+    {
+        $em = $this->makeFakeEntityManager();
+        $driver = new FakeRecordingDriver('gotify');
+        $notifier = new Notifier([$driver], 'gotify', Notifier::ON_ALL);
+        $recorder = new RunHistoryRecorder($em['em'], $notifier);
+
+        $recorder->record(
+            type: RunHistory::TYPE_LASTFM_FETCH,
+            reference: 'me',
+            label: 'Fetch — me',
+            action: fn () => 'ok',
+        );
+
+        $this->assertSame(1, $driver->sendCount);
+        $this->assertNotNull($driver->lastNotification);
+        $this->assertSame(RunHistory::STATUS_SUCCESS, $driver->lastNotification->status);
+    }
+
+    public function testNotifierStillReceivesErrorEvenWhenOnErrorIsTheDefault(): void
+    {
+        $em = $this->makeFakeEntityManager();
+        $driver = new FakeRecordingDriver('gotify');
+        $notifier = new Notifier([$driver], 'gotify', Notifier::ON_ERROR);
+        $recorder = new RunHistoryRecorder($em['em'], $notifier);
+
+        try {
+            $recorder->record(
+                type: RunHistory::TYPE_LASTFM_PROCESS,
+                reference: 'buffer',
+                label: 'Process — buffer',
+                action: function (): never {
+                    throw new \RuntimeException('boom');
+                },
+            );
+        } catch (\RuntimeException) {
+            // expected
+        }
+
+        $this->assertSame(1, $driver->sendCount);
+        $this->assertNotNull($driver->lastNotification);
+        $this->assertSame(RunHistory::STATUS_ERROR, $driver->lastNotification->status);
+        $this->assertSame('boom', $driver->lastNotification->errorMessage);
+    }
+
+    public function testSuccessRunDoesNotFireWhenNotifyOnIsErrorOnly(): void
+    {
+        $em = $this->makeFakeEntityManager();
+        $driver = new FakeRecordingDriver('gotify');
+        $notifier = new Notifier([$driver], 'gotify', Notifier::ON_ERROR);
+        $recorder = new RunHistoryRecorder($em['em'], $notifier);
+
+        $recorder->record(
+            type: RunHistory::TYPE_LASTFM_FETCH,
+            reference: 'me',
+            label: 'Fetch — me',
+            action: fn () => 'ok',
+        );
+
+        $this->assertSame(0, $driver->sendCount);
     }
 
     /**
