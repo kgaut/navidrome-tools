@@ -10,10 +10,9 @@ Deux scénarios sont couverts :
   + beets, le cas le plus fréquent).
 - **Scénario B** : création d'une stack complète from scratch.
 
-Pour le tableau exhaustif des variables d'environnement, voir le
-[`README.md`](../README.md#variables-denvironnement). Pour
-ajouter ses propres générateurs de playlist, voir
-[`docs/PLUGINS.md`](PLUGINS.md).
+Pour le tableau exhaustif des variables d'environnement, voir
+[`ENVIRONMENT.md`](ENVIRONMENT.md). Pour ajouter ses propres
+générateurs de playlist, voir [`PLUGINS.md`](PLUGINS.md).
 
 ## 1. Prérequis
 
@@ -83,8 +82,8 @@ Les jobs récurrents (génération de playlists, refresh stats, fetch /
 process Last.fm, purge d'historique) sont **lancés depuis le crontab
 unix de l'hôte** via `docker compose exec -T navidrome-tools-web
 php bin/console <cmd>` — il n'y a plus de service cron embarqué dans
-l'image. Voir la section [« Lancement des jobs récurrents »](../README.md#lancement-des-jobs-récurrents)
-du README pour des exemples de lignes crontab.
+l'image. Voir [`CRON.md`](CRON.md) pour des exemples de lignes
+crontab.
 
 ## 5. Points de montage (volumes)
 
@@ -233,8 +232,7 @@ Cas typique : `/srv/media/docker-compose.yml` contient déjà
    ```
 
 6. Configurer les jobs récurrents dans le **crontab unix** de l'hôte
-   (cf. [README — Lancement des jobs récurrents](../README.md#lancement-des-jobs-récurrents))
-   plutôt que dans un service cron Docker.
+   (cf. [`CRON.md`](CRON.md)) plutôt que dans un service cron Docker.
 
 ## 8. Scénario B : stack complète from scratch
 
@@ -423,11 +421,13 @@ redémarrages.
 
 ## 13. Pour aller plus loin
 
-- [`README.md`](../README.md#variables-denvironnement) — tableau
-  exhaustif des variables d'environnement.
-- [`README.md`](../README.md#lancement-des-jobs-récurrents) — lignes
-  crontab unix prêtes à coller pour les jobs récurrents.
-- [`docs/PLUGINS.md`](PLUGINS.md) — créer ses propres générateurs de
+- [`ENVIRONMENT.md`](ENVIRONMENT.md) — référence exhaustive des
+  variables d'environnement.
+- [`CRON.md`](CRON.md) — lignes crontab unix prêtes à coller pour
+  les jobs récurrents.
+- [`PLUGINS.md`](PLUGINS.md) — créer ses propres générateurs de
   playlist.
-- [`CHANGELOG.md`](../CHANGELOG.md) — détail chronologique des
+- [`DEVELOPMENT.md`](DEVELOPMENT.md) — dev local (Lando ou natif),
+  tests, qualité, éditeur.
+- [`../CHANGELOG.md`](../CHANGELOG.md) — détail chronologique des
   changements.

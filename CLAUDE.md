@@ -481,8 +481,7 @@ Le push du tag déclenche `docker-publish` (cf. `.github/workflows/ci.yml`).
 | `NOTIFY_PUSHOVER_TOKEN` / `NOTIFY_PUSHOVER_USER` | Pushover application token + user/group key. |
 
 Plus de variables `*_SCHEDULE` : la planification se fait dans le
-crontab unix de l'hôte (cf. `README.md` § « Lancement des jobs
-récurrents »).
+crontab unix de l'hôte (cf. [`docs/CRON.md`](docs/CRON.md)).
 
 Wirées dans : `.env` (dev), `.env.dist` (template), `phpunit.xml.dist`
 (test), `.lando.yml.dist` (Lando), `docker-compose.example.yml`,
