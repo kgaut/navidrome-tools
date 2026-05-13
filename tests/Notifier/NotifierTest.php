@@ -89,6 +89,52 @@ class NotifierTest extends TestCase
         $this->assertSame(1, $slack->sendCount, 'Slack must still receive the notification despite Gotify failing');
     }
 
+    public function testDescribeDriversReturnsListedAndConfiguredFlags(): void
+    {
+        $gotify = new FakeRecordingDriver('gotify');
+        $slack = new FakeRecordingDriver('slack', configured: false);
+        $discord = new FakeRecordingDriver('discord');
+
+        $notifier = new Notifier([$gotify, $slack, $discord], 'gotify,slack', Notifier::ON_ERROR);
+
+        $this->assertSame([
+            ['name' => 'gotify', 'listed' => true, 'configured' => true],
+            ['name' => 'slack', 'listed' => true, 'configured' => false],
+            ['name' => 'discord', 'listed' => false, 'configured' => true],
+        ], $notifier->describeDrivers());
+
+        $this->assertSame('error', $notifier->getNotifyOn());
+    }
+
+    public function testTestSendBypassesNotifyOnFilterAndReportsPerDriver(): void
+    {
+        $gotify = new FakeRecordingDriver('gotify');
+        $slack = new FakeRecordingDriver('slack', configured: false);
+        $discord = new FakeRecordingDriver('discord');
+        $broken = new FakeRecordingDriver('pushover');
+        $broken->shouldThrow = true;
+
+        // NOTIFY_ON=error : a successNotification() would normally be
+        // filtered, but testSend() must dispatch anyway.
+        $notifier = new Notifier(
+            [$gotify, $slack, $discord, $broken],
+            'gotify,slack,pushover',
+            Notifier::ON_ERROR,
+        );
+
+        $result = $notifier->testSend($this->successNotification());
+
+        $this->assertSame(1, $gotify->sendCount);
+        $this->assertSame(0, $slack->sendCount, 'unconfigured drivers must not be called');
+        $this->assertSame(0, $discord->sendCount, 'drivers absent from NOTIFY_DRIVERS must not be called');
+        $this->assertSame(1, $broken->sendCount);
+
+        $this->assertSame('sent', $result['gotify']);
+        $this->assertSame('skipped:not-configured', $result['slack']);
+        $this->assertSame('skipped:not-listed', $result['discord']);
+        $this->assertStringStartsWith('error:', $result['pushover']);
+    }
+
     private function successNotification(): Notification
     {
         return new Notification('lastfm-fetch', 'Last.fm fetch — me', RunHistory::STATUS_SUCCESS, 1000);

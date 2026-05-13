@@ -54,6 +54,71 @@ class Notifier
         return $this->enabledDriverNames !== [];
     }
 
+    public function getNotifyOn(): string
+    {
+        return $this->notifyOn;
+    }
+
+    /**
+     * Returns a status snapshot for every registered driver — useful to
+     * the settings UI to list which channels exist and whether they'd
+     * actually fire today. Does not dispatch anything.
+     *
+     * @return list<array{name: string, listed: bool, configured: bool}>
+     */
+    public function describeDrivers(): array
+    {
+        $out = [];
+        foreach ($this->drivers as $driver) {
+            $name = $driver->getName();
+            $out[] = [
+                'name' => $name,
+                'listed' => in_array($name, $this->enabledDriverNames, true),
+                'configured' => $driver->isConfigured(),
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Dispatch immediately on every listed+configured driver, regardless
+     * of the NOTIFY_ON filter — used by the settings page "send test"
+     * button so the operator can validate both a success and an error
+     * payload without flipping NOTIFY_ON. Returns the per-driver
+     * outcome so the caller can surface it as a flash.
+     *
+     * @return array<string, string> driver name → "sent" / "skipped:<reason>" / "error:<message>"
+     */
+    public function testSend(Notification $notification): array
+    {
+        $result = [];
+        foreach ($this->drivers as $driver) {
+            $name = $driver->getName();
+            if (!in_array($name, $this->enabledDriverNames, true)) {
+                $result[$name] = 'skipped:not-listed';
+                continue;
+            }
+            if (!$driver->isConfigured()) {
+                $result[$name] = 'skipped:not-configured';
+                continue;
+            }
+            try {
+                $driver->send($notification);
+                $result[$name] = 'sent';
+            } catch (\Throwable $e) {
+                $this->logger->error('Notifier driver "{driver}" failed during test: {message}', [
+                    'driver' => $name,
+                    'message' => $e->getMessage(),
+                    'exception' => $e,
+                ]);
+                $result[$name] = 'error:' . $e->getMessage();
+            }
+        }
+
+        return $result;
+    }
+
     public function notify(Notification $notification): void
     {
         if ($this->enabledDriverNames === []) {
