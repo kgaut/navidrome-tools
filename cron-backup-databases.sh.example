@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+#
+# Exemple de script cron pour backuper :
+#   - la DB Navidrome (`navidrome.db` + WAL/SHM siblings),
+#   - la DB locale de navidrome-tools (`data.db`, dans le volume Docker
+#     `navidrome-tools-data`).
+#
+# Usage :
+#   cp cron-backup-databases.sh.example cron-backup-databases.sh
+#   chmod +x cron-backup-databases.sh
+#   # éditer les variables de la section « Configuration » ci-dessous
+#   ./cron-backup-databases.sh
+#
+# Exemple de ligne crontab (tous les jours à 03:30) :
+#   30 3 * * * /chemin/vers/cron-backup-databases.sh \
+#       >> /var/log/navidrome-tools/backup.log 2>&1
+#
+# Le fichier `cron-backup-databases.sh` est gitignored — adaptez-le
+# librement.
+#
+# Stratégie : on arrête brièvement les deux services Docker pour garantir
+# un checkpoint propre du WAL SQLite (sinon un `cp` à chaud d'une base en
+# WAL mode peut produire un fichier inconsistant — voir piège #12 du
+# CLAUDE.md). Le `docker stop -t` graceful laisse à SQLite le temps de
+# vidanger son WAL avant SIGKILL. `trap EXIT` redémarre les services
+# même si une étape échoue.
+#
+# Downtime total ≈ 10-30s pour Navidrome, 5-10s pour navidrome-tools-web.
+# À planifier hors fenêtre des autres crons (lastfm-import, stats:compute…)
+# qui exécutent `docker compose exec navidrome-tools-web …` — un service
+# arrêté ferait planter ces commandes.
+
+set -euo pipefail
+
+# ======================================================================
+# Configuration — à adapter à votre stack
+# ======================================================================
+
+# Dossier qui contient votre `docker-compose.yml`.
+COMPOSE_DIR="/srv/navidrome-tools"
+
+# Nom des services dans `docker-compose.yml`.
+NAVIDROME_SERVICE="navidrome"
+TOOLS_SERVICE="navidrome-tools-web"
+
+# Chemin sur l'hôte vers la DB SQLite Navidrome (la source de la
+# bind-mount qui pointe sur /data/navidrome.db dans le conteneur).
+NAVIDROME_DB_HOST_PATH="/srv/navidrome/data/navidrome.db"
+
+# Dossier où stocker les backups (créé s'il n'existe pas).
+BACKUP_DIR="/srv/navidrome/backups"
+
+# Nombre de backups conservés par DB — les plus anciens sont supprimés.
+RETENTION=7
+
+# Délai (s) laissé à `docker stop` pour shutdown gracieux. Trop court
+# = WAL non checkpointé = backup potentiellement inconsistant.
+STOP_TIMEOUT=60
+
+# ======================================================================
+# Script
+# ======================================================================
+
+cd "$COMPOSE_DIR"
+mkdir -p "$BACKUP_DIR"
+TS="$(date -u +'%Y%m%d-%H%M%S')"
+
+log() {
+    printf '[%s] %s\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "$*"
+}
+
+restart_services() {
+    log "Redémarrage des services…"
+    docker compose start "$NAVIDROME_SERVICE" "$TOOLS_SERVICE" >/dev/null || \
+        log "ATTENTION : échec du redémarrage — à relancer manuellement."
+}
+trap restart_services EXIT
+
+# ---------- Navidrome ----------
+
+log "[1/5] Arrêt de $NAVIDROME_SERVICE (timeout ${STOP_TIMEOUT}s)…"
+docker compose stop -t "$STOP_TIMEOUT" "$NAVIDROME_SERVICE"
+
+log "[2/5] Backup de navidrome.db (+ siblings WAL/SHM si présents)…"
+for suffix in '' '-wal' '-shm'; do
+    src="${NAVIDROME_DB_HOST_PATH}${suffix}"
+    if [ -f "$src" ]; then
+        out="${BACKUP_DIR}/navidrome.${TS}.db${suffix}.gz"
+        gzip -c "$src" > "$out"
+        log "  → $out ($(du -h "$out" | cut -f1))"
+    fi
+done
+
+# Redémarrage Navidrome au plus tôt : pas besoin de l'arrêter pour
+# backuper data.db côté tools.
+log "[3/5] Redémarrage anticipé de $NAVIDROME_SERVICE…"
+docker compose start "$NAVIDROME_SERVICE" >/dev/null
+
+# ---------- navidrome-tools ----------
+
+log "[4/5] Arrêt de $TOOLS_SERVICE (timeout 30s)…"
+docker compose stop -t 30 "$TOOLS_SERVICE"
+
+log "[5/5] Backup de data.db (DB locale du tool, dans le volume Docker)…"
+# `docker compose cp` lit le fichier dans la couche du conteneur arrêté
+# — pas besoin de connaître le nom exact du volume Docker.
+for suffix in '' '-wal' '-shm'; do
+    container_path="/app/var/data.db${suffix}"
+    out="${BACKUP_DIR}/tools.${TS}.db${suffix}"
+    if docker compose cp "${TOOLS_SERVICE}:${container_path}" "$out" 2>/dev/null; then
+        gzip -f "$out"
+        log "  → $out.gz ($(du -h "$out.gz" | cut -f1))"
+    fi
+done
+
+# ---------- Rétention ----------
+
+log "[prune] Conservation des $RETENTION backups les plus récents par DB…"
+for prefix in navidrome tools; do
+    for ext in db.gz db-wal.gz db-shm.gz; do
+        ls -1t "${BACKUP_DIR}/${prefix}".*."${ext}" 2>/dev/null \
+            | tail -n +"$((RETENTION + 1))" \
+            | xargs -r rm -f
+    done
+done
+
+log "Backup terminé."

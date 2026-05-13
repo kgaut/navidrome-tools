@@ -125,3 +125,40 @@ notification (Gotify / Slack / Discord / Pushover, broadcast supporté
 via CSV `NOTIFY_DRIVERS`). Voir [`NOTIFICATIONS.md`](NOTIFICATIONS.md)
 pour la configuration, et la page **`/settings`** pour tester
 l'envoi depuis l'UI.
+
+## Backup des deux DB SQLite
+
+Le repo livre un template `cron-backup-databases.sh.example` (à
+copier en `cron-backup-databases.sh`, gitignored) qui snapshote en
+une seule passe :
+
+- **`navidrome.db`** (+ siblings `-wal` / `-shm` si présents),
+- **`data.db`** (DB locale de navidrome-tools, dans le volume Docker
+  `navidrome-tools-data`).
+
+Stratégie : `docker compose stop -t 60` sur chaque service avant le
+backup (garantit le checkpoint WAL SQLite → `cp` file-level sûr) →
+`gzip` → rétention configurable. Navidrome est redémarré dès que son
+backup est terminé pour minimiser le downtime ; `trap EXIT` garantit
+le restart même en cas d'erreur.
+
+À planifier dans le crontab unix, **hors fenêtre** des autres jobs
+qui font `docker compose exec navidrome-tools-web …` (un service
+arrêté ferait planter ces commandes) :
+
+```cron
+# Backup quotidien à 03:30 (avant les imports Last.fm).
+30 3 * * * /chemin/vers/cron-backup-databases.sh \
+    >> /var/log/navidrome-tools/backup.log 2>&1
+```
+
+Variables configurables en tête de script : chemin compose, noms des
+services, chemin host de `navidrome.db`, dossier de backup, rétention
+(défaut 7 snapshots par DB), `STOP_TIMEOUT` graceful (défaut 60s).
+
+> **Différent du backup `--auto-stop`** : les commandes Last.fm
+> (`process`, `rematch`) snapshot uniquement `navidrome.db` *avant
+> écriture*, avec rétention dans `NAVIDROME_DB_BACKUP_RETENTION`. Le
+> script ci-dessus, lui, snapshot les **deux** DB côte à côte sur
+> base périodique — utile en cas de corruption du volume Docker du
+> tool (perte des définitions de playlists, du buffer, des alias…).
