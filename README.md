@@ -746,6 +746,38 @@ Une commande `app:history:purge` supprime les entrées plus vieilles que
 `RUN_HISTORY_RETENTION_DAYS` (défaut 90). À planifier dans votre
 crontab unix (cf. la section [Lancement des jobs récurrents](#lancement-des-jobs-récurrents)).
 
+## Notifications de fin de run
+
+À chaque fin de traitement enveloppé par `RunHistoryRecorder` (backup
+DB Navidrome, fetch Last.fm, process buffer, rematch, sync loved,
+compute stats, purge history…), l'app peut pousser une notification
+vers un ou plusieurs canaux. Le payload inclut le type du run, le label
+humain, le status (`success` / `error`), la durée, les métriques et,
+en cas d'échec, le message d'erreur tronqué.
+
+Configuration via env vars — vide partout = feature désactivée :
+
+| Variable                       | Usage                                                              |
+|--------------------------------|--------------------------------------------------------------------|
+| `NOTIFY_DRIVERS`               | CSV des canaux actifs. Valeurs : `gotify`, `slack`, `discord`, `pushover`. Exemple : `gotify,slack` pour broadcaster. |
+| `NOTIFY_ON`                    | `error` (défaut, n'envoie que les échecs) ou `all` (succès aussi). |
+| `NOTIFY_GOTIFY_URL`            | URL de base de votre instance Gotify, ex. `https://gotify.example.com`. |
+| `NOTIFY_GOTIFY_TOKEN`          | Application token Gotify.                                          |
+| `NOTIFY_GOTIFY_PRIORITY`       | Priorité par défaut (1..10, défaut 5). Bumpée à au moins 8 sur erreur. |
+| `NOTIFY_SLACK_WEBHOOK_URL`     | Webhook incoming Slack (Apps → Incoming Webhooks).                 |
+| `NOTIFY_DISCORD_WEBHOOK_URL`   | Webhook channel Discord (Server Settings → Integrations).          |
+| `NOTIFY_PUSHOVER_TOKEN`        | Application token Pushover ([pushover.net](https://pushover.net/)).|
+| `NOTIFY_PUSHOVER_USER`         | User ou group key Pushover.                                        |
+
+L'orchestrateur isole chaque driver : une erreur de transport sur l'un
+des canaux est loggée mais n'empêche pas les autres canaux de partir,
+et n'interrompt jamais le job lui-même.
+
+Ajouter un nouveau canal = créer une classe dans `src/Notifier/Driver/`
+qui implémente `App\Notifier\NotifierDriverInterface` (auto-taggée
+`app.notifier_driver`), déclarer ses paramètres dans
+`config/services.yaml`, et l'activer en l'ajoutant à `NOTIFY_DRIVERS`.
+
 ## Widget Homepage (gethomepage)
 
 Endpoint JSON `/api/status` consommable par le widget

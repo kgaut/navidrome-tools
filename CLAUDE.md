@@ -173,6 +173,20 @@ Fonctionnalités livrées :
   table `messenger_messages`). Le pré-flight Navidrome
   (`runWithNavidromeStopped`) reste en place côté CLI via
   `--auto-stop` sur `process` et `rematch`.
+- **Notifications de fin de run** (optionnel, activé si
+  `NOTIFY_DRIVERS` est non vide) : greffe `App\Notifier\Notifier` sur
+  `RunHistoryRecorder` qui pousse une notification après chaque
+  traitement enveloppé (backup, fetch, process, rematch, stats, purge,
+  loved-sync…). Drivers livrés : Gotify, Slack, Discord, Pushover. Pour
+  ajouter un canal = créer une classe dans `src/Notifier/Driver/`
+  implémentant `NotifierDriverInterface` (auto-taggée
+  `app.notifier_driver` via `_instanceof`) + déclarer ses arguments
+  dans `services.yaml`. Configuration : `NOTIFY_DRIVERS` (CSV des
+  canaux actifs, ex. `gotify,slack`), `NOTIFY_ON` (`error` défaut /
+  `all`), plus `NOTIFY_<DRIVER>_*` pour les credentials. Payload :
+  type / label / status / durée / metrics / message d'erreur tronqué
+  + run id. L'orchestrateur catche tout et log via PSR-3 — une notif
+  KO ne bloque jamais le job ni les autres canaux. Sub-issue de #7.
 - **Pilotage du conteneur Navidrome** (optionnel, activé si
   `NAVIDROME_CONTAINER_NAME` est renseigné) : card dashboard
   affichant l'état UP/DOWN avec boutons Start/Stop, pré-flight
@@ -246,6 +260,8 @@ src/
 ├── Lidarr/           LidarrClient, LidarrConfig, LidarrConflictException
 ├── Navidrome/        NavidromeRepository (toutes les requêtes DBAL Navidrome),
 │                     TrackSummary
+├── Notifier/         Notifier (orchestrateur), NotifierDriverInterface,
+│                     Notification (DTO), Driver/ (Gotify, Slack, Discord, Pushover)
 ├── Repository/       Repos Doctrine ORM (PlaylistDefinitionRepository,
 │                     RunHistoryRepository, StatsSnapshotRepository,
 │                     SettingRepository, LastFmHistoryEntryRepository,
@@ -457,6 +473,12 @@ Le push du tag déclenche `docker-publish` (cf. `.github/workflows/ci.yml`).
 | `LASTFM_PAGE_DELAY_SECONDS`    | Pause entre 2 pages de l'API (default 10, 0 pour désactiver)|
 | `LASTFM_FUZZY_MAX_DISTANCE`    | Distance Levenshtein max pour le fallback fuzzy (default 0 = off, **2 recommandé pour les imports one-shot**) |
 | `NAVIDROME_CONTAINER_NAME`     | Nom du conteneur Navidrome dans la stack compose. Vide = card dashboard masquée + pré-flight désactivé. Requiert le mount `/var/run/docker.sock`. |
+| `NOTIFY_DRIVERS`               | CSV des drivers actifs (`gotify`, `slack`, `discord`, `pushover`). Vide = notifications désactivées. Plusieurs valeurs autorisées (broadcast). |
+| `NOTIFY_ON`                    | `error` (défaut) ou `all`. Filtre l'envoi : `error` = échecs uniquement, `all` = succès aussi. |
+| `NOTIFY_GOTIFY_URL` / `NOTIFY_GOTIFY_TOKEN` / `NOTIFY_GOTIFY_PRIORITY` | Gotify. URL de base + application token. Priorité défaut 5, bumpée à au moins 8 sur erreur. |
+| `NOTIFY_SLACK_WEBHOOK_URL`     | Slack incoming webhook.                                     |
+| `NOTIFY_DISCORD_WEBHOOK_URL`   | Discord channel webhook. Content tronqué à 1900 chars (cap Discord 2000). |
+| `NOTIFY_PUSHOVER_TOKEN` / `NOTIFY_PUSHOVER_USER` | Pushover application token + user/group key. |
 
 Plus de variables `*_SCHEDULE` : la planification se fait dans le
 crontab unix de l'hôte (cf. `README.md` § « Lancement des jobs

@@ -8,6 +8,21 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### Added
+- **Notifications de fin de run (Gotify / Slack / Discord / Pushover)** :
+  greffe optionnelle sur `RunHistoryRecorder` qui pushe une
+  notification après chaque traitement wrappé (backup, fetch Last.fm,
+  process, rematch, sync loved, stats compute, history purge…).
+  Drivers pluggables (`App\Notifier\NotifierDriverInterface`,
+  tag `app.notifier_driver`) ; ajouter un canal supplémentaire = créer
+  une classe dans `src/Notifier/Driver/` et déclarer ses paramètres
+  dans `services.yaml`. Configuration via dix nouvelles env vars
+  (`NOTIFY_DRIVERS` CSV des canaux actifs, `NOTIFY_ON=error|all`,
+  plus le doublet/triplet par driver — cf. `.env.dist`). Sur succès
+  comme sur erreur, le payload inclut type / label / status / durée /
+  message d'erreur tronqué / metrics ; en cas d'erreur côté driver,
+  l'orchestrateur log et continue les autres canaux sans jamais
+  bloquer le job. Closes
+  [#7](https://github.com/kgaut/navidrome-playlist-generator/issues/7).
 - **Suffixe + version dans le `<title>` des pages** : chaque onglet
   affiche désormais `Dashboard - Navidrome Tools 0.1.0` (ou
   `… - Navidrome Tools main-abc1234` sur un build de branche). Le
