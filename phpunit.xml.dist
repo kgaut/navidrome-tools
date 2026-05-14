@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         colors="true"
+         bootstrap="tests/bootstrap.php"
+         cacheDirectory="var/cache/.phpunit.cache"
+         displayDetailsOnTestsThatTriggerWarnings="true">
+    <php>
+        <ini name="display_errors" value="1"/>
+        <ini name="error_reporting" value="-1"/>
+        <server name="APP_ENV" value="test" force="true"/>
+        <server name="SHELL_VERBOSITY" value="-1"/>
+        <env name="APP_SECRET" value="test-secret-do-not-use-in-prod-1234567890"/>
+        <env name="APP_TIMEZONE" value="UTC"/>
+        <env name="APP_VERSION" value="test"/>
+        <env name="APP_AUTH_USER" value="admin"/>
+        <env name="APP_AUTH_PASSWORD" value="changeme"/>
+        <env name="DATABASE_URL" value="sqlite:///%kernel.project_dir%/var/data_test.db"/>
+        <env name="MESSENGER_TRANSPORT_DSN" value="in-memory://"/>
+        <env name="NAVIDROME_DB_PATH" value="%kernel.project_dir%/var/navidrome_test.db"/>
+        <env name="NAVIDROME_URL" value="http://localhost:4533"/>
+        <env name="NAVIDROME_USER" value="admin"/>
+        <env name="NAVIDROME_PASSWORD" value="changeme"/>
+        <env name="NAVIDROME_CONTAINER_NAME" value=""/>
+        <env name="NAVIDROME_STOP_TIMEOUT_SECONDS" value="60"/>
+        <env name="NAVIDROME_STOP_WAIT_CEILING_SECONDS" value="30"/>
+        <env name="LASTFM_API_KEY" value=""/>
+        <env name="LASTFM_API_SECRET" value=""/>
+        <env name="LASTFM_USER" value=""/>
+        <env name="LASTFM_PAGE_DELAY_SECONDS" value="0"/>
+        <env name="LASTFM_FUZZY_MAX_DISTANCE" value="0"/>
+        <env name="LASTFM_MATCH_CACHE_TTL_DAYS" value="30"/>
+        <env name="STRAWBERRY_DB_PATH" value=""/>
+        <env name="BACKUP_RETENTION_DAYS" value="7"/>
+        <env name="RUN_HISTORY_RETENTION_DAYS" value="90"/>
+        <env name="NOTIFY_DRIVERS" value=""/>
+        <env name="NOTIFY_ON" value="error"/>
+        <env name="NOTIFY_GOTIFY_URL" value=""/>
+        <env name="NOTIFY_GOTIFY_TOKEN" value=""/>
+        <env name="NOTIFY_GOTIFY_PRIORITY" value="5"/>
+        <env name="NOTIFY_SLACK_WEBHOOK_URL" value=""/>
+        <env name="NOTIFY_DISCORD_WEBHOOK_URL" value=""/>
+        <env name="NOTIFY_PUSHOVER_TOKEN" value=""/>
+        <env name="NOTIFY_PUSHOVER_USER" value=""/>
+    </php>
+
+    <testsuites>
+        <testsuite name="Project Test Suite">
+            <directory>tests</directory>
+        </testsuite>
+    </testsuites>
+
+    <source>
+        <include>
+            <directory>src</directory>
+        </include>
+    </source>
+</phpunit>

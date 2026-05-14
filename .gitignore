@@ -1,0 +1,38 @@
+###> symfony/framework-bundle ###
+/.env.local
+/.env.local.php
+/.env.*.local
+/config/secrets/prod/prod.decrypt.private.php
+/config/reference.php
+/public/bundles/
+/var/
+/vendor/
+###< symfony/framework-bundle ###
+
+###> phpunit/phpunit ###
+/phpunit.xml
+.phpunit.result.cache
+###< phpunit/phpunit ###
+
+###> editor / OS ###
+.idea/*
+!.idea/codeStyles/
+!.idea/inspectionProfiles/
+!.idea/php.xml
+!.idea/php-test-framework.xml
+.vscode/
+.DS_Store
+###< editor / OS ###
+
+###> lando ###
+.lando.yml
+###< lando ###
+
+###> docker ###
+docker-compose.yml
+docker-compose.override.yml
+###< docker ###
+
+###> project ###
+.symfony-cache/
+###< project ###
