@@ -57,6 +57,12 @@ class ProcessStrawberryBufferCommand extends Command
                 null,
                 InputOption::VALUE_REQUIRED,
                 'Override STRAWBERRY_DB_PATH with a specific file path (e.g. for an uploaded DB).',
+            )
+            ->addOption(
+                'retry-unmatched',
+                null,
+                InputOption::VALUE_NONE,
+                'Also retry scrobbles previously attempted but not matched (e.g. after adding songs to Strawberry).',
             );
     }
 
@@ -67,6 +73,7 @@ class ProcessStrawberryBufferCommand extends Command
         $dryRun = (bool) $input->getOption('dry-run');
         $limit = max(0, (int) $input->getOption('limit'));
         $dbPathOverride = (string) ($input->getOption('db-path') ?? '');
+        $retryUnmatched = (bool) $input->getOption('retry-unmatched');
 
         $processor = $this->processor;
         $reference = 'buffer';
@@ -95,6 +102,7 @@ class ProcessStrawberryBufferCommand extends Command
                 action: fn (RunHistory $entry) => $processor->process(
                     limit: $limit,
                     dryRun: $dryRun,
+                    retryUnmatched: $retryUnmatched,
                     auditRun: $entry,
                     progress: function (int $c, int $m, int $u) use ($io): void {
                         $io->writeln(sprintf(

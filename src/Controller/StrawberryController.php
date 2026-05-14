@@ -68,6 +68,7 @@ class StrawberryController extends AbstractController
 
         set_time_limit(0);
 
+        $retryUnmatched = (bool) $request->request->get('retry_unmatched', false);
         $repo = new StrawberryRepository($this->uploadService->getUploadPath());
         $processor = new StrawberryBufferProcessor($this->bufferRepo, $repo, $this->em);
 
@@ -75,8 +76,11 @@ class StrawberryController extends AbstractController
             $report = $this->recorder->record(
                 type: RunHistory::TYPE_STRAWBERRY_PROCESS,
                 reference: 'upload',
-                label: 'Strawberry process (uploaded DB)',
-                action: fn (RunHistory $entry) => $processor->process(auditRun: $entry),
+                label: 'Strawberry process (uploaded DB)' . ($retryUnmatched ? ' +retry' : ''),
+                action: fn (RunHistory $entry) => $processor->process(
+                    retryUnmatched: $retryUnmatched,
+                    auditRun: $entry,
+                ),
                 extractMetrics: static fn (StrawberryProcessReport $r) => [
                     'considered' => $r->considered,
                     'matched' => $r->matched,
@@ -126,6 +130,33 @@ class StrawberryController extends AbstractController
         $this->addFlash('success', 'Fichier Strawberry supprimé.');
 
         return $this->redirectToRoute('app_lastfm_import');
+    }
+
+    #[Route('/strawberry/unmatched', name: 'app_strawberry_unmatched', methods: ['GET'])]
+    public function unmatched(Request $request): Response
+    {
+        $filterArtist = trim((string) $request->query->get('artist', ''));
+        $filterTitle = trim((string) $request->query->get('title', ''));
+        $page = max(1, (int) $request->query->get('page', '1'));
+        $perPage = 50;
+
+        $rows = $this->bufferRepo->queryUnmatchedStrawberryAggregated(
+            artist: $filterArtist !== '' ? $filterArtist : null,
+            title: $filterTitle !== '' ? $filterTitle : null,
+            offset: ($page - 1) * $perPage,
+            limit: $perPage,
+        );
+        $total = $this->bufferRepo->countUnmatchedStrawberry();
+
+        return $this->render('strawberry/unmatched.html.twig', [
+            'rows' => $rows,
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $perPage,
+            'pages' => max(1, (int) ceil($total / $perPage)),
+            'filter_artist' => $filterArtist,
+            'filter_title' => $filterTitle,
+        ]);
     }
 
     private function formatBytes(int $bytes): string

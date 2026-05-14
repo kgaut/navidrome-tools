@@ -20,7 +20,11 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
   depuis la page `/lastfm/import` (pour Strawberry sur une autre machine).
   Option `--db-path=PATH` sur la commande pour pointer vers un fichier
   spécifique. Limites PHP d'upload préréglées à 200 Mo dans
-  `docker/php.ini`.
+  `docker/php.ini`. Les scrobbles non matchés sont tracés via
+  `strawberry_attempted_at` : la page `/strawberry/unmatched` affiche
+  les groupes (artiste, titre) introuvables, avec compteur sur le
+  dashboard. Option `--retry-unmatched` (CLI) et bouton dédié (UI) pour
+  retenter après ajout de morceaux dans Strawberry.
 - **Buffer Last.fm persistant** : le buffer `lastfm_import_buffer` est
   désormais un **log permanent** au lieu d'une queue éphémère. Les rows
   ne sont plus supprimées après traitement Navidrome — elles sont marquées

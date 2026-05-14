@@ -41,6 +41,7 @@ class LastFmBufferProcessorTest extends TestCase
                 fetched_at DATETIME NOT NULL,
                 synced_navidrome BOOLEAN NOT NULL DEFAULT 0,
                 synced_strawberry BOOLEAN NOT NULL DEFAULT 0,
+                strawberry_attempted_at DATETIME DEFAULT NULL,
                 UNIQUE (lastfm_user, played_at, artist, title)
             )
         SQL);
@@ -403,8 +404,8 @@ class LastFmBufferProcessorTest extends TestCase
         foreach ($rows as $row) {
             $this->bufferConn->executeStatement(
                 'INSERT INTO lastfm_import_buffer '
-                . '(id, lastfm_user, artist, title, album, mbid, played_at, fetched_at, synced_navidrome, synced_strawberry) '
-                . 'VALUES (:id, :user, :artist, :title, :album, :mbid, :played, :fetched, 0, 0)',
+                . '(id, lastfm_user, artist, title, album, mbid, played_at, fetched_at, synced_navidrome, synced_strawberry, strawberry_attempted_at) '
+                . 'VALUES (:id, :user, :artist, :title, :album, :mbid, :played, :fetched, 0, 0, NULL)',
                 [
                     'id' => $row->getId(),
                     'user' => $row->getLastfmUser(),

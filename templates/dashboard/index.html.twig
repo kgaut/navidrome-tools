@@ -99,15 +99,24 @@
                 {% endif %}
             </div>
         </div>
-        {% if health.lastfm_buffer_unsynced_strawberry is not null %}
-        <div class="rounded-sm border p-3 {{ health.lastfm_buffer_unsynced_strawberry == 0 ? 'bg-slate-50 border-slate-300' : 'bg-amber-50 border-amber-300' }}">
-            <div class="font-medium">Buffer Last.fm → Strawberry</div>
-            <div>
-                {% if health.lastfm_buffer_unsynced_strawberry == 0 %}
+        {% if health.lastfm_buffer_pending_strawberry is not null %}
+        {% set sb_pending = health.lastfm_buffer_pending_strawberry %}
+        {% set sb_unmatched = health.lastfm_buffer_unmatched_strawberry %}
+        <div class="rounded-sm border p-3 {{ sb_pending == 0 and sb_unmatched == 0 ? 'bg-slate-50 border-slate-300' : 'bg-amber-50 border-amber-300' }}">
+            <div class="font-medium">Strawberry</div>
+            <div class="text-sm">
+                {% if sb_pending == 0 and sb_unmatched == 0 %}
                     ✓ à jour
                 {% else %}
-                    {{ health.lastfm_buffer_unsynced_strawberry|number_format(0, '.', ' ') }} scrobble{{ health.lastfm_buffer_unsynced_strawberry > 1 ? 's' : '' }} en attente —
-                    <a href="{{ path('app_lastfm_import') }}" class="underline">traiter</a>
+                    {% if sb_pending > 0 %}
+                        {{ sb_pending|number_format(0, '.', ' ') }} en attente —
+                        <a href="{{ path('app_lastfm_import') }}" class="underline">sync</a>
+                    {% endif %}
+                    {% if sb_unmatched > 0 %}
+                        {% if sb_pending > 0 %}, {% endif %}
+                        {{ sb_unmatched|number_format(0, '.', ' ') }} non matchés —
+                        <a href="{{ path('app_strawberry_unmatched') }}" class="underline">voir</a>
+                    {% endif %}
                 {% endif %}
             </div>
         </div>

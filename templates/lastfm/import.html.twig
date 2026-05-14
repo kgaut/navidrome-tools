@@ -36,12 +36,19 @@
             </div>
             {% if strawberry_configured %}
             <div class="bg-slate-50 rounded-sm p-3">
-                <div class="text-xs uppercase text-slate-500">En attente → Strawberry</div>
-                <div class="text-2xl font-semibold">{{ buffer_unsynced_strawberry|number_format(0, '.', ' ') }}</div>
+                <div class="text-xs uppercase text-slate-500">Strawberry — en attente</div>
+                <div class="text-2xl font-semibold">{{ buffer_pending_strawberry|number_format(0, '.', ' ') }}</div>
+                <div class="text-xs text-slate-500 mt-1">scrobble{{ buffer_pending_strawberry != 1 ? 's' : '' }} jamais tentés</div>
+            </div>
+            {% if buffer_unmatched_strawberry > 0 %}
+            <div class="bg-slate-50 rounded-sm p-3">
+                <div class="text-xs uppercase text-slate-500">Strawberry — non matchés</div>
+                <div class="text-2xl font-semibold">{{ buffer_unmatched_strawberry|number_format(0, '.', ' ') }}</div>
                 <div class="text-xs text-slate-500 mt-1">
-                    scrobble{{ buffer_unsynced_strawberry > 1 ? 's' : '' }} non encore synchronisé{{ buffer_unsynced_strawberry > 1 ? 's' : '' }} vers Strawberry
+                    <a href="{{ path('app_strawberry_unmatched') }}" class="text-sky-700 hover:underline">détails</a>
                 </div>
             </div>
+            {% endif %}
             {% endif %}
             <div class="bg-slate-50 rounded-sm p-3">
                 <div class="text-xs uppercase text-slate-500">Non matchés cumulés</div>
@@ -145,8 +152,15 @@
             </p>
             {% endif %}
             <div class="text-xs uppercase text-slate-500 mt-2 mb-1">Localement / Docker Compose</div>
-            <pre class="bg-slate-900 text-slate-100 rounded-sm px-3 py-2 text-xs overflow-x-auto"><code>php bin/console app:strawberry:process [--limit=N] [--dry-run]
+            <pre class="bg-slate-900 text-slate-100 rounded-sm px-3 py-2 text-xs overflow-x-auto"><code>php bin/console app:strawberry:process [--limit=N] [--dry-run] [--retry-unmatched]
 docker compose exec -T navidrome-tools-web php bin/console app:strawberry:process</code></pre>
+            {% if buffer_unmatched_strawberry is defined and buffer_unmatched_strawberry > 0 %}
+            <p class="text-xs text-rose-600 mt-2">
+                {{ buffer_unmatched_strawberry }} scrobble{{ buffer_unmatched_strawberry != 1 ? 's' : '' }} non matchés —
+                <a href="{{ path('app_strawberry_unmatched') }}" class="underline">voir</a>
+                ou lancer avec <code>--retry-unmatched</code> après ajout dans Strawberry.
+            </p>
+            {% endif %}
         </div>
         {% endif %}
 
@@ -164,8 +178,14 @@ docker compose exec -T navidrome-tools-web php bin/console app:strawberry:proces
                         — uploadé le {{ strawberry_upload_info.mtime|date('d/m/Y H:i') }}
                         {% if strawberry_upload_unsynced is not null %}
                         — <span class="{{ strawberry_upload_unsynced == 0 ? 'text-emerald-700' : 'text-amber-700' }}">
-                            {{ strawberry_upload_unsynced }} scrobble{{ strawberry_upload_unsynced != 1 ? 's' : '' }} en attente
+                            {{ strawberry_upload_unsynced }} en attente
                         </span>
+                        {% endif %}
+                        {% if strawberry_upload_unmatched is not null and strawberry_upload_unmatched > 0 %}
+                        — <a href="{{ path('app_strawberry_unmatched') }}"
+                             class="text-rose-600 hover:underline">
+                            {{ strawberry_upload_unmatched }} non matché{{ strawberry_upload_unmatched != 1 ? 's' : '' }}
+                        </a>
                         {% endif %}
                     </div>
                     <div class="flex gap-2 shrink-0">
@@ -185,18 +205,24 @@ docker compose exec -T navidrome-tools-web php bin/console app:strawberry:proces
                 </div>
 
                 {# Bouton process #}
-                <form method="post" action="{{ path('app_strawberry_process') }}" class="mt-3">
+                <form method="post" action="{{ path('app_strawberry_process') }}" class="mt-3 flex flex-wrap gap-3 items-center">
                     <input type="hidden" name="_token" value="{{ csrf_token('strawberry_process') }}">
-                    <button type="submit"
+                    <button type="submit" name="retry_unmatched" value="0"
                             class="text-sm bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-sm font-medium">
-                        ▶ Lancer la synchronisation
+                        ▶ Synchroniser (nouveaux)
                     </button>
-                    <span class="text-xs text-slate-400 ml-2">Traitement synchrone — peut prendre quelques secondes.</span>
+                    {% if strawberry_upload_unmatched is not null and strawberry_upload_unmatched > 0 %}
+                    <button type="submit" name="retry_unmatched" value="1"
+                            class="text-sm bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-sm font-medium">
+                        ↺ Retry {{ strawberry_upload_unmatched }} non matchés
+                    </button>
+                    {% endif %}
+                    <span class="text-xs text-slate-400">Traitement synchrone.</span>
                 </form>
 
                 <div class="text-xs text-slate-400 mt-2">
                     Ou en CLI :
-                    <code>php bin/console app:strawberry:process --db-path=var/strawberry_upload/strawberry.db</code>
+                    <code>php bin/console app:strawberry:process --db-path=var/strawberry_upload/strawberry.db [--retry-unmatched]</code>
                 </div>
             </div>
             {% endif %}

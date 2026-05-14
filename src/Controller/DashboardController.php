@@ -67,7 +67,8 @@ class DashboardController extends AbstractController
             'container_status' => $containerStatus->value,
             'container_label' => $containerStatus->label(),
             'lastfm_buffer_unsynced_navidrome' => $bufferRepo->countUnsyncedNavidrome(),
-            'lastfm_buffer_unsynced_strawberry' => $strawberry->isAvailable() ? $bufferRepo->countUnsyncedStrawberry() : null,
+            'lastfm_buffer_pending_strawberry' => $strawberry->isAvailable() ? $bufferRepo->countPendingStrawberry() : null,
+            'lastfm_buffer_unmatched_strawberry' => $strawberry->isAvailable() ? $bufferRepo->countUnmatchedStrawberry() : null,
             'lastfm_unmatched_count' => $trackRepo->countUnmatched(),
         ];
 

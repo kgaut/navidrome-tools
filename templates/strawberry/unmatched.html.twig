@@ -1,0 +1,87 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Unmatched Strawberry{% endblock %}
+
+{% block body %}
+    <div class="flex items-start justify-between mb-4 flex-wrap gap-3">
+        <div>
+            <h1 class="text-2xl font-semibold">Scrobbles non matchés — Strawberry</h1>
+            <p class="text-sm text-slate-500">
+                {{ total|number_format(0, '.', ' ') }} groupe{{ total != 1 ? 's' : '' }} (artiste, titre)
+                tentés mais introuvables dans la base Strawberry.
+                Après avoir ajouté les morceaux manquants à Strawberry, relancez
+                <code>app:strawberry:process --retry-unmatched</code>
+                ou utilisez le bouton sur la page
+                <a href="{{ path('app_lastfm_import') }}" class="underline">Import</a>.
+            </p>
+        </div>
+    </div>
+
+    <form method="get" class="bg-white shadow-sm rounded-sm p-4 mb-4 grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+        <div>
+            <label class="block text-xs uppercase text-slate-500">Artiste</label>
+            <input type="search" name="artist" value="{{ filter_artist }}" placeholder="ex. Radiohead"
+                   class="w-full border rounded-sm px-2 py-1 text-sm">
+        </div>
+        <div>
+            <label class="block text-xs uppercase text-slate-500">Titre</label>
+            <input type="search" name="title" value="{{ filter_title }}" placeholder="ex. Creep"
+                   class="w-full border rounded-sm px-2 py-1 text-sm">
+        </div>
+        <div class="flex gap-2">
+            <button type="submit" class="px-3 py-1.5 rounded-sm bg-slate-900 text-white text-sm">Filtrer</button>
+            <a href="{{ path('app_strawberry_unmatched') }}" class="text-xs text-slate-500 hover:underline self-center">Reset</a>
+        </div>
+    </form>
+
+    {% if rows is empty %}
+        <div class="bg-white shadow-sm rounded-sm p-6 text-center text-slate-500">
+            Aucun scrobble non matché pour ce filtre 🎉
+        </div>
+    {% else %}
+        <div class="bg-white shadow-sm rounded-sm overflow-hidden mb-4">
+            <table class="w-full text-sm">
+                <thead class="bg-slate-100 text-slate-600 text-left text-xs">
+                <tr>
+                    <th class="px-3 py-2 w-10">#</th>
+                    <th class="px-3 py-2">Artiste</th>
+                    <th class="px-3 py-2">Titre</th>
+                    <th class="px-3 py-2">Album</th>
+                    <th class="px-3 py-2 text-right">Scrobbles</th>
+                    <th class="px-3 py-2">Dernier joué</th>
+                </tr>
+                </thead>
+                <tbody class="divide-y">
+                {% for row in rows %}
+                    <tr class="hover:bg-slate-50">
+                        <td class="px-3 py-1.5 text-slate-400">{{ (page - 1) * per_page + loop.index }}</td>
+                        <td class="px-3 py-1.5">
+                            <a href="https://www.last.fm/music/{{ row.artist|url_encode }}"
+                               class="hover:underline" target="_blank" rel="noopener">{{ row.artist }}</a>
+                        </td>
+                        <td class="px-3 py-1.5">{{ row.title }}</td>
+                        <td class="px-3 py-1.5 text-slate-500 text-xs">{{ row.album ?? '—' }}</td>
+                        <td class="px-3 py-1.5 text-right font-mono">{{ row.scrobble_count }}</td>
+                        <td class="px-3 py-1.5 text-slate-500 text-xs">{{ row.last_played_at|date('d/m/Y') }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {# Pagination #}
+        {% if pages > 1 %}
+        <div class="flex gap-2 items-center text-sm">
+            {% if page > 1 %}
+                <a href="{{ path('app_strawberry_unmatched', {page: page - 1, artist: filter_artist, title: filter_title}) }}"
+                   class="px-3 py-1 rounded-sm bg-white border hover:bg-slate-50">← Préc.</a>
+            {% endif %}
+            <span class="text-slate-500">Page {{ page }} / {{ pages }}</span>
+            {% if page < pages %}
+                <a href="{{ path('app_strawberry_unmatched', {page: page + 1, artist: filter_artist, title: filter_title}) }}"
+                   class="px-3 py-1 rounded-sm bg-white border hover:bg-slate-50">Suiv. →</a>
+            {% endif %}
+        </div>
+        {% endif %}
+    {% endif %}
+{% endblock %}

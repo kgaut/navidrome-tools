@@ -55,6 +55,9 @@ class LastFmBufferedScrobble
     #[ORM\Column(type: Types::BOOLEAN, options: ['default' => false])]
     private bool $syncedStrawberry = false;
 
+    #[ORM\Column(type: UtcDateTimeImmutableType::NAME, nullable: true)]
+    private ?\DateTimeImmutable $strawberryAttemptedAt = null;
+
     public function __construct(
         string $lastfmUser,
         string $artist,
@@ -131,5 +134,15 @@ class LastFmBufferedScrobble
     public function setSyncedStrawberry(bool $syncedStrawberry): void
     {
         $this->syncedStrawberry = $syncedStrawberry;
+    }
+
+    public function getStrawberryAttemptedAt(): ?\DateTimeImmutable
+    {
+        return $this->strawberryAttemptedAt;
+    }
+
+    public function setStrawberryAttemptedAt(?\DateTimeImmutable $at): void
+    {
+        $this->strawberryAttemptedAt = $at;
     }
 }

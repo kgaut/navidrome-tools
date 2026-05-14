@@ -49,6 +49,7 @@ class StrawberryBufferProcessor
     public function process(
         int $limit = 0,
         bool $dryRun = false,
+        bool $retryUnmatched = false,
         ?RunHistory $auditRun = null,
         ?callable $progress = null,
     ): StrawberryProcessReport {
@@ -59,6 +60,7 @@ class StrawberryBufferProcessor
         }
 
         $report = new StrawberryProcessReport();
+        $report->retryUnmatched = $retryUnmatched;
         $appConnection = $this->em->getConnection();
 
         /** @var list<array{
@@ -73,7 +75,7 @@ class StrawberryBufferProcessor
         $pending = [];
 
         try {
-            foreach ($this->bufferRepo->streamUnsyncedStrawberry($limit) as $buffered) {
+            foreach ($this->bufferRepo->streamUnsyncedStrawberry($limit, $retryUnmatched) as $buffered) {
                 /** @var LastFmBufferedScrobble $buffered */
                 $report->considered++;
 
@@ -173,16 +175,27 @@ class StrawberryBufferProcessor
             $this->strawberry->incrementPlaycount($rowid, $agg['count'], $agg['maxTs']);
         }
 
-        // Mark matched rows as synced_strawberry = 1.
+        $nowSql = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('Y-m-d H:i:s');
+
+        // Mark matched rows as synced + set attempted_at.
         if ($matchedBufferIds !== []) {
             $appConnection->executeStatement(
-                'UPDATE lastfm_import_buffer SET synced_strawberry = 1 WHERE id IN (' . implode(',', $matchedBufferIds) . ')',
+                'UPDATE lastfm_import_buffer SET synced_strawberry = 1, strawberry_attempted_at = :now '
+                . 'WHERE id IN (' . implode(',', $matchedBufferIds) . ')',
+                ['now' => $nowSql],
             );
         }
 
+        // For unmatched rows: set attempted_at but leave synced_strawberry = 0,
+        // so they are visible as "unmatched" (not "pending") on the next run.
         if ($unmatchedBufferIds !== []) {
+            $appConnection->executeStatement(
+                'UPDATE lastfm_import_buffer SET strawberry_attempted_at = :now '
+                . 'WHERE id IN (' . implode(',', $unmatchedBufferIds) . ')',
+                ['now' => $nowSql],
+            );
             $this->logger->debug(
-                'Strawberry: {n} unmatched row(s) in batch will be retried on next run.',
+                'Strawberry: {n} unmatched row(s) — use --retry-unmatched to re-attempt.',
                 ['n' => count($unmatchedBufferIds)],
             );
         }

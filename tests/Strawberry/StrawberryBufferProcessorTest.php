@@ -39,7 +39,8 @@ class StrawberryBufferProcessorTest extends TestCase
                 played_at DATETIME NOT NULL,
                 fetched_at DATETIME NOT NULL,
                 synced_navidrome BOOLEAN NOT NULL DEFAULT 0,
-                synced_strawberry BOOLEAN NOT NULL DEFAULT 0
+                synced_strawberry BOOLEAN NOT NULL DEFAULT 0,
+                strawberry_attempted_at DATETIME DEFAULT NULL
             )
         SQL);
 
@@ -99,9 +100,9 @@ class StrawberryBufferProcessorTest extends TestCase
         $this->assertSame(7, (int) $row['playcount']);
         $this->assertSame((new \DateTimeImmutable('2026-04-02 12:00:00'))->getTimestamp(), (int) $row['lastplayed']);
 
-        // Buffer rows must be marked synced.
+        // Buffer rows must be marked synced and have attempted_at set.
         $synced = (int) $this->bufferConn->fetchOne(
-            'SELECT COUNT(*) FROM lastfm_import_buffer WHERE synced_strawberry = 1',
+            'SELECT COUNT(*) FROM lastfm_import_buffer WHERE synced_strawberry = 1 AND strawberry_attempted_at IS NOT NULL',
         );
         $this->assertSame(2, $synced);
     }
@@ -120,11 +121,11 @@ class StrawberryBufferProcessorTest extends TestCase
         $this->assertSame(0, $report->matched);
         $this->assertSame(1, $report->unmatched);
 
-        // Row must remain unsynced for retry.
-        $unsynced = (int) $this->bufferConn->fetchOne(
-            'SELECT COUNT(*) FROM lastfm_import_buffer WHERE synced_strawberry = 0',
+        // Row must be unsynced with attempted_at set (= unmatched, not just pending).
+        $unmatched = (int) $this->bufferConn->fetchOne(
+            'SELECT COUNT(*) FROM lastfm_import_buffer WHERE synced_strawberry = 0 AND strawberry_attempted_at IS NOT NULL',
         );
-        $this->assertSame(1, $unsynced);
+        $this->assertSame(1, $unmatched);
     }
 
     public function testDryRunDoesNotWriteAnything(): void
@@ -147,11 +148,11 @@ class StrawberryBufferProcessorTest extends TestCase
         $sbConn->close();
         $this->assertSame(0, (int) $row['playcount']);
 
-        // Buffer row must not be marked synced.
-        $unsynced = (int) $this->bufferConn->fetchOne(
-            'SELECT COUNT(*) FROM lastfm_import_buffer WHERE synced_strawberry = 0',
+        // Dry-run: row stays pending (synced=0, attempted_at=NULL).
+        $pending = (int) $this->bufferConn->fetchOne(
+            'SELECT COUNT(*) FROM lastfm_import_buffer WHERE synced_strawberry = 0 AND strawberry_attempted_at IS NULL',
         );
-        $this->assertSame(1, $unsynced);
+        $this->assertSame(1, $pending);
     }
 
     public function testDisabledIntegrationReturnsEmptyReport(): void
@@ -204,8 +205,8 @@ class StrawberryBufferProcessorTest extends TestCase
         foreach ($rows as $row) {
             $this->bufferConn->executeStatement(
                 'INSERT INTO lastfm_import_buffer '
-                . '(id, lastfm_user, artist, title, album, mbid, played_at, fetched_at, synced_navidrome, synced_strawberry) '
-                . 'VALUES (:id, :user, :artist, :title, :album, :mbid, :played, :fetched, 0, 0)',
+                . '(id, lastfm_user, artist, title, album, mbid, played_at, fetched_at, synced_navidrome, synced_strawberry, strawberry_attempted_at) '
+                . 'VALUES (:id, :user, :artist, :title, :album, :mbid, :played, :fetched, 0, 0, NULL)',
                 [
                     'id' => $row->getId(),
                     'user' => $row->getLastfmUser(),
@@ -225,14 +226,17 @@ class StrawberryBufferProcessorTest extends TestCase
     {
         $repo = $this->createMock(LastFmBufferedScrobbleRepository::class);
         $repo->method('streamUnsyncedStrawberry')->willReturnCallback(
-            function (int $limit = 0) use ($rows): \Generator {
+            function (int $limit = 0, bool $includeUnmatched = false) use ($rows): \Generator {
                 $emitted = 0;
                 foreach ($rows as $row) {
                     if ($limit > 0 && $emitted >= $limit) {
                         break;
                     }
+                    $cond = $includeUnmatched
+                        ? 'synced_strawberry = 0'
+                        : 'synced_strawberry = 0 AND strawberry_attempted_at IS NULL';
                     $notYetSynced = (int) $this->bufferConn->fetchOne(
-                        'SELECT COUNT(*) FROM lastfm_import_buffer WHERE id = ? AND synced_strawberry = 0',
+                        'SELECT COUNT(*) FROM lastfm_import_buffer WHERE id = ? AND ' . $cond,
                         [$row->getId()],
                     );
                     if ($notYetSynced === 0) {
