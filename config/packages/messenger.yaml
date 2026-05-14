@@ -14,3 +14,4 @@ framework:
         routing:
             'App\Message\FetchLastFmMessage': async
             'App\Message\SyncNavidromeMessage': async
+            'App\Message\SyncStrawberryMessage': async

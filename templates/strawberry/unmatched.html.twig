@@ -1,0 +1,48 @@
+{% extends 'base.html.twig' %}
+{% block title %}Non matchés — Strawberry{% endblock %}
+{% block body %}
+    <div class="mb-4"><a href="{{ path('app_strawberry_sync') }}" class="text-sm text-sky-700 hover:underline">← Sync Strawberry</a></div>
+    <div class="flex items-center justify-between mb-4">
+        <h1 class="text-2xl font-semibold">Scrobbles non matchés — Strawberry</h1>
+        <span class="text-sm text-slate-500">{{ total }} groupe{{ total != 1 ? 's' : '' }}</span>
+    </div>
+    <p class="text-sm text-slate-500 mb-4">
+        Ces morceaux n'ont pas été trouvés dans Strawberry. Ajoutez-les à votre bibliothèque
+        puis relancez avec le bouton <em>Retry unmatched</em>.
+    </p>
+    {% if rows is empty %}
+        <div class="bg-white rounded-sm p-6 text-center text-slate-500">Aucun non matché 🎉</div>
+    {% else %}
+    <div class="bg-white shadow-sm rounded-sm overflow-hidden mb-4">
+        <table class="w-full text-sm">
+            <thead class="bg-slate-100 text-xs uppercase text-slate-500">
+                <tr>
+                    <th class="px-3 py-2 text-left">Artiste</th>
+                    <th class="px-3 py-2 text-left">Titre</th>
+                    <th class="px-3 py-2 text-left">Album</th>
+                    <th class="px-3 py-2 text-right">Scrobbles</th>
+                    <th class="px-3 py-2 text-right">Dernier joué</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y">
+            {% for row in rows %}
+                <tr class="hover:bg-slate-50">
+                    <td class="px-3 py-1.5">{{ row.artist }}</td>
+                    <td class="px-3 py-1.5">{{ row.title }}</td>
+                    <td class="px-3 py-1.5 text-slate-400 text-xs">{{ row.album ?? '—' }}</td>
+                    <td class="px-3 py-1.5 text-right font-mono">{{ row.count }}</td>
+                    <td class="px-3 py-1.5 text-right text-xs text-slate-500">{{ row.last_played_at|date('d/m/Y') }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if pages > 1 %}
+    <div class="flex gap-2 items-center text-sm">
+        {% if page > 1 %}<a href="{{ path('app_strawberry_unmatched', {page: page - 1}) }}" class="px-3 py-1 rounded-sm bg-white border">← Préc.</a>{% endif %}
+        <span class="text-slate-500">Page {{ page }} / {{ pages }}</span>
+        {% if page < pages %}<a href="{{ path('app_strawberry_unmatched', {page: page + 1}) }}" class="px-3 py-1 rounded-sm bg-white border">Suiv. →</a>{% endif %}
+    </div>
+    {% endif %}
+    {% endif %}
+{% endblock %}
