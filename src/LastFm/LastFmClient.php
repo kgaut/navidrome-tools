@@ -82,7 +82,7 @@ class LastFmClient
                     title: (string) ($track['name'] ?? ''),
                     album: (string) ($track['album']['#text'] ?? ''),
                     albumArtist: '',
-                    mbidTrack: ($track['mbid'] ?? '') !== '' ? (string) $track['mbid'] : null,
+                    mbid: ($track['mbid'] ?? '') !== '' ? (string) $track['mbid'] : null,
                     mbidArtist: ($track['artist']['mbid'] ?? '') !== '' ? (string) $track['artist']['mbid'] : null,
                     mbidAlbum: ($track['album']['mbid'] ?? '') !== '' ? (string) $track['album']['mbid'] : null,
                     playedAt: (new \DateTimeImmutable('@' . $ts))->setTimezone(new \DateTimeZone('UTC')),

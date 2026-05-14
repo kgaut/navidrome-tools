@@ -107,3 +107,19 @@ services:
         arguments:
             $defaultApiKey: '%lastfm.api_key%'
             $defaultUser: '%lastfm.user%'
+
+    App\LastFm\ScrobbleMatcher:
+        arguments:
+            $fuzzyMaxDistance: '%lastfm.fuzzy_max_distance%'
+            $cacheTtlDays: '%lastfm.match_cache_ttl_days%'
+            $lastFmApiKey: '%lastfm.api_key%'
+
+    App\Docker\NavidromeContainerConfig:
+        arguments:
+            $containerName: '%navidrome.container_name%'
+            $stopTimeoutSeconds: '%navidrome.container_stop_timeout%'
+            $stopWaitCeilingSeconds: '%navidrome.container_stop_wait_ceiling%'
+
+    App\Navidrome\NavidromeDbBackup:
+        arguments:
+            $dbPath: '%navidrome.db_path%'

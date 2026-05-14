@@ -61,7 +61,7 @@ class LastFmFetcher
                 title: $scrobble->title,
                 album: $scrobble->album !== '' ? $scrobble->album : null,
                 albumArtist: $scrobble->albumArtist !== '' ? $scrobble->albumArtist : null,
-                mbidTrack: $scrobble->mbidTrack,
+                mbidTrack: $scrobble->mbid,
                 mbidArtist: $scrobble->mbidArtist,
                 mbidAlbum: $scrobble->mbidAlbum,
                 playedAt: $scrobble->playedAt,
