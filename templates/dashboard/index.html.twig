@@ -11,17 +11,17 @@
                 modèle de nom : <code class="text-xs bg-slate-100 px-1">{{ default_template }}</code>
             </p>
         </div>
-        <a href="{{ path('app_playlist_new') }}" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded text-sm">
+        <a href="{{ path('app_playlist_new') }}" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-sm text-sm">
             + Nouvelle définition
         </a>
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-6 text-sm">
-        <div class="rounded border p-3 {{ health.navidrome_db ? 'bg-emerald-50 border-emerald-300' : 'bg-rose-50 border-rose-300' }}">
+        <div class="rounded-sm border p-3 {{ health.navidrome_db ? 'bg-emerald-50 border-emerald-300' : 'bg-rose-50 border-rose-300' }}">
             <div class="font-medium">DB Navidrome</div>
             <div>{{ health.navidrome_db ? '✓ accessible' : '✗ inaccessible (vérifier NAVIDROME_DB_PATH)' }}</div>
         </div>
-        <div class="rounded border p-3 {{ health.has_scrobbles ? 'bg-emerald-50 border-emerald-300' : 'bg-amber-50 border-amber-300' }}">
+        <div class="rounded-sm border p-3 {{ health.has_scrobbles ? 'bg-emerald-50 border-emerald-300' : 'bg-amber-50 border-amber-300' }}">
             <div class="font-medium">Table <code>scrobbles</code></div>
             <div>
                 {% if health.has_scrobbles %}
@@ -32,7 +32,7 @@
                 {% endif %}
             </div>
         </div>
-        <div class="rounded border p-3 {{ health.subsonic ? 'bg-emerald-50 border-emerald-300' : 'bg-rose-50 border-rose-300' }}">
+        <div class="rounded-sm border p-3 {{ health.subsonic ? 'bg-emerald-50 border-emerald-300' : 'bg-rose-50 border-rose-300' }}">
             <div class="font-medium">API Subsonic</div>
             <div>{{ health.subsonic ? '✓ ping OK' : '✗ injoignable (vérifier NAVIDROME_URL/USER/PASSWORD)' }}</div>
         </div>
@@ -42,7 +42,7 @@
                 : ct == 'stopped' ? 'bg-slate-50 border-slate-300'
                 : ct == 'notfound' ? 'bg-rose-50 border-rose-300'
                 : 'bg-amber-50 border-amber-300' %}
-            <div class="rounded border p-3 {{ ct_classes }}">
+            <div class="rounded-sm border p-3 {{ ct_classes }}">
                 <div class="font-medium">Conteneur Navidrome</div>
                 <div class="flex items-center justify-between gap-2 mt-1">
                     <div>
@@ -61,12 +61,12 @@
                             <form method="post" action="{{ path('app_navidrome_container_stop') }}" class="inline"
                                   onsubmit="return confirm('Arrêter le conteneur Navidrome ?');">
                                 <input type="hidden" name="_token" value="{{ csrf_token('navidrome_container') }}">
-                                <button type="submit" class="text-xs px-2 py-1 rounded bg-rose-600 hover:bg-rose-700 text-white">⏸ Stop</button>
+                                <button type="submit" class="text-xs px-2 py-1 rounded-sm bg-rose-600 hover:bg-rose-700 text-white">⏸ Stop</button>
                             </form>
                         {% elseif ct == 'stopped' or ct == 'notfound' %}
                             <form method="post" action="{{ path('app_navidrome_container_start') }}" class="inline">
                                 <input type="hidden" name="_token" value="{{ csrf_token('navidrome_container') }}">
-                                <button type="submit" class="text-xs px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white">▶ Start</button>
+                                <button type="submit" class="text-xs px-2 py-1 rounded-sm bg-emerald-600 hover:bg-emerald-700 text-white">▶ Start</button>
                             </form>
                         {% else %}
                             <span class="text-xs text-amber-700" title="Vérifier le mount /var/run/docker.sock">socket KO</span>
@@ -75,7 +75,7 @@
                 </div>
             </div>
         {% endif %}
-        <div class="rounded border p-3 {% if health.missing_mbid_count is null %}bg-slate-50 border-slate-300{% elseif health.missing_mbid_count == 0 %}bg-emerald-50 border-emerald-300{% else %}bg-amber-50 border-amber-300{% endif %}">
+        <div class="rounded-sm border p-3 {% if health.missing_mbid_count is null %}bg-slate-50 border-slate-300{% elseif health.missing_mbid_count == 0 %}bg-emerald-50 border-emerald-300{% else %}bg-amber-50 border-amber-300{% endif %}">
             <div class="font-medium">Tracks sans MBID</div>
             <div>
                 {% if health.missing_mbid_count is null %}
@@ -88,7 +88,7 @@
                 {% endif %}
             </div>
         </div>
-        <div class="rounded border p-3 {{ health.lastfm_buffer_count == 0 ? 'bg-slate-50 border-slate-300' : 'bg-amber-50 border-amber-300' }}">
+        <div class="rounded-sm border p-3 {{ health.lastfm_buffer_count == 0 ? 'bg-slate-50 border-slate-300' : 'bg-amber-50 border-amber-300' }}">
             <div class="font-medium">Buffer Last.fm</div>
             <div>
                 {% if health.lastfm_buffer_count == 0 %}
@@ -99,7 +99,7 @@
                 {% endif %}
             </div>
         </div>
-        <div class="rounded border p-3 {{ health.lastfm_unmatched_count == 0 ? 'bg-slate-50 border-slate-300' : 'bg-amber-50 border-amber-300' }}">
+        <div class="rounded-sm border p-3 {{ health.lastfm_unmatched_count == 0 ? 'bg-slate-50 border-slate-300' : 'bg-amber-50 border-amber-300' }}">
             <div class="font-medium">Scrobbles non matchés</div>
             <div>
                 {% if health.lastfm_unmatched_count == 0 %}
@@ -113,7 +113,7 @@
     </div>
 
     {# ---------- Recent runs ---------- #}
-    <div class="bg-white shadow rounded overflow-hidden mb-6">
+    <div class="bg-white shadow-sm rounded-sm overflow-hidden mb-6">
         <div class="flex items-center justify-between px-3 py-2 bg-slate-100 border-b">
             <h2 class="text-sm font-semibold text-slate-700">Derniers runs</h2>
             <a href="{{ path('app_history') }}" class="text-xs text-sky-700 hover:underline">Voir tout l'historique →</a>
@@ -142,7 +142,7 @@
                             {% set badge = entry.status == 'success' ? 'bg-emerald-100 text-emerald-800'
                                 : entry.status == 'error' ? 'bg-rose-100 text-rose-800'
                                 : 'bg-amber-100 text-amber-800' %}
-                            <span class="text-xs px-2 py-0.5 rounded {{ badge }}">{{ entry.status }}</span>
+                            <span class="text-xs px-2 py-0.5 rounded-sm {{ badge }}">{{ entry.status }}</span>
                         </td>
                         <td class="px-3 py-1.5 text-xs text-slate-500">{{ entry.startedAt|date('Y-m-d H:i:s') }}</td>
                         <td class="px-3 py-1.5 text-right text-xs text-slate-500">
@@ -165,15 +165,15 @@
     </div>
 
     {# ---------- Filters bar ---------- #}
-    <form method="get" class="bg-white shadow rounded p-3 mb-4 flex flex-wrap items-end gap-3 text-sm">
+    <form method="get" class="bg-white shadow-sm rounded-sm p-3 mb-4 flex flex-wrap items-end gap-3 text-sm">
         <div class="flex-1 min-w-[200px]">
             <label class="block text-xs uppercase text-slate-500" for="filter-q">Recherche</label>
             <input type="search" name="q" id="filter-q" value="{{ filters.q }}"
-                   placeholder="Filtrer par nom…" class="w-full border rounded px-2 py-1">
+                   placeholder="Filtrer par nom…" class="w-full border rounded-sm px-2 py-1">
         </div>
         <div>
             <label class="block text-xs uppercase text-slate-500" for="filter-enabled">Statut</label>
-            <select name="enabled" id="filter-enabled" class="border rounded px-2 py-1">
+            <select name="enabled" id="filter-enabled" class="border rounded-sm px-2 py-1">
                 <option value="" {{ filters.enabled is null ? 'selected' : '' }}>— tous —</option>
                 <option value="1" {{ filters.enabled == true ? 'selected' : '' }}>Actives uniquement</option>
                 <option value="0" {{ filters.enabled is same as(false) ? 'selected' : '' }}>Désactivées uniquement</option>
@@ -181,17 +181,17 @@
         </div>
         <div>
             <label class="block text-xs uppercase text-slate-500" for="filter-sort">Tri</label>
-            <select name="sort" id="filter-sort" class="border rounded px-2 py-1">
+            <select name="sort" id="filter-sort" class="border rounded-sm px-2 py-1">
                 <option value="name" {{ filters.sort == 'name' ? 'selected' : '' }}>Par nom</option>
                 <option value="last_run" {{ filters.sort == 'last_run' ? 'selected' : '' }}>Dernier run</option>
             </select>
         </div>
-        <button type="submit" class="px-3 py-1.5 rounded bg-slate-900 text-white">Filtrer</button>
+        <button type="submit" class="px-3 py-1.5 rounded-sm bg-slate-900 text-white">Filtrer</button>
         <a href="{{ path('app_dashboard') }}" class="text-xs text-slate-500 hover:underline">Réinitialiser</a>
     </form>
 
     {% if rows is empty %}
-        <div class="bg-white shadow rounded p-8 text-center text-slate-500">
+        <div class="bg-white shadow-sm rounded-sm p-8 text-center text-slate-500">
             {% if filters.q or filters.enabled is not null %}
                 Aucune définition pour ces filtres. <a href="{{ path('app_dashboard') }}" class="text-emerald-700 hover:underline">Réinitialiser</a>.
             {% else %}
@@ -199,7 +199,7 @@
             {% endif %}
         </div>
     {% else %}
-        <div class="bg-white shadow rounded overflow-hidden">
+        <div class="bg-white shadow-sm rounded-sm overflow-hidden">
             <table class="w-full text-sm">
                 <thead class="bg-slate-100 text-slate-600 text-left">
                 <tr>
@@ -253,7 +253,7 @@
                         <td class="px-3 py-2">
                             <form method="post" action="{{ path('app_playlist_toggle', {id: def.id}) }}" class="inline">
                                 <input type="hidden" name="_token" value="{{ csrf_token('toggle' ~ def.id) }}">
-                                <button type="submit" class="text-xs px-2 py-1 rounded
+                                <button type="submit" class="text-xs px-2 py-1 rounded-sm
                                     {% if def.enabled %}bg-emerald-100 text-emerald-800 hover:bg-emerald-200
                                     {% else %}bg-slate-200 text-slate-700 hover:bg-slate-300{% endif %}">
                                     {{ def.enabled ? 'ON' : 'OFF' }}

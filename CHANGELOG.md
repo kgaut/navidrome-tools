@@ -7,6 +7,20 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+### Fixed
+- **Styling de l'UI cassé en prod** : le Play CDN
+  `https://cdn.tailwindcss.com` (Tailwind v3) ne sert plus rien — la
+  page de login (et toutes les autres) s'affichait sans aucune utility
+  class, seuls les overrides du `<style>` inline du `base.html.twig`
+  s'appliquaient. Le `<script>` pointe désormais vers
+  `https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4` (Tailwind v4
+  officiel, qui remplace le Play CDN déprécié) et les utilities
+  renommées par v4 ont été propagées dans les templates :
+  `rounded` → `rounded-sm`, `rounded-sm` → `rounded-xs`,
+  `shadow` → `shadow-sm`, `flex-shrink-0` → `shrink-0`. L'override
+  inline `.shadow` du dark theme suit le rename
+  (`.shadow-sm { box-shadow: … }`).
+
 ### Added
 - **Notifications de fin de run (Gotify / Slack / Discord / Pushover)** :
   greffe optionnelle sur `RunHistoryRecorder` qui pushe une

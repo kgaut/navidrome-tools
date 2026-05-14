@@ -11,7 +11,7 @@
         <div class="flex items-center gap-2">
             <form method="get" action="{{ path('app_wrapped_default') }}" class="inline">
                 <select name="year" onchange="window.location.href = '{{ path('app_wrapped', {year: 9999}) }}'.replace('9999', this.value)"
-                        class="border rounded px-2 py-1 text-sm">
+                        class="border rounded-sm px-2 py-1 text-sm">
                     {% for y in available_years %}
                         <option value="{{ y }}" {{ y == year ? 'selected' : '' }}>Wrapped {{ y }}</option>
                     {% endfor %}
@@ -19,7 +19,7 @@
             </form>
             <form method="post" action="{{ path('app_wrapped_refresh', {year: year}) }}">
                 <input type="hidden" name="_token" value="{{ csrf_token('wrapped_refresh_' ~ year) }}">
-                <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded text-sm">
+                <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-sm text-sm">
                     ↻ {{ snapshot ? 'Recalculer' : 'Calculer' }}
                 </button>
             </form>
@@ -27,7 +27,7 @@
     </div>
 
     {% if not snapshot %}
-        <div class="bg-amber-50 border border-amber-300 text-amber-800 rounded p-6 text-center">
+        <div class="bg-amber-50 border border-amber-300 text-amber-800 rounded-sm p-6 text-center">
             <p class="text-lg font-semibold mb-2">Aucun Wrapped en cache pour {{ year }}</p>
             <p class="text-sm">Cliquez sur <strong>« Calculer »</strong> pour générer la rétrospective. L'opération prend quelques secondes selon le volume de scrobbles.</p>
         </div>
@@ -58,19 +58,19 @@
         {% if yearsAgo > 0 %}
             <div class="mb-6">
                 <a href="{{ path('app_playlist_new', {generator_key: 'top-years-ago', 'parameters[years]': yearsAgo, name: 'Top ' ~ year}) }}"
-                   class="inline-flex items-center gap-2 text-xs px-3 py-1.5 rounded bg-emerald-50 border border-emerald-300 text-emerald-800 hover:bg-emerald-100">
+                   class="inline-flex items-center gap-2 text-xs px-3 py-1.5 rounded-sm bg-emerald-50 border border-emerald-300 text-emerald-800 hover:bg-emerald-100">
                     + Créer une playlist « Top {{ year }} »
                 </a>
             </div>
         {% endif %}
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div class="bg-white shadow rounded p-5">
+            <div class="bg-white shadow-sm rounded-sm p-5">
                 <div class="text-xs uppercase text-slate-500">Plus longue série</div>
                 <div class="text-3xl font-semibold mt-1">{{ d.wrapped_streak_days }} jours</div>
                 <div class="text-xs text-slate-500 mt-1">consécutifs avec au moins une écoute</div>
             </div>
-            <div class="bg-white shadow rounded p-5">
+            <div class="bg-white shadow-sm rounded-sm p-5">
                 <div class="text-xs uppercase text-slate-500">Mois le plus actif</div>
                 {% if d.wrapped_most_active_month %}
                     <div class="text-3xl font-semibold mt-1">{{ d.wrapped_most_active_month.month }}</div>
@@ -79,7 +79,7 @@
                     <div class="text-3xl font-semibold mt-1">—</div>
                 {% endif %}
             </div>
-            <div class="bg-white shadow rounded p-5">
+            <div class="bg-white shadow-sm rounded-sm p-5">
                 <div class="text-xs uppercase text-slate-500">Nouvelles découvertes</div>
                 <div class="text-3xl font-semibold mt-1">{{ d.wrapped_new_artists|length }} artistes</div>
                 <div class="text-xs text-slate-500 mt-1">jamais écoutés avant {{ year }}</div>
@@ -87,7 +87,7 @@
         </div>
 
         {# ------------------- TOP ARTISTS ------------------- #}
-        <section class="bg-white shadow rounded overflow-hidden mb-6">
+        <section class="bg-white shadow-sm rounded-sm overflow-hidden mb-6">
             <div class="px-4 py-3 border-b bg-slate-50">
                 <h2 class="font-semibold text-sm">Top {{ d.top_artists|length }} artistes</h2>
             </div>
@@ -98,8 +98,8 @@
                         <span class="flex-1 font-medium">{{ row.artist }}</span>
                         <span class="text-slate-500">{{ row.plays|number_format(0, '.', ' ') }} écoutes</span>
                         {% set bar_pct = d.top_artists[0].plays > 0 ? (row.plays / d.top_artists[0].plays * 100)|round : 0 %}
-                        <span class="hidden sm:block w-32 h-2 bg-slate-100 rounded">
-                            <span class="block h-2 bg-emerald-500 rounded" style="width: {{ bar_pct }}%"></span>
+                        <span class="hidden sm:block w-32 h-2 bg-slate-100 rounded-sm">
+                            <span class="block h-2 bg-emerald-500 rounded-sm" style="width: {{ bar_pct }}%"></span>
                         </span>
                     </li>
                 {% endfor %}
@@ -107,7 +107,7 @@
         </section>
 
         {# ------------------- TOP TRACKS ------------------- #}
-        <section class="bg-white shadow rounded overflow-hidden mb-6">
+        <section class="bg-white shadow-sm rounded-sm overflow-hidden mb-6">
             <div class="px-4 py-3 border-b bg-slate-50">
                 <h2 class="font-semibold text-sm">Top {{ d.top_tracks|length }} morceaux</h2>
             </div>
@@ -142,7 +142,7 @@
 
         {# ------------------- NEW ARTISTS ------------------- #}
         {% if d.wrapped_new_artists|length > 0 %}
-            <section class="bg-white shadow rounded overflow-hidden">
+            <section class="bg-white shadow-sm rounded-sm overflow-hidden">
                 <div class="px-4 py-3 border-b bg-slate-50">
                     <h2 class="font-semibold text-sm">Nouvelles découvertes en {{ year }}</h2>
                 </div>

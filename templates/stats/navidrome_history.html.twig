@@ -5,12 +5,12 @@
 {% block body %}
     <div class="flex flex-wrap items-center gap-3 text-xs mb-4">
         <span class="text-slate-500">Voir aussi :</span>
-        <a href="{{ path('app_stats') }}" class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200">Vue d'ensemble</a>
-        <a href="{{ path('app_stats_compare') }}" class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200">Comparer 2 périodes</a>
-        <a href="{{ path('app_stats_charts') }}" class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200">Graphiques</a>
-        <a href="{{ path('app_stats_heatmap') }}" class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200">Heatmap</a>
-        <a href="{{ path('app_wrapped_default') }}" class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200">Wrapped</a>
-        <a href="{{ path('app_stats_lastfm_history') }}" class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200">Historique Last.fm</a>
+        <a href="{{ path('app_stats') }}" class="px-2 py-1 rounded-sm bg-slate-100 hover:bg-slate-200">Vue d'ensemble</a>
+        <a href="{{ path('app_stats_compare') }}" class="px-2 py-1 rounded-sm bg-slate-100 hover:bg-slate-200">Comparer 2 périodes</a>
+        <a href="{{ path('app_stats_charts') }}" class="px-2 py-1 rounded-sm bg-slate-100 hover:bg-slate-200">Graphiques</a>
+        <a href="{{ path('app_stats_heatmap') }}" class="px-2 py-1 rounded-sm bg-slate-100 hover:bg-slate-200">Heatmap</a>
+        <a href="{{ path('app_wrapped_default') }}" class="px-2 py-1 rounded-sm bg-slate-100 hover:bg-slate-200">Wrapped</a>
+        <a href="{{ path('app_stats_lastfm_history') }}" class="px-2 py-1 rounded-sm bg-slate-100 hover:bg-slate-200">Historique Last.fm</a>
     </div>
 
     <div class="flex items-start justify-between mb-6 flex-wrap gap-3">
@@ -30,7 +30,7 @@
             <input type="hidden" name="_token" value="{{ csrf_token('navidrome_history_refresh') }}">
             <button type="submit"
                     {{ not has_scrobbles ? 'disabled' : '' }}
-                    class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-sm text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     title="{{ has_scrobbles ? 'Recharge depuis la table scrobbles de Navidrome' : 'Table scrobbles inaccessible' }}">
                 ↻ Rafraîchir depuis Navidrome
             </button>
@@ -38,17 +38,17 @@
     </div>
 
     {% if not has_scrobbles %}
-        <div class="bg-amber-50 border border-amber-300 text-amber-800 rounded p-4 mb-4 text-sm">
+        <div class="bg-amber-50 border border-amber-300 text-amber-800 rounded-sm p-4 mb-4 text-sm">
             La table <code>scrobbles</code> n'est pas disponible (Navidrome ≥ 0.55 requis).
         </div>
     {% endif %}
 
     {% if entries is empty %}
-        <div class="bg-white shadow rounded p-6 text-center text-slate-500">
+        <div class="bg-white shadow-sm rounded-sm p-6 text-center text-slate-500">
             Aucun snapshot en cache. Cliquez sur « Rafraîchir » pour le générer.
         </div>
     {% else %}
-        <div class="bg-white shadow rounded overflow-hidden">
+        <div class="bg-white shadow-sm rounded-sm overflow-hidden">
             <table class="w-full text-sm">
                 <thead class="bg-slate-100 text-slate-600 text-left text-xs">
                 <tr>

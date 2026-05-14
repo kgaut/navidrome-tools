@@ -22,10 +22,10 @@
         </div>
         <div class="flex items-center gap-2">
             <a href="{{ path('app_playlist_preview_export_m3u', {id: def.id}) }}"
-               class="text-sm bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded">Exporter M3U</a>
+               class="text-sm bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-sm">Exporter M3U</a>
             <form method="post" action="{{ path('app_playlist_run', {id: def.id}) }}">
                 <input type="hidden" name="_token" value="{{ csrf_token('run' ~ def.id) }}">
-                <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded text-sm">
+                <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-sm text-sm">
                     Créer dans Navidrome
                 </button>
             </form>
@@ -33,17 +33,17 @@
     </div>
 
     {% if error %}
-        <div class="bg-rose-50 border border-rose-300 text-rose-800 rounded p-4 mb-4">
+        <div class="bg-rose-50 border border-rose-300 text-rose-800 rounded-sm p-4 mb-4">
             {{ error }}
         </div>
     {% endif %}
 
     {% if tracks is empty and not error %}
-        <div class="bg-amber-50 border border-amber-300 text-amber-800 rounded p-4">
+        <div class="bg-amber-50 border border-amber-300 text-amber-800 rounded-sm p-4">
             Aucun morceau trouvé pour cette définition.
         </div>
     {% else %}
-        <div class="bg-white shadow rounded overflow-hidden">
+        <div class="bg-white shadow-sm rounded-sm overflow-hidden">
             <table class="w-full text-sm">
                 <thead class="bg-slate-100 text-slate-600 text-left">
                 <tr>

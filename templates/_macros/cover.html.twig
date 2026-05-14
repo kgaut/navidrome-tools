@@ -7,7 +7,7 @@
   Usage:
     {% from "_macros/cover.html.twig" import cover_with_fallback %}
     {{ cover_with_fallback('artist', row.artist_id, row.artist, 32) }}
-    {{ cover_with_fallback('album', row.album_id, row.album, 64, 'rounded') }}
+    {{ cover_with_fallback('album', row.album_id, row.album, 64, 'rounded-sm') }}
 #}
 
 {% macro cover_with_fallback(type, id, name, size = 128, classes = '') %}

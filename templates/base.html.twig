@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Accueil{% endblock %} - Navidrome Tools{% if app_version %} {{ app_version }}{% endif %}</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <style>
         /* Album/artist cover thumbnails — used by templates/_macros/cover.html.twig.
            Tailwind via CDN doesn't include these utility classes by default. */
@@ -78,8 +78,9 @@
         code { background-color: #0f172a !important; color: #f1f5f9 !important;
                padding: 1px 4px; border-radius: 3px; }
 
-        /* Shadow on dark needs a stronger contrast */
-        .shadow { box-shadow: 0 1px 3px 0 rgba(0,0,0,0.5), 0 1px 2px -1px rgba(0,0,0,0.5) !important; }
+        /* Shadow on dark needs a stronger contrast. Tailwind v4 renamed
+           `shadow` → `shadow-sm`, so target the new name. */
+        .shadow-sm { box-shadow: 0 1px 3px 0 rgba(0,0,0,0.5), 0 1px 2px -1px rgba(0,0,0,0.5) !important; }
     </style>
     {% block stylesheets %}{% endblock %}
 </head>
@@ -102,7 +103,7 @@
             {% if app.user %}
                 <button type="button"
                         id="burger-toggle"
-                        class="md:hidden inline-flex items-center justify-center w-10 h-10 rounded hover:bg-slate-800"
+                        class="md:hidden inline-flex items-center justify-center w-10 h-10 rounded-sm hover:bg-slate-800"
                         aria-label="Ouvrir le menu"
                         aria-controls="mobile-nav"
                         aria-expanded="false">
@@ -124,7 +125,7 @@
     <main class="flex-1 max-w-6xl w-full mx-auto px-4 py-6">
         {% for type, messages in app.flashes %}
             {% for message in messages %}
-                <div class="mb-4 px-4 py-3 rounded border
+                <div class="mb-4 px-4 py-3 rounded-sm border
                     {% if type == 'success' %}bg-emerald-50 border-emerald-300 text-emerald-800
                     {% elseif type == 'error' %}bg-rose-50 border-rose-300 text-rose-800
                     {% else %}bg-sky-50 border-sky-300 text-sky-800{% endif %}">

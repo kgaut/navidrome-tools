@@ -10,10 +10,10 @@
         </div>
     </div>
 
-    <form method="get" class="bg-white shadow rounded p-4 mb-4 flex flex-wrap items-end gap-3">
+    <form method="get" class="bg-white shadow-sm rounded-sm p-4 mb-4 flex flex-wrap items-end gap-3">
         <div>
             <label class="block text-xs uppercase text-slate-500">Type</label>
-            <select name="type" class="border rounded px-2 py-1 text-sm">
+            <select name="type" class="border rounded-sm px-2 py-1 text-sm">
                 <option value="">— tous —</option>
                 {% for k, label in types %}
                     <option value="{{ k }}" {{ filters.type == k ? 'selected' : '' }}>{{ label }}</option>
@@ -22,7 +22,7 @@
         </div>
         <div>
             <label class="block text-xs uppercase text-slate-500">Statut</label>
-            <select name="status" class="border rounded px-2 py-1 text-sm">
+            <select name="status" class="border rounded-sm px-2 py-1 text-sm">
                 <option value="">— tous —</option>
                 {% for k, label in statuses %}
                     <option value="{{ k }}" {{ filters.status == k ? 'selected' : '' }}>{{ label }}</option>
@@ -32,18 +32,18 @@
         <div class="flex-1 min-w-[200px]">
             <label class="block text-xs uppercase text-slate-500">Recherche</label>
             <input type="search" name="q" value="{{ filters.q }}" placeholder="Filtrer par libellé…"
-                   class="w-full border rounded px-2 py-1 text-sm">
+                   class="w-full border rounded-sm px-2 py-1 text-sm">
         </div>
-        <button type="submit" class="px-3 py-1.5 rounded bg-slate-900 text-white text-sm">Filtrer</button>
+        <button type="submit" class="px-3 py-1.5 rounded-sm bg-slate-900 text-white text-sm">Filtrer</button>
         <a href="{{ path('app_history') }}" class="text-xs text-slate-500 hover:underline">Réinitialiser</a>
     </form>
 
     {% if items is empty %}
-        <div class="bg-white shadow rounded p-6 text-center text-slate-500">
+        <div class="bg-white shadow-sm rounded-sm p-6 text-center text-slate-500">
             Aucune entrée pour ce filtre.
         </div>
     {% else %}
-        <div class="bg-white shadow rounded overflow-hidden">
+        <div class="bg-white shadow-sm rounded-sm overflow-hidden">
             <table class="w-full text-sm">
                 <thead class="bg-slate-100 text-slate-600 text-left text-xs">
                 <tr>
@@ -65,7 +65,7 @@
                             {% set badge = entry.status == 'success' ? 'bg-emerald-100 text-emerald-800'
                                 : entry.status == 'error' ? 'bg-rose-100 text-rose-800'
                                 : 'bg-amber-100 text-amber-800' %}
-                            <span class="text-xs px-2 py-0.5 rounded {{ badge }}">{{ entry.status }}</span>
+                            <span class="text-xs px-2 py-0.5 rounded-sm {{ badge }}">{{ entry.status }}</span>
                         </td>
                         <td class="px-3 py-1.5 text-xs text-slate-500">{{ entry.startedAt|date('Y-m-d H:i:s') }}</td>
                         <td class="px-3 py-1.5 text-right text-xs text-slate-500">
@@ -90,12 +90,12 @@
             <div class="flex items-center justify-center gap-2 mt-4 text-sm">
                 {% if page > 1 %}
                     <a href="{{ path('app_history', filters|merge({page: page - 1})) }}"
-                       class="px-3 py-1 rounded border hover:bg-slate-100">‹ Précédent</a>
+                       class="px-3 py-1 rounded-sm border hover:bg-slate-100">‹ Précédent</a>
                 {% endif %}
                 <span class="text-slate-500">Page {{ page }} / {{ total_pages }}</span>
                 {% if page < total_pages %}
                     <a href="{{ path('app_history', filters|merge({page: page + 1})) }}"
-                       class="px-3 py-1 rounded border hover:bg-slate-100">Suivant ›</a>
+                       class="px-3 py-1 rounded-sm border hover:bg-slate-100">Suivant ›</a>
                 {% endif %}
             </div>
         {% endif %}

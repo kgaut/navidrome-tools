@@ -73,7 +73,7 @@
                                 aria-haspopup="true">
                             {{ section.label }} <span class="text-xs">▾</span>
                         </button>
-                        <div class="absolute right-0 top-full mt-1 {{ section.width }} bg-slate-800 text-slate-100 rounded shadow-lg invisible opacity-0 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 transition py-1 z-30">
+                        <div class="absolute right-0 top-full mt-1 {{ section.width }} bg-slate-800 text-slate-100 rounded-sm shadow-lg invisible opacity-0 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 transition py-1 z-30">
                             {% for group in section.groups %}
                                 {% if group.heading %}
                                     {% if not loop.first %}
@@ -99,10 +99,10 @@
             <div class="max-w-6xl mx-auto px-4 py-2 flex flex-col text-sm">
                 {% for section in sections %}
                     {% if section.type == 'link' %}
-                        <a href="{{ path(section.route) }}" class="block py-2 hover:bg-slate-800 px-2 rounded">{{ section.label }}</a>
+                        <a href="{{ path(section.route) }}" class="block py-2 hover:bg-slate-800 px-2 rounded-sm">{{ section.label }}</a>
                     {% else %}
                         <details class="group">
-                            <summary class="py-2 px-2 rounded hover:bg-slate-800 cursor-pointer flex items-center justify-between list-none">
+                            <summary class="py-2 px-2 rounded-sm hover:bg-slate-800 cursor-pointer flex items-center justify-between list-none">
                                 <span>{{ section.label }}</span>
                                 <span class="text-xs transition group-open:rotate-180">▾</span>
                             </summary>
@@ -112,7 +112,7 @@
                                         <div class="px-2 pt-2 pb-1 text-xs uppercase tracking-wide text-slate-400">{{ group.heading }}</div>
                                     {% endif %}
                                     {% for item in group.items %}
-                                        <a href="{{ path(item.route) }}" class="block py-2 px-2 rounded hover:bg-slate-800">{{ item.label }}</a>
+                                        <a href="{{ path(item.route) }}" class="block py-2 px-2 rounded-sm hover:bg-slate-800">{{ item.label }}</a>
                                     {% endfor %}
                                 {% endfor %}
                             </div>

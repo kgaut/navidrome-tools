@@ -5,10 +5,10 @@
 {% block body %}
     <div class="flex flex-wrap items-center gap-3 text-xs mb-4">
         <span class="text-slate-500">Voir aussi :</span>
-        <a href="{{ path('app_stats_compare') }}" class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200">Comparer 2 périodes</a>
-        <a href="{{ path('app_stats_charts') }}" class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200">Graphiques</a>
-        <a href="{{ path('app_stats_heatmap') }}" class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200">Heatmap</a>
-        <a href="{{ path('app_wrapped_default') }}" class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200">Wrapped</a>
+        <a href="{{ path('app_stats_compare') }}" class="px-2 py-1 rounded-sm bg-slate-100 hover:bg-slate-200">Comparer 2 périodes</a>
+        <a href="{{ path('app_stats_charts') }}" class="px-2 py-1 rounded-sm bg-slate-100 hover:bg-slate-200">Graphiques</a>
+        <a href="{{ path('app_stats_heatmap') }}" class="px-2 py-1 rounded-sm bg-slate-100 hover:bg-slate-200">Heatmap</a>
+        <a href="{{ path('app_wrapped_default') }}" class="px-2 py-1 rounded-sm bg-slate-100 hover:bg-slate-200">Wrapped</a>
     </div>
 
     <div class="flex items-start justify-between mb-6 flex-wrap gap-3">
@@ -17,7 +17,7 @@
         <form method="get" action="{{ path('app_stats') }}" class="flex items-center gap-2 flex-wrap">
             <label for="period" class="text-sm">Période :</label>
             <select name="period" id="period" onchange="this.form.submit()"
-                    class="border rounded px-2 py-1 text-sm">
+                    class="border rounded-sm px-2 py-1 text-sm">
                 {% for key, label in periods %}
                     <option value="{{ key }}" {{ key == period ? 'selected' : '' }}>{{ label }}</option>
                 {% endfor %}
@@ -26,7 +26,7 @@
             {% if clients is not empty %}
                 <label for="client" class="text-sm">Client :</label>
                 <select name="client" id="client" onchange="this.form.submit()"
-                        class="border rounded px-2 py-1 text-sm">
+                        class="border rounded-sm px-2 py-1 text-sm">
                     <option value="">Tous</option>
                     {% for c in clients %}
                         <option value="{{ c }}" {{ c == client ? 'selected' : '' }}>{{ c }}</option>
@@ -40,7 +40,7 @@
             <input type="hidden" name="period" value="{{ period }}">
             {% if client %}<input type="hidden" name="client" value="{{ client }}">{% endif %}
             <input type="hidden" name="_token" value="{{ csrf_token('stats_refresh_' ~ refreshKey) }}">
-            <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded text-sm">
+            <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-sm text-sm">
                 ↻ Rafraîchir
             </button>
         </form>
@@ -63,14 +63,14 @@
     {% if newPlaylistArgs %}
         <div class="mb-6">
             <a href="{{ path('app_playlist_new', newPlaylistArgs) }}"
-               class="inline-flex items-center gap-2 text-xs px-3 py-1.5 rounded bg-emerald-50 border border-emerald-300 text-emerald-800 hover:bg-emerald-100">
+               class="inline-flex items-center gap-2 text-xs px-3 py-1.5 rounded-sm bg-emerald-50 border border-emerald-300 text-emerald-800 hover:bg-emerald-100">
                 <span>+ Créer une playlist depuis ce top</span>
             </a>
         </div>
     {% endif %}
 
     {% if stale %}
-        <div class="bg-amber-50 border border-amber-300 text-amber-800 rounded p-4 mb-6 text-sm">
+        <div class="bg-amber-50 border border-amber-300 text-amber-800 rounded-sm p-4 mb-6 text-sm">
             Aucune donnée en cache pour cette période. Cliquez sur <strong>Rafraîchir</strong> pour la calculer.
         </div>
     {% else %}
@@ -84,18 +84,18 @@
         </p>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <div class="bg-white shadow rounded p-5">
+            <div class="bg-white shadow-sm rounded-sm p-5">
                 <div class="text-xs uppercase text-slate-500">Total d'écoutes</div>
                 <div class="text-3xl font-semibold mt-1">{{ snapshot.data.total_plays|number_format(0, '.', ' ') }}</div>
             </div>
-            <div class="bg-white shadow rounded p-5">
+            <div class="bg-white shadow-sm rounded-sm p-5">
                 <div class="text-xs uppercase text-slate-500">Morceaux distincts écoutés</div>
                 <div class="text-3xl font-semibold mt-1">{{ snapshot.data.distinct_tracks|number_format(0, '.', ' ') }}</div>
             </div>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div class="bg-white shadow rounded overflow-hidden">
+            <div class="bg-white shadow-sm rounded-sm overflow-hidden">
                 <div class="px-4 py-3 border-b bg-slate-50">
                     <h2 class="font-semibold text-sm">Top 10 artistes</h2>
                 </div>
@@ -123,7 +123,7 @@
                 {% endif %}
             </div>
 
-            <div class="bg-white shadow rounded overflow-hidden">
+            <div class="bg-white shadow-sm rounded-sm overflow-hidden">
                 <div class="px-4 py-3 border-b bg-slate-50">
                     <h2 class="font-semibold text-sm">Top 50 morceaux</h2>
                 </div>
