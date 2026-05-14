@@ -3,9 +3,12 @@
 namespace App\Command;
 
 use App\Entity\RunHistory;
+use App\Repository\LastFmBufferedScrobbleRepository;
 use App\Service\RunHistoryRecorder;
 use App\Strawberry\StrawberryBufferProcessor;
 use App\Strawberry\StrawberryProcessReport;
+use App\Strawberry\StrawberryRepository;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -27,6 +30,8 @@ class ProcessStrawberryBufferCommand extends Command
     public function __construct(
         private readonly StrawberryBufferProcessor $processor,
         private readonly RunHistoryRecorder $recorder,
+        private readonly LastFmBufferedScrobbleRepository $bufferRepo,
+        private readonly EntityManagerInterface $em,
     ) {
         parent::__construct();
     }
@@ -46,6 +51,12 @@ class ProcessStrawberryBufferCommand extends Command
                 InputOption::VALUE_REQUIRED,
                 'Maximum number of buffered scrobbles to process (0 = no limit).',
                 '0',
+            )
+            ->addOption(
+                'db-path',
+                null,
+                InputOption::VALUE_REQUIRED,
+                'Override STRAWBERRY_DB_PATH with a specific file path (e.g. for an uploaded DB).',
             );
     }
 
@@ -55,15 +66,33 @@ class ProcessStrawberryBufferCommand extends Command
 
         $dryRun = (bool) $input->getOption('dry-run');
         $limit = max(0, (int) $input->getOption('limit'));
+        $dbPathOverride = (string) ($input->getOption('db-path') ?? '');
+
+        $processor = $this->processor;
+        $reference = 'buffer';
+
+        if ($dbPathOverride !== '') {
+            if (!file_exists($dbPathOverride)) {
+                $io->error(sprintf('File not found: %s', $dbPathOverride));
+
+                return Command::FAILURE;
+            }
+            $processor = new StrawberryBufferProcessor(
+                $this->bufferRepo,
+                new StrawberryRepository($dbPathOverride),
+                $this->em,
+            );
+            $reference = basename($dbPathOverride);
+        }
 
         $label = 'Strawberry process buffer' . ($dryRun ? ' [dry-run]' : '');
 
         try {
             $report = $this->recorder->record(
                 type: RunHistory::TYPE_STRAWBERRY_PROCESS,
-                reference: 'buffer',
+                reference: $reference,
                 label: $label,
-                action: fn (RunHistory $entry) => $this->processor->process(
+                action: fn (RunHistory $entry) => $processor->process(
                     limit: $limit,
                     dryRun: $dryRun,
                     auditRun: $entry,

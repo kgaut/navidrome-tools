@@ -20,6 +20,7 @@ RUN composer dump-autoload --optimize --no-dev \
  && chown -R www-data:www-data var plugins /app/.symfony-cache \
  && APP_ENV=prod APP_DEBUG=0 APP_CACHE_DIR=/app/.symfony-cache php bin/console cache:warmup --env=prod || true
 
+COPY docker/php.ini /usr/local/etc/php/conf.d/99-navidrome-tools.ini
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 

@@ -7,6 +7,7 @@ use App\Lidarr\LidarrConfig;
 use App\Repository\LastFmBufferedScrobbleRepository;
 use App\Repository\LastFmImportTrackRepository;
 use App\Strawberry\StrawberryRepository;
+use App\Strawberry\StrawberryUploadService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -19,6 +20,7 @@ class LastFmImportController extends AbstractController
         private readonly LastFmBufferedScrobbleRepository $bufferRepo,
         private readonly NavidromeContainerManager $containerManager,
         private readonly StrawberryRepository $strawberry,
+        private readonly StrawberryUploadService $strawberryUpload,
         private readonly string $navidromeUrl,
     ) {
     }
@@ -34,6 +36,8 @@ class LastFmImportController extends AbstractController
             'buffer_count' => $this->bufferRepo->countUnsyncedNavidrome(),
             'buffer_unsynced_strawberry' => $this->strawberry->isAvailable() ? $this->bufferRepo->countUnsyncedStrawberry() : null,
             'strawberry_configured' => $this->strawberry->isAvailable(),
+            'strawberry_upload_info' => $this->strawberryUpload->getUploadInfo(),
+            'strawberry_upload_unsynced' => $this->strawberryUpload->hasUpload() ? $this->bufferRepo->countUnsyncedStrawberry() : null,
             'lidarr_configured' => $this->lidarrConfig->isConfigured(),
             'navidrome_url' => rtrim($this->navidromeUrl, '/'),
             'container_configured' => $this->containerManager->isConfigured(),

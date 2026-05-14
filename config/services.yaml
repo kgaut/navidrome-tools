@@ -176,6 +176,10 @@ services:
         arguments:
             $dbPath: '%strawberry.db_path%'
 
+    App\Strawberry\StrawberryUploadService:
+        arguments:
+            $varDir: '%kernel.project_dir%/var'
+
     App\Notifier\Notifier:
         arguments:
             $drivers: !tagged_iterator app.notifier_driver

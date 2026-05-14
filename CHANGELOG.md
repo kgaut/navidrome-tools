@@ -16,7 +16,11 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
   puis fallback avec strip des mentions de feat. et marqueurs de version.
   Les scrobbles non matchés ne sont **pas** marqués synced → retentative
   automatique au prochain run (ex. après ajout d'un album à la librairie).
-  Activé en renseignant `STRAWBERRY_DB_PATH` (vide = intégration désactivée).
+  Activé via volume monté (`STRAWBERRY_DB_PATH`) ou via upload/download
+  depuis la page `/lastfm/import` (pour Strawberry sur une autre machine).
+  Option `--db-path=PATH` sur la commande pour pointer vers un fichier
+  spécifique. Limites PHP d'upload préréglées à 200 Mo dans
+  `docker/php.ini`.
 - **Buffer Last.fm persistant** : le buffer `lastfm_import_buffer` est
   désormais un **log permanent** au lieu d'une queue éphémère. Les rows
   ne sont plus supprimées après traitement Navidrome — elles sont marquées
