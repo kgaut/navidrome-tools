@@ -88,17 +88,30 @@
                 {% endif %}
             </div>
         </div>
-        <div class="rounded-sm border p-3 {{ health.lastfm_buffer_count == 0 ? 'bg-slate-50 border-slate-300' : 'bg-amber-50 border-amber-300' }}">
-            <div class="font-medium">Buffer Last.fm</div>
+        <div class="rounded-sm border p-3 {{ health.lastfm_buffer_unsynced_navidrome == 0 ? 'bg-slate-50 border-slate-300' : 'bg-amber-50 border-amber-300' }}">
+            <div class="font-medium">Buffer Last.fm → Navidrome</div>
             <div>
-                {% if health.lastfm_buffer_count == 0 %}
-                    ✓ vide
+                {% if health.lastfm_buffer_unsynced_navidrome == 0 %}
+                    ✓ à jour
                 {% else %}
-                    {{ health.lastfm_buffer_count|number_format(0, '.', ' ') }} scrobble{{ health.lastfm_buffer_count > 1 ? 's' : '' }} en attente —
+                    {{ health.lastfm_buffer_unsynced_navidrome|number_format(0, '.', ' ') }} scrobble{{ health.lastfm_buffer_unsynced_navidrome > 1 ? 's' : '' }} en attente —
                     <a href="{{ path('app_lastfm_import') }}" class="underline">traiter</a>
                 {% endif %}
             </div>
         </div>
+        {% if health.lastfm_buffer_unsynced_strawberry is not null %}
+        <div class="rounded-sm border p-3 {{ health.lastfm_buffer_unsynced_strawberry == 0 ? 'bg-slate-50 border-slate-300' : 'bg-amber-50 border-amber-300' }}">
+            <div class="font-medium">Buffer Last.fm → Strawberry</div>
+            <div>
+                {% if health.lastfm_buffer_unsynced_strawberry == 0 %}
+                    ✓ à jour
+                {% else %}
+                    {{ health.lastfm_buffer_unsynced_strawberry|number_format(0, '.', ' ') }} scrobble{{ health.lastfm_buffer_unsynced_strawberry > 1 ? 's' : '' }} en attente —
+                    <a href="{{ path('app_lastfm_import') }}" class="underline">traiter</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
         <div class="rounded-sm border p-3 {{ health.lastfm_unmatched_count == 0 ? 'bg-slate-50 border-slate-300' : 'bg-amber-50 border-amber-300' }}">
             <div class="font-medium">Scrobbles non matchés</div>
             <div>

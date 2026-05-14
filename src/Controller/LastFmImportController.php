@@ -6,6 +6,7 @@ use App\Docker\NavidromeContainerManager;
 use App\Lidarr\LidarrConfig;
 use App\Repository\LastFmBufferedScrobbleRepository;
 use App\Repository\LastFmImportTrackRepository;
+use App\Strawberry\StrawberryRepository;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -17,6 +18,7 @@ class LastFmImportController extends AbstractController
         private readonly LastFmImportTrackRepository $trackRepo,
         private readonly LastFmBufferedScrobbleRepository $bufferRepo,
         private readonly NavidromeContainerManager $containerManager,
+        private readonly StrawberryRepository $strawberry,
         private readonly string $navidromeUrl,
     ) {
     }
@@ -29,7 +31,9 @@ class LastFmImportController extends AbstractController
 
         return $this->render('lastfm/import.html.twig', [
             'unmatched_cumulative' => $this->trackRepo->countUnmatched(),
-            'buffer_count' => $this->bufferRepo->countAll(),
+            'buffer_count' => $this->bufferRepo->countUnsyncedNavidrome(),
+            'buffer_unsynced_strawberry' => $this->strawberry->isAvailable() ? $this->bufferRepo->countUnsyncedStrawberry() : null,
+            'strawberry_configured' => $this->strawberry->isAvailable(),
             'lidarr_configured' => $this->lidarrConfig->isConfigured(),
             'navidrome_url' => rtrim($this->navidromeUrl, '/'),
             'container_configured' => $this->containerManager->isConfigured(),

@@ -13,6 +13,7 @@ parameters:
     lastfm.fuzzy_max_distance: '%env(int:LASTFM_FUZZY_MAX_DISTANCE)%'
     lastfm.match_cache_ttl_days: '%env(int:LASTFM_MATCH_CACHE_TTL_DAYS)%'
     beets.queue_path: '%env(resolve:BEETS_QUEUE_PATH)%'
+    strawberry.db_path: '%env(resolve:STRAWBERRY_DB_PATH)%'
     lidarr.url: '%env(LIDARR_URL)%'
     lidarr.api_key: '%env(LIDARR_API_KEY)%'
     lidarr.root_folder_path: '%env(LIDARR_ROOT_FOLDER_PATH)%'
@@ -170,6 +171,10 @@ services:
     App\Service\BeetsQueueService:
         arguments:
             $queuePath: '%beets.queue_path%'
+
+    App\Strawberry\StrawberryRepository:
+        arguments:
+            $dbPath: '%strawberry.db_path%'
 
     App\Notifier\Notifier:
         arguments:

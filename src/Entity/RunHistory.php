@@ -23,6 +23,7 @@ class RunHistory
     public const TYPE_LASTFM_REMATCH = 'lastfm-rematch';
     public const TYPE_NAVIDROME_RESCAN = 'navidrome-rescan';
     public const TYPE_BEETS_QUEUE_PUSH = 'beets-queue-push';
+    public const TYPE_STRAWBERRY_PROCESS = 'strawberry-process';
 
     public const STATUS_SUCCESS = 'success';
     public const STATUS_ERROR = 'error';

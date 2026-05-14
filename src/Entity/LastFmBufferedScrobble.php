@@ -8,12 +8,11 @@ use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 
 /**
- * Buffer row for a scrobble fetched from Last.fm and waiting to be processed
- * (matched + inserted into the Navidrome scrobbles table). The buffer
- * decouples the read-only Last.fm fetch (safe while Navidrome is up) from
- * the write step into Navidrome (requires Navidrome stopped). Rows are
- * deleted as soon as they are processed; the audit trail then lives in
- * lastfm_import_track.
+ * Buffer row for a scrobble fetched from Last.fm, kept as a persistent log.
+ * synced_navidrome is set to true once the row has been processed for
+ * Navidrome (matched + inserted or deduped); synced_strawberry once synced
+ * to the Strawberry music player database. Rows are never deleted — the
+ * buffer is a permanent record.
  */
 #[ORM\Entity(repositoryClass: LastFmBufferedScrobbleRepository::class)]
 #[ORM\Table(name: 'lastfm_import_buffer')]
@@ -49,6 +48,12 @@ class LastFmBufferedScrobble
 
     #[ORM\Column(type: UtcDateTimeImmutableType::NAME)]
     private \DateTimeImmutable $fetchedAt;
+
+    #[ORM\Column(type: Types::BOOLEAN, options: ['default' => false])]
+    private bool $syncedNavidrome = false;
+
+    #[ORM\Column(type: Types::BOOLEAN, options: ['default' => false])]
+    private bool $syncedStrawberry = false;
 
     public function __construct(
         string $lastfmUser,
@@ -106,5 +111,25 @@ class LastFmBufferedScrobble
     public function getFetchedAt(): \DateTimeImmutable
     {
         return $this->fetchedAt;
+    }
+
+    public function isSyncedNavidrome(): bool
+    {
+        return $this->syncedNavidrome;
+    }
+
+    public function setSyncedNavidrome(bool $syncedNavidrome): void
+    {
+        $this->syncedNavidrome = $syncedNavidrome;
+    }
+
+    public function isSyncedStrawberry(): bool
+    {
+        return $this->syncedStrawberry;
+    }
+
+    public function setSyncedStrawberry(bool $syncedStrawberry): void
+    {
+        $this->syncedStrawberry = $syncedStrawberry;
     }
 }

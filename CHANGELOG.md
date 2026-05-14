@@ -7,6 +7,23 @@ et le projet adhère à [Semantic Versioning 2.0](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+### Added
+- **Intégration Strawberry Music Player** : nouvelle commande
+  `app:strawberry:process` qui synchronise les scrobbles Last.fm importés
+  vers la base SQLite de [Strawberry](https://www.strawberrymusicplayer.org/)
+  (fork de Clementine). Incrémente `playcount` et met à jour `lastplayed`
+  dans la table `songs`. Matching par MBID, puis (artist, title) exact,
+  puis fallback avec strip des mentions de feat. et marqueurs de version.
+  Les scrobbles non matchés ne sont **pas** marqués synced → retentative
+  automatique au prochain run (ex. après ajout d'un album à la librairie).
+  Activé en renseignant `STRAWBERRY_DB_PATH` (vide = intégration désactivée).
+- **Buffer Last.fm persistant** : le buffer `lastfm_import_buffer` est
+  désormais un **log permanent** au lieu d'une queue éphémère. Les rows
+  ne sont plus supprimées après traitement Navidrome — elles sont marquées
+  `synced_navidrome = true`. Nouveau flag `synced_strawberry` pour
+  l'intégration Strawberry. Deux nouveaux compteurs sur le dashboard et la
+  page `/lastfm/import` affichent l'état de synchronisation vers chaque cible.
+
 ### Fixed
 - **Styling de l'UI cassé en prod** : le Play CDN
   `https://cdn.tailwindcss.com` (Tailwind v3) ne sert plus rien — la

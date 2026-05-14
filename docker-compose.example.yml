@@ -73,6 +73,10 @@ services:
       NOTIFY_DISCORD_WEBHOOK_URL: ${NOTIFY_DISCORD_WEBHOOK_URL:-}
       NOTIFY_PUSHOVER_TOKEN: ${NOTIFY_PUSHOVER_TOKEN:-}
       NOTIFY_PUSHOVER_USER: ${NOTIFY_PUSHOVER_USER:-}
+      # Strawberry music player integration — leave empty to disable.
+      # Set to the path of strawberry.db inside the container and add
+      # the volume mount below.
+      STRAWBERRY_DB_PATH: ${STRAWBERRY_DB_PATH:-}
     volumes:
       # Mount Navidrome's SQLite DB read-only. Make it RW (drop the `:ro`)
       # on the host where you run `app:lastfm:process` /
@@ -86,6 +90,9 @@ services:
       # Optional: bind-mount custom playlist generators (App\Plugin\ namespace).
       # See docs/PLUGINS.md.
       # - ./plugins:/app/plugins:ro
+      # Optional: bind-mount the Strawberry database for playcount sync.
+      # Set STRAWBERRY_DB_PATH=/data/strawberry/strawberry.db above.
+      # - /path/to/strawberry/data:/data/strawberry
       # Uncomment to enable the Navidrome container management feature
       # (start/stop buttons on the dashboard, automatic block of unsafe
       # write commands when Navidrome is running). Requires

@@ -10,6 +10,7 @@ use App\Repository\LastFmImportTrackRepository;
 use App\Repository\PlaylistDefinitionRepository;
 use App\Repository\RunHistoryRepository;
 use App\Service\SettingsService;
+use App\Strawberry\StrawberryRepository;
 use App\Subsonic\SubsonicClient;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
@@ -32,6 +33,7 @@ class DashboardController extends AbstractController
         NavidromeContainerManager $container,
         LastFmBufferedScrobbleRepository $bufferRepo,
         LastFmImportTrackRepository $trackRepo,
+        StrawberryRepository $strawberry,
     ): Response {
         $q = trim((string) $request->query->get('q', ''));
         $enabledRaw = $request->query->get('enabled');
@@ -64,7 +66,8 @@ class DashboardController extends AbstractController
             'container_configured' => $container->isConfigured(),
             'container_status' => $containerStatus->value,
             'container_label' => $containerStatus->label(),
-            'lastfm_buffer_count' => $bufferRepo->countAll(),
+            'lastfm_buffer_unsynced_navidrome' => $bufferRepo->countUnsyncedNavidrome(),
+            'lastfm_buffer_unsynced_strawberry' => $strawberry->isAvailable() ? $bufferRepo->countUnsyncedStrawberry() : null,
             'lastfm_unmatched_count' => $trackRepo->countUnmatched(),
         ];
 

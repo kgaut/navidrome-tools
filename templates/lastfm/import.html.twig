@@ -17,6 +17,8 @@
                 </ol>
                 Cette page affiche l'état du buffer et les commandes à copier-coller.
                 Les jobs s'exécutent depuis le crontab unix de l'hôte (ou à la main).
+                Si Strawberry est configuré, une <strong>étape 3</strong> supplémentaire
+                met à jour les playcounts dans sa base de données.
             </div>
         </div>
     </div>
@@ -26,13 +28,21 @@
         <h2 class="text-lg font-semibold mb-3">État</h2>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div class="bg-slate-50 rounded-sm p-3">
-                <div class="text-xs uppercase text-slate-500">Buffer en attente</div>
+                <div class="text-xs uppercase text-slate-500">En attente → Navidrome</div>
                 <div class="text-2xl font-semibold">{{ buffer_count|number_format(0, '.', ' ') }}</div>
                 <div class="text-xs text-slate-500 mt-1">
-                    scrobble{{ buffer_count > 1 ? 's' : '' }} fetch{{ buffer_count > 1 ? 'és' : 'é' }}
-                    {% if buffer_count > 0 %}prêt{{ buffer_count > 1 ? 's' : '' }} à être traité{{ buffer_count > 1 ? 's' : '' }}{% endif %}
+                    scrobble{{ buffer_count > 1 ? 's' : '' }} non encore traité{{ buffer_count > 1 ? 's' : '' }} pour Navidrome
                 </div>
             </div>
+            {% if strawberry_configured %}
+            <div class="bg-slate-50 rounded-sm p-3">
+                <div class="text-xs uppercase text-slate-500">En attente → Strawberry</div>
+                <div class="text-2xl font-semibold">{{ buffer_unsynced_strawberry|number_format(0, '.', ' ') }}</div>
+                <div class="text-xs text-slate-500 mt-1">
+                    scrobble{{ buffer_unsynced_strawberry > 1 ? 's' : '' }} non encore synchronisé{{ buffer_unsynced_strawberry > 1 ? 's' : '' }} vers Strawberry
+                </div>
+            </div>
+            {% endif %}
             <div class="bg-slate-50 rounded-sm p-3">
                 <div class="text-xs uppercase text-slate-500">Non matchés cumulés</div>
                 <div class="text-2xl font-semibold">{{ unmatched_cumulative|number_format(0, '.', ' ') }}</div>
@@ -89,8 +99,9 @@
         <h2 class="text-lg font-semibold mb-1">2. Traiter le buffer</h2>
         <p class="text-sm text-slate-500 mb-3">
             Stream du buffer (par <code>played_at</code> ASC), cascade de matching, insertion dans la table
-            <code>scrobbles</code> de Navidrome, audit dans <code>lastfm_import_track</code>, suppression de la
-            row du buffer (toujours, y compris <em>unmatched</em>). <strong>Navidrome doit être arrêté</strong>
+            <code>scrobbles</code> de Navidrome, audit dans <code>lastfm_import_track</code>,
+            puis marquage <code>synced_navidrome = true</code> (les rows sont conservées — le buffer est
+            un log permanent). <strong>Navidrome doit être arrêté</strong>
             pour éviter toute corruption SQLite.
         </p>
         <p class="text-xs text-rose-700 mb-3">
@@ -115,9 +126,34 @@
         </p>
     </div>
 
-    {# ---------- 3. Rematch ---------- #}
+    {# ---------- 3. Strawberry (si configuré) ---------- #}
+    {% if strawberry_configured %}
     <div class="bg-white shadow-sm rounded-sm p-6 max-w-3xl mb-6">
-        <h2 class="text-lg font-semibold mb-1">3. Re-matcher les unmatched</h2>
+        <h2 class="text-lg font-semibold mb-1">3. Synchroniser vers Strawberry</h2>
+        <p class="text-sm text-slate-500 mb-3">
+            Pour chaque scrobble du buffer non encore synchronisé (<code>synced_strawberry = false</code>),
+            trouve le morceau correspondant dans la base Strawberry et incrémente son
+            <code>playcount</code> + met à jour <code>lastplayed</code>. Navidrome peut rester up
+            (écriture dans Strawberry uniquement). Les morceaux non trouvés sont automatiquement
+            retentés au prochain run.
+        </p>
+
+        <div class="text-xs uppercase text-slate-500 mt-2 mb-1">Localement</div>
+        <pre class="bg-slate-900 text-slate-100 rounded-sm px-3 py-2 text-xs overflow-x-auto mb-2"><code>php bin/console app:strawberry:process \
+    [--limit=N] [--dry-run]</code></pre>
+
+        <div class="text-xs uppercase text-slate-500 mt-3 mb-1">Docker Compose (cron)</div>
+        <pre class="bg-slate-900 text-slate-100 rounded-sm px-3 py-2 text-xs overflow-x-auto mb-2"><code>docker compose exec -T navidrome-tools-web \
+    php bin/console app:strawberry:process</code></pre>
+
+        <div class="text-xs uppercase text-slate-500 mt-3 mb-1">Lando (dev)</div>
+        <pre class="bg-slate-900 text-slate-100 rounded-sm px-3 py-2 text-xs overflow-x-auto"><code>lando symfony app:strawberry:process</code></pre>
+    </div>
+    {% endif %}
+
+    {# ---------- 4. Rematch ---------- #}
+    <div class="bg-white shadow-sm rounded-sm p-6 max-w-3xl mb-6">
+        <h2 class="text-lg font-semibold mb-1">{{ strawberry_configured ? '4' : '3' }}. Re-matcher les unmatched</h2>
         <p class="text-sm text-slate-500 mb-3">
             Ré-applique la cascade de matching aux rows <code>lastfm_import_track</code> en status
             <em>unmatched</em>. Utile après ajout de morceaux dans Navidrome, après création d'alias,

@@ -98,6 +98,10 @@ services:
         NOTIFY_DISCORD_WEBHOOK_URL: ''
         NOTIFY_PUSHOVER_TOKEN: ''
         NOTIFY_PUSHOVER_USER: ''
+        # Strawberry music player integration. Path to strawberry.db inside
+        # the container. Empty = integration disabled.
+        # STRAWBERRY_DB_PATH: '/app/var/strawberry/strawberry.db'
+        STRAWBERRY_DB_PATH: ''
 
   # Navidrome instance for end-to-end testing. Shares its SQLite DB with the
   # tool via the host folder `var/navidrome-data/` (mounted at /data here,

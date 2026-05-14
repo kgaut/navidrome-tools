@@ -49,6 +49,7 @@
         <env name="NOTIFY_DISCORD_WEBHOOK_URL" value=""/>
         <env name="NOTIFY_PUSHOVER_TOKEN" value=""/>
         <env name="NOTIFY_PUSHOVER_USER" value=""/>
+        <env name="STRAWBERRY_DB_PATH" value=""/>
     </php>
 
     <testsuites>

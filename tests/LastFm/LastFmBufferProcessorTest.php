@@ -39,6 +39,8 @@ class LastFmBufferProcessorTest extends TestCase
                 mbid VARCHAR(64) DEFAULT NULL,
                 played_at DATETIME NOT NULL,
                 fetched_at DATETIME NOT NULL,
+                synced_navidrome BOOLEAN NOT NULL DEFAULT 0,
+                synced_strawberry BOOLEAN NOT NULL DEFAULT 0,
                 UNIQUE (lastfm_user, played_at, artist, title)
             )
         SQL);
@@ -87,9 +89,13 @@ class LastFmBufferProcessorTest extends TestCase
         $count = (int) $ndConn->fetchOne('SELECT COUNT(*) FROM scrobbles WHERE user_id = ?', ['user-1']);
         $this->assertSame(2, $count);
 
-        // Buffer rows should have been deleted (regardless of outcome).
+        // Buffer rows should remain in the table but marked synced_navidrome=1.
         $remaining = (int) $this->bufferConn->fetchOne('SELECT COUNT(*) FROM lastfm_import_buffer');
-        $this->assertSame(0, $remaining, 'All processed rows should be removed from the buffer');
+        $this->assertSame(3, $remaining, 'Rows must be kept in buffer (persistent log)');
+        $synced = (int) $this->bufferConn->fetchOne(
+            'SELECT COUNT(*) FROM lastfm_import_buffer WHERE synced_navidrome = 1',
+        );
+        $this->assertSame(3, $synced, 'All processed rows must be marked synced_navidrome');
     }
 
     public function testDryRunLeavesBufferAndNavidromeUntouched(): void
@@ -107,7 +113,12 @@ class LastFmBufferProcessorTest extends TestCase
 
         $this->assertSame(1, $report->inserted);
         $this->assertSame(0, (int) $ndConn->fetchOne('SELECT COUNT(*) FROM scrobbles'));
+        // Dry-run: row must still be in buffer and synced_navidrome must remain 0.
         $this->assertSame(1, (int) $this->bufferConn->fetchOne('SELECT COUNT(*) FROM lastfm_import_buffer'));
+        $this->assertSame(
+            0,
+            (int) $this->bufferConn->fetchOne('SELECT COUNT(*) FROM lastfm_import_buffer WHERE synced_navidrome = 1'),
+        );
     }
 
     public function testProcessRespectsLimit(): void
@@ -177,9 +188,11 @@ class LastFmBufferProcessorTest extends TestCase
         $count = (int) $ndConn->fetchOne('SELECT COUNT(*) FROM scrobbles');
         $this->assertSame(0, $count, 'Rolled-back batch must leave 0 scrobbles in Navidrome');
 
-        // Buffer rows must still be there for a retry.
-        $buffered = (int) $this->bufferConn->fetchOne('SELECT COUNT(*) FROM lastfm_import_buffer');
-        $this->assertSame(2, $buffered, 'Buffer rows must survive a rolled-back batch');
+        // Buffer rows must still be unsynced (synced_navidrome=0) for a retry.
+        $unsynced = (int) $this->bufferConn->fetchOne(
+            'SELECT COUNT(*) FROM lastfm_import_buffer WHERE synced_navidrome = 0',
+        );
+        $this->assertSame(2, $unsynced, 'Buffer rows must stay unsynced after a rolled-back batch');
 
         // No audit was persisted for the failed batch.
         $this->assertSame(0, $persistCount, 'Audit rows must NOT be persisted when the batch rolls back');
@@ -239,8 +252,10 @@ class LastFmBufferProcessorTest extends TestCase
         $count = (int) $ndConn->fetchOne('SELECT COUNT(*) FROM scrobbles');
         $this->assertSame(100, $count, 'First batch must remain committed');
 
-        $buffered = (int) $this->bufferConn->fetchOne('SELECT COUNT(*) FROM lastfm_import_buffer');
-        $this->assertSame(150, $buffered, 'Rows 101-250 must still be in the buffer for retry');
+        $unsynced = (int) $this->bufferConn->fetchOne(
+            'SELECT COUNT(*) FROM lastfm_import_buffer WHERE synced_navidrome = 0',
+        );
+        $this->assertSame(150, $unsynced, 'Rows 101-250 must remain unsynced for retry');
 
         $this->assertSame(100, $persistCount, 'Only the first batch must have flushed audit rows');
     }
@@ -320,11 +335,11 @@ class LastFmBufferProcessorTest extends TestCase
                     if ($limit > 0 && $emitted >= $limit) {
                         break;
                     }
-                    $stillThere = (int) $this->bufferConn->fetchOne(
-                        'SELECT COUNT(*) FROM lastfm_import_buffer WHERE id = ?',
+                    $notYetSynced = (int) $this->bufferConn->fetchOne(
+                        'SELECT COUNT(*) FROM lastfm_import_buffer WHERE id = ? AND synced_navidrome = 0',
                         [$row->getId()],
                     );
-                    if ($stillThere === 0) {
+                    if ($notYetSynced === 0) {
                         continue;
                     }
                     $emitted++;
@@ -350,11 +365,11 @@ class LastFmBufferProcessorTest extends TestCase
                         break;
                     }
                     // Skip rows already deleted from the buffer (id-not-found).
-                    $stillThere = (int) $this->bufferConn->fetchOne(
-                        'SELECT COUNT(*) FROM lastfm_import_buffer WHERE id = ?',
+                    $notYetSynced = (int) $this->bufferConn->fetchOne(
+                        'SELECT COUNT(*) FROM lastfm_import_buffer WHERE id = ? AND synced_navidrome = 0',
                         [$row->getId()],
                     );
-                    if ($stillThere === 0) {
+                    if ($notYetSynced === 0) {
                         continue;
                     }
                     $emitted++;
@@ -387,8 +402,9 @@ class LastFmBufferProcessorTest extends TestCase
     {
         foreach ($rows as $row) {
             $this->bufferConn->executeStatement(
-                'INSERT INTO lastfm_import_buffer (id, lastfm_user, artist, title, album, mbid, played_at, fetched_at) '
-                . 'VALUES (:id, :user, :artist, :title, :album, :mbid, :played, :fetched)',
+                'INSERT INTO lastfm_import_buffer '
+                . '(id, lastfm_user, artist, title, album, mbid, played_at, fetched_at, synced_navidrome, synced_strawberry) '
+                . 'VALUES (:id, :user, :artist, :title, :album, :mbid, :played, :fetched, 0, 0)',
                 [
                     'id' => $row->getId(),
                     'user' => $row->getLastfmUser(),

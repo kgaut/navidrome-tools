@@ -14,11 +14,12 @@ use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
 /**
- * Drains the lastfm_import_buffer: for each row, runs the matching cascade
- * ({@see ScrobbleMatcher}), inserts a Navidrome scrobble when a match is
- * found and not already present (±N seconds dedup), persists an audit row
- * in lastfm_import_track tied to the current RunHistory, then deletes the
- * buffer row.
+ * Processes the lastfm_import_buffer for Navidrome: for each unsynced row,
+ * runs the matching cascade ({@see ScrobbleMatcher}), inserts a Navidrome
+ * scrobble when a match is found and not already present (±N seconds dedup),
+ * persists an audit row in lastfm_import_track tied to the current RunHistory,
+ * then marks the buffer row synced_navidrome = true (rows are never deleted —
+ * the buffer is a persistent log shared with the Strawberry processor).
  *
  * This is the only place that writes to Navidrome — call it with Navidrome
  * stopped (the caller owns the pre-flight via NavidromeContainerManager).
@@ -28,19 +29,20 @@ use Psr\Log\NullLogger;
  *  1. Open `BEGIN IMMEDIATE` on the Navidrome connection.
  *  2. INSERT every match'ed scrobble inside the transaction.
  *  3. COMMIT.
- *  4. Only THEN persist `LastFmImportTrack` audit rows, DELETE the buffer
- *     entries, flush app-DB.
+ *  4. Only THEN persist `LastFmImportTrack` audit rows, UPDATE the buffer
+ *     rows (synced_navidrome = 1), flush app-DB.
  *
  * If anything in steps 1-3 throws (PHP crash, kill -9 mid-INSERT, etc.) the
  * Navidrome rollback discards the partial writes ; the audit rows haven't
- * been persisted yet ; and the buffer rows haven't been deleted, so a re-run
- * picks them up. Dedup via {@see NavidromeRepository::scrobbleExistsNear()}
- * keeps the re-run idempotent. The post-commit step (4) is on the app-DB
- * which can fail independently — the resulting drift is recovered on
- * re-run by the same dedup mechanism.
+ * been persisted yet ; and the buffer rows are still synced_navidrome=false,
+ * so a re-run picks them up. Dedup via
+ * {@see NavidromeRepository::scrobbleExistsNear()} keeps the re-run
+ * idempotent. The post-commit step (4) is on the app-DB which can fail
+ * independently — the resulting drift is recovered on re-run by the same
+ * dedup mechanism.
  *
  * Idempotent: a buffer row processed twice ends up with one Navidrome
- * scrobble + one audit row, then disappears from the buffer.
+ * scrobble + one audit row, then synced_navidrome = true in the buffer.
  */
 class LastFmBufferProcessor
 {
@@ -251,7 +253,7 @@ class LastFmBufferProcessor
      *   2. INSERT every pending scrobble that should land
      *   3. COMMIT — if anything throws, ROLLBACK and re-raise (the buffer
      *      rows and audits stay un-persisted, so a retry resumes cleanly).
-     *   4. Persist audit rows, DELETE buffer rows, flush app-DB.
+     *   4. Persist audit rows, UPDATE buffer rows (synced_navidrome=1), flush app-DB.
      *
      * @param  list<array{
      *     bufferId: int,
@@ -315,11 +317,12 @@ class LastFmBufferProcessor
             }
         }
 
-        // Bulk DELETE — buffer ids are integers (entity primary key), safe
-        // to inline. Avoids a 100-deep IN-clause via DBAL array param type.
+        // Mark the processed rows as synced for Navidrome. Buffer ids are
+        // integers (entity primary key), safe to inline in the IN clause.
+        // Rows are never deleted — the buffer is a persistent log.
         $bufferIds = array_map(static fn (array $row): int => $row['bufferId'], $pending);
         $appConnection->executeStatement(
-            'DELETE FROM lastfm_import_buffer WHERE id IN (' . implode(',', $bufferIds) . ')',
+            'UPDATE lastfm_import_buffer SET synced_navidrome = 1 WHERE id IN (' . implode(',', $bufferIds) . ')',
         );
 
         $this->em->flush();
