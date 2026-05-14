@@ -9,13 +9,13 @@
     </div>
 
     {% if not has_scrobbles %}
-        <div class="bg-amber-50 border border-amber-300 text-amber-800 rounded p-4 mb-6 text-sm">
+        <div class="bg-amber-50 border border-amber-300 text-amber-800 rounded-sm p-4 mb-6 text-sm">
             La table <code>scrobbles</code> de Navidrome est introuvable. Les heatmaps nécessitent Navidrome ≥ 0.55.
         </div>
     {% endif %}
 
     {# ---------- Day × hour heatmap (last 90 days) ---------- #}
-    <div class="bg-white shadow rounded p-5 mb-6 overflow-x-auto">
+    <div class="bg-white shadow-sm rounded-sm p-5 mb-6 overflow-x-auto">
         <h2 class="font-semibold text-sm mb-3">
             Jour × heure — 90 derniers jours
             <span class="text-xs text-slate-500">(max : {{ max_hour|number_format(0, '.', ' ') }} écoutes)</span>
@@ -51,7 +51,7 @@
     </div>
 
     {# ---------- Year × day heatmap (GitHub-style) ---------- #}
-    <div class="bg-white shadow rounded p-5">
+    <div class="bg-white shadow-sm rounded-sm p-5">
         <div class="flex items-center justify-between mb-3 flex-wrap gap-3">
             <h2 class="font-semibold text-sm">
                 Année {{ year }} — jour par jour
@@ -59,7 +59,7 @@
             </h2>
             <form method="get" class="flex items-center gap-2 text-sm">
                 <label for="year">Année :</label>
-                <select name="year" id="year" onchange="this.form.submit()" class="border rounded px-2 py-1">
+                <select name="year" id="year" onchange="this.form.submit()" class="border rounded-sm px-2 py-1">
                     {% for y in available_years %}
                         <option value="{{ y }}" {{ y == year ? 'selected' : '' }}>{{ y }}</option>
                     {% endfor %}
@@ -99,7 +99,7 @@
                                 {% if cell %}
                                     {% set ratio = max_daily > 0 ? cell.plays / max_daily : 0 %}
                                     {% set opacity = ratio > 0 ? (0.15 + ratio * 0.85) : 0 %}
-                                    <div class="w-3 h-3 rounded-sm"
+                                    <div class="w-3 h-3 rounded-xs"
                                          style="background-color: {{ cell.plays > 0 ? 'rgba(16, 185, 129, ' ~ opacity ~ ')' : '#e5e7eb' }};"
                                          title="{{ cell.date }} : {{ cell.plays }} écoutes"></div>
                                 {% else %}

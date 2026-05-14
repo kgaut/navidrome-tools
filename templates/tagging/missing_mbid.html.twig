@@ -19,14 +19,14 @@
         <form method="post" action="{{ path('app_tagging_missing_mbid_rescan') }}"
               onsubmit="return confirm('Déclencher un rescan Navidrome maintenant ?');">
             <input type="hidden" name="_token" value="{{ csrf_token('missing_mbid_rescan') }}">
-            <button type="submit" class="px-3 py-1.5 rounded bg-emerald-600 text-white text-sm hover:bg-emerald-700">
+            <button type="submit" class="px-3 py-1.5 rounded-sm bg-emerald-600 text-white text-sm hover:bg-emerald-700">
                 ↻ Rescan Navidrome
             </button>
         </form>
     </div>
 
     {% if beets_queue_configured %}
-        <div class="mb-4 p-3 rounded bg-sky-50 border border-sky-200 text-sm flex items-center justify-between gap-3 flex-wrap">
+        <div class="mb-4 p-3 rounded-sm bg-sky-50 border border-sky-200 text-sm flex items-center justify-between gap-3 flex-wrap">
             <div class="text-sky-900">
                 Queue beets active —
                 {% if beets_queue_pending is null or beets_queue_pending == 0 %}
@@ -40,24 +40,24 @@
         </div>
     {% endif %}
 
-    <form method="get" class="bg-white shadow rounded p-4 mb-4 grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+    <form method="get" class="bg-white shadow-sm rounded-sm p-4 mb-4 grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
         <div>
             <label class="block text-xs uppercase text-slate-500">Artiste</label>
             <input type="search" name="artist" value="{{ filters.artist|default('') }}" placeholder="ex. Daft Punk"
-                   class="w-full border rounded px-2 py-1 text-sm">
+                   class="w-full border rounded-sm px-2 py-1 text-sm">
         </div>
         <div>
             <label class="block text-xs uppercase text-slate-500">Album</label>
             <input type="search" name="album" value="{{ filters.album|default('') }}" placeholder="ex. Discovery"
-                   class="w-full border rounded px-2 py-1 text-sm">
+                   class="w-full border rounded-sm px-2 py-1 text-sm">
         </div>
         <div class="flex gap-2">
-            <button type="submit" class="px-3 py-1.5 rounded bg-slate-900 text-white text-sm">Filtrer</button>
+            <button type="submit" class="px-3 py-1.5 rounded-sm bg-slate-900 text-white text-sm">Filtrer</button>
             <a href="{{ path('app_tagging_missing_mbid') }}" class="text-xs text-slate-500 hover:underline self-center">Reset</a>
         </div>
         <div class="text-right flex flex-col gap-1">
             <a href="{{ path('app_tagging_missing_mbid_export', filters|merge({limit: 5000})) }}"
-               class="inline-block px-3 py-1.5 rounded bg-slate-700 text-white text-sm hover:bg-slate-800"
+               class="inline-block px-3 py-1.5 rounded-sm bg-slate-700 text-white text-sm hover:bg-slate-800"
                title="Télécharge les 5 000 premiers chemins (filtres appliqués) au format CSV">
                 ⬇ Export CSV
             </a>
@@ -71,7 +71,7 @@
             <input type="hidden" name="artist" value="{{ filters.artist|default('') }}">
             <input type="hidden" name="album" value="{{ filters.album|default('') }}">
             <input type="hidden" name="limit" value="5000">
-            <button type="submit" class="px-3 py-1.5 rounded bg-indigo-600 text-white text-sm hover:bg-indigo-700">
+            <button type="submit" class="px-3 py-1.5 rounded-sm bg-indigo-600 text-white text-sm hover:bg-indigo-700">
                 📋 Pousser dans la queue beets
             </button>
             <span class="text-xs text-slate-500">
@@ -82,11 +82,11 @@
     {% endif %}
 
     {% if rows is empty %}
-        <div class="bg-white shadow rounded p-6 text-center text-slate-500">
+        <div class="bg-white shadow-sm rounded-sm p-6 text-center text-slate-500">
             Aucun track sans MBID pour ce filtre 🎉
         </div>
     {% else %}
-        <div class="bg-white shadow rounded overflow-hidden">
+        <div class="bg-white shadow-sm rounded-sm overflow-hidden">
             <table class="w-full text-sm">
                 <thead class="bg-slate-100 text-slate-600 text-left text-xs">
                 <tr>
@@ -119,12 +119,12 @@
             <div class="flex items-center justify-center gap-2 mt-4 text-sm">
                 {% if page > 1 %}
                     <a href="{{ path('app_tagging_missing_mbid', filters|merge({page: page - 1})) }}"
-                       class="px-3 py-1 rounded border hover:bg-slate-100">‹ Précédent</a>
+                       class="px-3 py-1 rounded-sm border hover:bg-slate-100">‹ Précédent</a>
                 {% endif %}
                 <span class="text-slate-500">Page {{ page }} / {{ total_pages }}</span>
                 {% if page < total_pages %}
                     <a href="{{ path('app_tagging_missing_mbid', filters|merge({page: page + 1})) }}"
-                       class="px-3 py-1 rounded border hover:bg-slate-100">Suivant ›</a>
+                       class="px-3 py-1 rounded-sm border hover:bg-slate-100">Suivant ›</a>
                 {% endif %}
             </div>
         {% endif %}

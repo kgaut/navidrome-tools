@@ -22,10 +22,10 @@
     </div>
 
     {# ---------- État ---------- #}
-    <div class="bg-white shadow rounded p-6 max-w-3xl mb-6">
+    <div class="bg-white shadow-sm rounded-sm p-6 max-w-3xl mb-6">
         <h2 class="text-lg font-semibold mb-3">État</h2>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-            <div class="bg-slate-50 rounded p-3">
+            <div class="bg-slate-50 rounded-sm p-3">
                 <div class="text-xs uppercase text-slate-500">Buffer en attente</div>
                 <div class="text-2xl font-semibold">{{ buffer_count|number_format(0, '.', ' ') }}</div>
                 <div class="text-xs text-slate-500 mt-1">
@@ -33,7 +33,7 @@
                     {% if buffer_count > 0 %}prêt{{ buffer_count > 1 ? 's' : '' }} à être traité{{ buffer_count > 1 ? 's' : '' }}{% endif %}
                 </div>
             </div>
-            <div class="bg-slate-50 rounded p-3">
+            <div class="bg-slate-50 rounded-sm p-3">
                 <div class="text-xs uppercase text-slate-500">Non matchés cumulés</div>
                 <div class="text-2xl font-semibold">{{ unmatched_cumulative|number_format(0, '.', ' ') }}</div>
                 <div class="text-xs text-slate-500 mt-1">
@@ -59,7 +59,7 @@
     </div>
 
     {# ---------- 1. Fetch ---------- #}
-    <div class="bg-white shadow rounded p-6 max-w-3xl mb-6">
+    <div class="bg-white shadow-sm rounded-sm p-6 max-w-3xl mb-6">
         <h2 class="text-lg font-semibold mb-1">1. Récupérer depuis Last.fm</h2>
         <p class="text-sm text-slate-500 mb-3">
             Lit l'historique Last.fm et stocke chaque scrobble dans le buffer local.
@@ -68,16 +68,16 @@
         </p>
 
         <div class="text-xs uppercase text-slate-500 mt-2 mb-1">Localement (Symfony serve / Docker)</div>
-        <pre class="bg-slate-900 text-slate-100 rounded px-3 py-2 text-xs overflow-x-auto mb-2"><code>php bin/console app:lastfm:import{% if default_lastfm_user %} {{ default_lastfm_user }}{% else %} USERNAME{% endif %} \
+        <pre class="bg-slate-900 text-slate-100 rounded-sm px-3 py-2 text-xs overflow-x-auto mb-2"><code>php bin/console app:lastfm:import{% if default_lastfm_user %} {{ default_lastfm_user }}{% else %} USERNAME{% endif %} \
     [--api-key=KEY] [--date-min=YYYY-MM-DD] [--date-max=YYYY-MM-DD] \
     [--max-scrobbles=N] [--dry-run]</code></pre>
 
         <div class="text-xs uppercase text-slate-500 mt-3 mb-1">Docker Compose</div>
-        <pre class="bg-slate-900 text-slate-100 rounded px-3 py-2 text-xs overflow-x-auto mb-2"><code>docker compose exec -T navidrome-tools-web \
+        <pre class="bg-slate-900 text-slate-100 rounded-sm px-3 py-2 text-xs overflow-x-auto mb-2"><code>docker compose exec -T navidrome-tools-web \
     php bin/console app:lastfm:import{% if default_lastfm_user %} {{ default_lastfm_user }}{% else %} USERNAME{% endif %}</code></pre>
 
         <div class="text-xs uppercase text-slate-500 mt-3 mb-1">Lando (dev)</div>
-        <pre class="bg-slate-900 text-slate-100 rounded px-3 py-2 text-xs overflow-x-auto"><code>lando symfony app:lastfm:import{% if default_lastfm_user %} {{ default_lastfm_user }}{% else %} USERNAME{% endif %}</code></pre>
+        <pre class="bg-slate-900 text-slate-100 rounded-sm px-3 py-2 text-xs overflow-x-auto"><code>lando symfony app:lastfm:import{% if default_lastfm_user %} {{ default_lastfm_user }}{% else %} USERNAME{% endif %}</code></pre>
 
         <p class="text-xs text-slate-500 mt-3">
             <code>LASTFM_USER</code> et <code>LASTFM_API_KEY</code> servent de défaut quand les options ne sont pas fournies.
@@ -85,7 +85,7 @@
     </div>
 
     {# ---------- 2. Process ---------- #}
-    <div class="bg-white shadow rounded p-6 max-w-3xl mb-6">
+    <div class="bg-white shadow-sm rounded-sm p-6 max-w-3xl mb-6">
         <h2 class="text-lg font-semibold mb-1">2. Traiter le buffer</h2>
         <p class="text-sm text-slate-500 mb-3">
             Stream du buffer (par <code>played_at</code> ASC), cascade de matching, insertion dans la table
@@ -99,15 +99,15 @@
         </p>
 
         <div class="text-xs uppercase text-slate-500 mt-2 mb-1">Localement</div>
-        <pre class="bg-slate-900 text-slate-100 rounded px-3 py-2 text-xs overflow-x-auto mb-2"><code>php bin/console app:lastfm:process --auto-stop \
+        <pre class="bg-slate-900 text-slate-100 rounded-sm px-3 py-2 text-xs overflow-x-auto mb-2"><code>php bin/console app:lastfm:process --auto-stop \
     [--limit=N] [--tolerance=60] [--dry-run]</code></pre>
 
         <div class="text-xs uppercase text-slate-500 mt-3 mb-1">Docker Compose (cron)</div>
-        <pre class="bg-slate-900 text-slate-100 rounded px-3 py-2 text-xs overflow-x-auto mb-2"><code>docker compose exec -T navidrome-tools-web \
+        <pre class="bg-slate-900 text-slate-100 rounded-sm px-3 py-2 text-xs overflow-x-auto mb-2"><code>docker compose exec -T navidrome-tools-web \
     php bin/console app:lastfm:process --auto-stop</code></pre>
 
         <div class="text-xs uppercase text-slate-500 mt-3 mb-1">Lando (dev)</div>
-        <pre class="bg-slate-900 text-slate-100 rounded px-3 py-2 text-xs overflow-x-auto"><code>lando symfony app:lastfm:process --auto-stop</code></pre>
+        <pre class="bg-slate-900 text-slate-100 rounded-sm px-3 py-2 text-xs overflow-x-auto"><code>lando symfony app:lastfm:process --auto-stop</code></pre>
 
         <p class="text-xs text-slate-500 mt-3">
             Sans <code>--auto-stop</code>, la commande échoue si Navidrome tourne (pré-flight).
@@ -116,7 +116,7 @@
     </div>
 
     {# ---------- 3. Rematch ---------- #}
-    <div class="bg-white shadow rounded p-6 max-w-3xl mb-6">
+    <div class="bg-white shadow-sm rounded-sm p-6 max-w-3xl mb-6">
         <h2 class="text-lg font-semibold mb-1">3. Re-matcher les unmatched</h2>
         <p class="text-sm text-slate-500 mb-3">
             Ré-applique la cascade de matching aux rows <code>lastfm_import_track</code> en status
@@ -126,14 +126,14 @@
         </p>
 
         <div class="text-xs uppercase text-slate-500 mt-2 mb-1">Tous les unmatched cumulés</div>
-        <pre class="bg-slate-900 text-slate-100 rounded px-3 py-2 text-xs overflow-x-auto mb-2"><code>php bin/console app:lastfm:rematch --auto-stop \
+        <pre class="bg-slate-900 text-slate-100 rounded-sm px-3 py-2 text-xs overflow-x-auto mb-2"><code>php bin/console app:lastfm:rematch --auto-stop \
     [--limit=N] [--tolerance=60] [--random] [--dry-run]</code></pre>
 
         <div class="text-xs uppercase text-slate-500 mt-3 mb-1">Limiter à un run précis</div>
-        <pre class="bg-slate-900 text-slate-100 rounded px-3 py-2 text-xs overflow-x-auto mb-2"><code>php bin/console app:lastfm:rematch --auto-stop --run-id=&lt;ID&gt;</code></pre>
+        <pre class="bg-slate-900 text-slate-100 rounded-sm px-3 py-2 text-xs overflow-x-auto mb-2"><code>php bin/console app:lastfm:rematch --auto-stop --run-id=&lt;ID&gt;</code></pre>
 
         <div class="text-xs uppercase text-slate-500 mt-3 mb-1">Docker Compose / Lando</div>
-        <pre class="bg-slate-900 text-slate-100 rounded px-3 py-2 text-xs overflow-x-auto"><code>docker compose exec -T navidrome-tools-web \
+        <pre class="bg-slate-900 text-slate-100 rounded-sm px-3 py-2 text-xs overflow-x-auto"><code>docker compose exec -T navidrome-tools-web \
     php bin/console app:lastfm:rematch --auto-stop
 
 lando symfony app:lastfm:rematch --auto-stop</code></pre>

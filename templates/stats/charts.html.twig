@@ -14,15 +14,15 @@
     </div>
 
     {% if not has_scrobbles %}
-        <div class="bg-amber-50 border border-amber-300 text-amber-800 rounded p-4 mb-6 text-sm">
+        <div class="bg-amber-50 border border-amber-300 text-amber-800 rounded-sm p-4 mb-6 text-sm">
             La table <code>scrobbles</code> de Navidrome est introuvable. Les graphiques nécessitent Navidrome ≥ 0.55.
         </div>
     {% endif %}
 
-    <form method="get" class="bg-white shadow rounded p-4 mb-6 flex flex-wrap items-end gap-3">
+    <form method="get" class="bg-white shadow-sm rounded-sm p-4 mb-6 flex flex-wrap items-end gap-3">
         <div>
             <label class="block text-xs uppercase text-slate-500" for="months">Fenêtre (mois)</label>
-            <select name="months" id="months" class="border rounded px-2 py-1 text-sm" onchange="this.form.submit()">
+            <select name="months" id="months" class="border rounded-sm px-2 py-1 text-sm" onchange="this.form.submit()">
                 {% for m in allowed_months %}
                     <option value="{{ m }}" {{ m == months ? 'selected' : '' }}>{{ m }} mois</option>
                 {% endfor %}
@@ -31,14 +31,14 @@
     </form>
 
     <div class="grid grid-cols-1 gap-6">
-        <div class="bg-white shadow rounded p-5">
+        <div class="bg-white shadow-sm rounded-sm p-5">
             <h2 class="font-semibold text-sm mb-3">Écoutes par mois ({{ months }} mois)</h2>
             <div class="h-64">
                 <canvas id="chart-plays-month"></canvas>
             </div>
         </div>
 
-        <div class="bg-white shadow rounded p-5">
+        <div class="bg-white shadow-sm rounded-sm p-5">
             <h2 class="font-semibold text-sm mb-3">Top 5 artistes au fil du temps</h2>
             <div class="grid grid-cols-1 md:grid-cols-[1fr,200px] gap-4 items-center">
                 <div class="h-72">
@@ -47,7 +47,7 @@
                 <ul class="text-sm space-y-2">
                     {% for a in top_artists %}
                         <li class="flex items-center gap-2">
-                            <span class="inline-block w-3 h-3 rounded-full flex-shrink-0"
+                            <span class="inline-block w-3 h-3 rounded-full shrink-0"
                                   style="background:{{ top_artists_palette[loop.index0 % top_artists_palette|length] }}"></span>
                             {{ cover_with_fallback('artist', a.artist_id, a.artist, 28) }}
                             <span class="truncate">
@@ -60,14 +60,14 @@
             </div>
         </div>
 
-        <div class="bg-white shadow rounded p-5">
+        <div class="bg-white shadow-sm rounded-sm p-5">
             <h2 class="font-semibold text-sm mb-3">Distribution par jour de la semaine (90 derniers jours)</h2>
             <div class="h-64">
                 <canvas id="chart-dow"></canvas>
             </div>
         </div>
 
-        <div class="bg-white shadow rounded p-5">
+        <div class="bg-white shadow-sm rounded-sm p-5">
             <h2 class="font-semibold text-sm mb-3">Diversité d'écoute ({{ months }} mois)</h2>
             <p class="text-xs text-slate-500 mb-3">
                 Ratio artistes uniques par écoute, mois par mois. Plus c'est haut, plus tu explores ;

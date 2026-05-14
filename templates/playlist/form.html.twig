@@ -17,7 +17,7 @@
         </p>
     {% endif %}
 
-    <div class="bg-white shadow rounded p-6 max-w-2xl">
+    <div class="bg-white shadow-sm rounded-sm p-6 max-w-2xl">
         {{ form_start(form, {attr: {class: 'space-y-4'}}) }}
             {{ form_row(form.name) }}
             {{ form_row(form.generatorKey) }}
@@ -43,8 +43,8 @@
             </div>
 
             <div class="flex justify-end gap-2 pt-4 border-t">
-                <a href="{{ path('app_dashboard') }}" class="px-4 py-2 text-sm rounded border">Annuler</a>
-                <button type="submit" class="px-4 py-2 text-sm rounded bg-emerald-600 hover:bg-emerald-700 text-white">
+                <a href="{{ path('app_dashboard') }}" class="px-4 py-2 text-sm rounded-sm border">Annuler</a>
+                <button type="submit" class="px-4 py-2 text-sm rounded-sm bg-emerald-600 hover:bg-emerald-700 text-white">
                     {{ is_new ? 'Créer' : 'Enregistrer' }}
                 </button>
             </div>

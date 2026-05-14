@@ -3,11 +3,11 @@
 {% block title %}Connexion{% endblock %}
 
 {% block body %}
-    <div class="max-w-md mx-auto bg-white shadow rounded p-6 mt-12">
+    <div class="max-w-md mx-auto bg-white shadow-sm rounded-sm p-6 mt-12">
         <h1 class="text-xl font-semibold mb-4">Connexion</h1>
 
         {% if error %}
-            <div class="mb-4 px-3 py-2 bg-rose-50 border border-rose-300 text-rose-800 rounded text-sm">
+            <div class="mb-4 px-3 py-2 bg-rose-50 border border-rose-300 text-rose-800 rounded-sm text-sm">
                 {{ error.messageKey|trans(error.messageData, 'security') }}
             </div>
         {% endif %}
@@ -16,15 +16,15 @@
             <div>
                 <label for="username" class="block text-sm font-medium mb-1">Identifiant</label>
                 <input type="text" id="username" name="_username" value="{{ last_username }}" autofocus required
-                       class="w-full border rounded px-3 py-2">
+                       class="w-full border rounded-sm px-3 py-2">
             </div>
             <div>
                 <label for="password" class="block text-sm font-medium mb-1">Mot de passe</label>
                 <input type="password" id="password" name="_password" required
-                       class="w-full border rounded px-3 py-2">
+                       class="w-full border rounded-sm px-3 py-2">
             </div>
             <input type="hidden" name="_csrf_token" value="{{ csrf_token('authenticate') }}">
-            <button type="submit" class="w-full bg-slate-900 text-white py-2 rounded hover:bg-slate-700">
+            <button type="submit" class="w-full bg-slate-900 text-white py-2 rounded-sm hover:bg-slate-700">
                 Se connecter
             </button>
         </form>

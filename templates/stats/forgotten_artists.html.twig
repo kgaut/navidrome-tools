@@ -5,10 +5,10 @@
 {% block body %}
     <div class="flex flex-wrap items-center gap-3 text-xs mb-4">
         <span class="text-slate-500">Voir aussi :</span>
-        <a href="{{ path('app_stats') }}" class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200">Vue d'ensemble</a>
-        <a href="{{ path('app_stats_charts') }}" class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200">Graphiques</a>
-        <a href="{{ path('app_stats_heatmap') }}" class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200">Heatmap</a>
-        <a href="{{ path('app_wrapped_default') }}" class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200">Wrapped</a>
+        <a href="{{ path('app_stats') }}" class="px-2 py-1 rounded-sm bg-slate-100 hover:bg-slate-200">Vue d'ensemble</a>
+        <a href="{{ path('app_stats_charts') }}" class="px-2 py-1 rounded-sm bg-slate-100 hover:bg-slate-200">Graphiques</a>
+        <a href="{{ path('app_stats_heatmap') }}" class="px-2 py-1 rounded-sm bg-slate-100 hover:bg-slate-200">Heatmap</a>
+        <a href="{{ path('app_wrapped_default') }}" class="px-2 py-1 rounded-sm bg-slate-100 hover:bg-slate-200">Wrapped</a>
     </div>
 
     <div class="flex items-start justify-between mb-4 flex-wrap gap-3">
@@ -22,32 +22,32 @@
     </p>
 
     {% if not has_scrobbles %}
-        <div class="bg-amber-50 border border-amber-300 text-amber-800 rounded p-4 mb-6 text-sm">
+        <div class="bg-amber-50 border border-amber-300 text-amber-800 rounded-sm p-4 mb-6 text-sm">
             La table <code>scrobbles</code> de Navidrome est introuvable. Cette page nécessite Navidrome ≥ 0.55.
         </div>
     {% endif %}
 
-    <form method="get" class="bg-white shadow rounded p-4 mb-6 flex flex-wrap items-end gap-4">
+    <form method="get" class="bg-white shadow-sm rounded-sm p-4 mb-6 flex flex-wrap items-end gap-4">
         <div>
             <label class="block text-xs uppercase text-slate-500" for="min_plays">Plays minimum</label>
             <input type="number" name="min_plays" id="min_plays" value="{{ min_plays }}" min="1"
-                   class="border rounded px-2 py-1 text-sm w-24">
+                   class="border rounded-sm px-2 py-1 text-sm w-24">
         </div>
         <div>
             <label class="block text-xs uppercase text-slate-500" for="idle_months">Inactif depuis</label>
-            <select name="idle_months" id="idle_months" class="border rounded px-2 py-1 text-sm">
+            <select name="idle_months" id="idle_months" class="border rounded-sm px-2 py-1 text-sm">
                 {% for m in allowed_idle_months %}
                     <option value="{{ m }}" {{ m == idle_months ? 'selected' : '' }}>{{ m }} mois</option>
                 {% endfor %}
             </select>
         </div>
-        <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded text-sm">
+        <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-sm text-sm">
             Filtrer
         </button>
     </form>
 
     {% if has_scrobbles %}
-        <div class="bg-white shadow rounded overflow-hidden">
+        <div class="bg-white shadow-sm rounded-sm overflow-hidden">
             <div class="px-4 py-3 border-b bg-slate-50 flex items-center justify-between">
                 <h2 class="font-semibold text-sm">{{ artists|length }} artiste(s)</h2>
             </div>

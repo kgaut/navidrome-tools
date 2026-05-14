@@ -12,28 +12,28 @@
         </p>
     </div>
 
-    <div class="bg-white shadow rounded p-4 mb-4 flex items-center justify-between">
+    <div class="bg-white shadow-sm rounded-sm p-4 mb-4 flex items-center justify-between">
         {% if not auth_configured %}
             <span class="text-sm text-amber-700">
                 Configurez <code>LASTFM_API_KEY</code> et <code>LASTFM_API_SECRET</code> avant de continuer.
             </span>
         {% elseif session_user %}
             <span class="text-sm">
-                <span class="inline-block px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-xs">✓ connecté</span>
+                <span class="inline-block px-2 py-0.5 rounded-sm bg-emerald-100 text-emerald-800 text-xs">✓ connecté</span>
                 <code class="ml-1">{{ session_user }}</code>
             </span>
             <a href="{{ path('app_settings') }}" class="text-xs text-sky-700 hover:underline">Réglages</a>
         {% else %}
             <span class="text-sm">
-                <span class="inline-block px-2 py-0.5 rounded bg-slate-200 text-slate-700 text-xs">✗ non connecté</span>
+                <span class="inline-block px-2 py-0.5 rounded-sm bg-slate-200 text-slate-700 text-xs">✗ non connecté</span>
                 — connectez-vous d'abord à Last.fm.
             </span>
             <a href="{{ path('app_lastfm_connect') }}"
-               class="px-3 py-1.5 rounded bg-slate-900 text-white text-sm">Se connecter</a>
+               class="px-3 py-1.5 rounded-sm bg-slate-900 text-white text-sm">Se connecter</a>
         {% endif %}
     </div>
 
-    <div class="bg-white shadow rounded p-6 max-w-3xl mb-6">
+    <div class="bg-white shadow-sm rounded-sm p-6 max-w-3xl mb-6">
         <h2 class="text-lg font-semibold mb-1">Lancer la synchro</h2>
         <p class="text-sm text-slate-500 mb-3">
             La commande lit les loved Last.fm de l'utilisateur connecté et les starred Navidrome,
@@ -43,15 +43,15 @@
         </p>
 
         <div class="text-xs uppercase text-slate-500 mt-2 mb-1">Localement</div>
-        <pre class="bg-slate-900 text-slate-100 rounded px-3 py-2 text-xs overflow-x-auto mb-2"><code>php bin/console app:lastfm:sync-loved \
+        <pre class="bg-slate-900 text-slate-100 rounded-sm px-3 py-2 text-xs overflow-x-auto mb-2"><code>php bin/console app:lastfm:sync-loved \
     [--direction=both|lf-to-nd|nd-to-lf] [--dry-run]</code></pre>
 
         <div class="text-xs uppercase text-slate-500 mt-3 mb-1">Docker Compose (cron)</div>
-        <pre class="bg-slate-900 text-slate-100 rounded px-3 py-2 text-xs overflow-x-auto mb-2"><code>docker compose exec -T navidrome-tools-web \
+        <pre class="bg-slate-900 text-slate-100 rounded-sm px-3 py-2 text-xs overflow-x-auto mb-2"><code>docker compose exec -T navidrome-tools-web \
     php bin/console app:lastfm:sync-loved --direction=both</code></pre>
 
         <div class="text-xs uppercase text-slate-500 mt-3 mb-1">Lando (dev)</div>
-        <pre class="bg-slate-900 text-slate-100 rounded px-3 py-2 text-xs overflow-x-auto"><code>lando symfony app:lastfm:sync-loved --direction=both</code></pre>
+        <pre class="bg-slate-900 text-slate-100 rounded-sm px-3 py-2 text-xs overflow-x-auto"><code>lando symfony app:lastfm:sync-loved --direction=both</code></pre>
 
         <p class="text-xs text-slate-500 mt-3">
             Direction par défaut : <code>both</code>. <code>--dry-run</code> calcule la diff sans rien écrire.

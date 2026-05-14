@@ -5,9 +5,9 @@
 {% block body %}
     <div class="flex flex-wrap items-center gap-3 text-xs mb-4">
         <span class="text-slate-500">Voir aussi :</span>
-        <a href="{{ path('app_stats') }}" class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200">Vue d'ensemble</a>
-        <a href="{{ path('app_stats_forgotten_artists') }}" class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200">Artistes oubliés</a>
-        <a href="{{ path('app_tagging_missing_mbid') }}" class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200">Morceaux sans MBID</a>
+        <a href="{{ path('app_stats') }}" class="px-2 py-1 rounded-sm bg-slate-100 hover:bg-slate-200">Vue d'ensemble</a>
+        <a href="{{ path('app_stats_forgotten_artists') }}" class="px-2 py-1 rounded-sm bg-slate-100 hover:bg-slate-200">Artistes oubliés</a>
+        <a href="{{ path('app_tagging_missing_mbid') }}" class="px-2 py-1 rounded-sm bg-slate-100 hover:bg-slate-200">Morceaux sans MBID</a>
     </div>
 
     <div class="flex items-start justify-between mb-4 flex-wrap gap-3">
@@ -23,11 +23,11 @@
     </p>
 
     {% if not available %}
-        <div class="bg-amber-50 border border-amber-300 text-amber-800 rounded p-4 mb-6 text-sm">
+        <div class="bg-amber-50 border border-amber-300 text-amber-800 rounded-sm p-4 mb-6 text-sm">
             La base Navidrome n'est pas accessible.
         </div>
     {% elseif by_artist is empty %}
-        <div class="bg-emerald-50 border border-emerald-300 text-emerald-800 rounded p-4 text-sm">
+        <div class="bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-sm p-4 text-sm">
             🎉 Aucun album sans <code>mbz_album_id</code> dans le top {{ 200 }}. Soit ta lib est
             bien taggée, soit la colonne <code>mbz_album_id</code> n'existe pas (Navidrome très ancien).
         </div>
@@ -38,7 +38,7 @@
 
         <div class="space-y-4">
             {% for group in by_artist %}
-                <div class="bg-white shadow rounded overflow-hidden">
+                <div class="bg-white shadow-sm rounded-sm overflow-hidden">
                     <div class="px-4 py-3 border-b bg-slate-50 flex items-center justify-between">
                         <h2 class="font-semibold text-sm">
                             {{ group.artist }}
