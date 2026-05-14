@@ -93,3 +93,17 @@ services:
         arguments:
             $dbPath: '%navidrome.db_path%'
             $userName: '%navidrome.user%'
+
+    App\LastFm\LastFmClient:
+        arguments:
+            $pageDelaySeconds: '%lastfm.page_delay_seconds%'
+
+    App\Command\FetchLastFmCommand:
+        arguments:
+            $defaultApiKey: '%lastfm.api_key%'
+            $defaultUser: '%lastfm.user%'
+
+    App\Controller\LastFmImportController:
+        arguments:
+            $defaultApiKey: '%lastfm.api_key%'
+            $defaultUser: '%lastfm.user%'
