@@ -164,7 +164,7 @@ class LastFmFetcherTest extends TestCase
             title: $title,
             album: '',
             albumArtist: '',
-            mbidTrack: null,
+            mbid: null,
             mbidArtist: null,
             mbidAlbum: null,
             playedAt: new \DateTimeImmutable($playedAt, new \DateTimeZone('UTC')),

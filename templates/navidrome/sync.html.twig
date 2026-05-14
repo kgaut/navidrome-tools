@@ -1,0 +1,73 @@
+{% extends 'base.html.twig' %}
+{% block title %}Sync Navidrome{% endblock %}
+{% block body %}
+    <h1 class="text-2xl font-semibold mb-4">Synchronisation → Navidrome</h1>
+
+    <div class="bg-amber-50 border border-amber-300 rounded-sm p-4 mb-6 text-sm text-amber-900">
+        <strong>Navidrome doit être arrêté</strong> pour éviter toute corruption SQLite.
+        Utilisez <code>--auto-stop</code> en CLI ou cochez la case ci-dessous
+        (requiert <code>NAVIDROME_CONTAINER_NAME</code> configuré).
+    </div>
+
+    {# Compteurs #}
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+        <div class="bg-white shadow-sm rounded-sm p-4">
+            <div class="text-xs uppercase text-slate-500">En attente</div>
+            <div class="text-3xl font-semibold {{ pending > 0 ? 'text-amber-600' : '' }}">{{ pending|number_format(0, '.', ' ') }}</div>
+        </div>
+        <div class="bg-white shadow-sm rounded-sm p-4">
+            <div class="text-xs uppercase text-slate-500">Matchés</div>
+            <div class="text-3xl font-semibold text-emerald-600">{{ matched|number_format(0, '.', ' ') }}</div>
+        </div>
+        <div class="bg-white shadow-sm rounded-sm p-4">
+            <div class="text-xs uppercase text-slate-500">Doublons</div>
+            <div class="text-3xl font-semibold text-slate-500">{{ duplicates|number_format(0, '.', ' ') }}</div>
+        </div>
+        <div class="bg-white shadow-sm rounded-sm p-4">
+            <div class="text-xs uppercase text-slate-500">
+                <a href="{{ path('app_navidrome_unmatched') }}" class="underline hover:no-underline">Non matchés</a>
+            </div>
+            <div class="text-3xl font-semibold {{ unmatched > 0 ? 'text-rose-600' : '' }}">{{ unmatched|number_format(0, '.', ' ') }}</div>
+        </div>
+    </div>
+
+    {# Formulaire sync #}
+    <div class="bg-white shadow-sm rounded-sm p-6 max-w-xl mb-6">
+        <h2 class="text-lg font-semibold mb-4">Lancer la synchronisation</h2>
+        <form method="post" action="{{ path('app_navidrome_sync_post') }}" class="space-y-4">
+            <input type="hidden" name="_token" value="{{ csrf_token('navidrome_sync') }}">
+
+            <div class="flex flex-col gap-2">
+                <label class="flex items-center gap-2 text-sm">
+                    <input type="checkbox" name="auto_stop" value="1"> Auto-stop Navidrome (requiert NAVIDROME_CONTAINER_NAME)
+                </label>
+                <label class="flex items-center gap-2 text-sm">
+                    <input type="checkbox" name="dry_run" value="1"> Dry-run (matching sans écriture)
+                </label>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs uppercase text-slate-500 mb-1">Limite (0 = tout)</label>
+                    <input type="number" name="limit" value="0" min="0"
+                           class="w-full border rounded-sm px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs uppercase text-slate-500 mb-1">Tolérance dedup (s)</label>
+                    <input type="number" name="tolerance" value="60" min="0"
+                           class="w-full border rounded-sm px-3 py-2 text-sm">
+                </div>
+            </div>
+
+            <button type="submit"
+                    class="bg-slate-800 hover:bg-slate-900 text-white px-6 py-2 rounded-sm text-sm font-medium">
+                ▶ Lancer la sync
+            </button>
+        </form>
+
+        <div class="mt-4 text-xs text-slate-400">
+            <strong>CLI :</strong>
+            <code>php bin/console app:scrobbles:sync-navidrome [--auto-stop] [--dry-run] [--limit=N]</code>
+        </div>
+    </div>
+{% endblock %}
