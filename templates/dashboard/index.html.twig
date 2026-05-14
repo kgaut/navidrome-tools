@@ -1,8 +1,59 @@
 {% extends 'base.html.twig' %}
 {% block title %}Dashboard{% endblock %}
 {% block body %}
-    <h1 class="text-2xl font-semibold mb-4">Dashboard</h1>
-    <div class="bg-white shadow-sm rounded-sm p-6 text-slate-500 text-sm">
-        Le développement de Navidrome Tools v2 est en cours. 🚧
+    <h1 class="text-2xl font-semibold mb-6">Dashboard</h1>
+
+    <div class="bg-amber-50 border border-amber-300 rounded-sm p-4 mb-6 text-sm text-amber-900">
+        🚧 <strong>Navidrome Tools v2</strong> — développement en cours (Lot 2 : import Last.fm à venir).
+    </div>
+
+    {# Derniers runs #}
+    <div class="bg-white shadow-sm rounded-sm overflow-hidden">
+        <div class="flex items-center justify-between px-3 py-2 bg-slate-100 border-b">
+            <h2 class="text-sm font-semibold text-slate-700">Derniers runs</h2>
+            <a href="{{ path('app_history') }}" class="text-xs text-sky-700 hover:underline">Voir tout →</a>
+        </div>
+        {% if recent_runs is empty %}
+            <div class="px-3 py-4 text-sm text-slate-500 text-center">Aucun run pour l'instant.</div>
+        {% else %}
+            <table class="w-full text-sm">
+                <thead class="bg-slate-50 text-xs text-slate-500 uppercase">
+                    <tr>
+                        <th class="px-3 py-2 text-left">Label</th>
+                        <th class="px-3 py-2 text-left">Type</th>
+                        <th class="px-3 py-2 text-left">Statut</th>
+                        <th class="px-3 py-2 text-right">Durée</th>
+                        <th class="px-3 py-2 text-right">Lancé le</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y">
+                {% for run in recent_runs %}
+                    <tr class="hover:bg-slate-50">
+                        <td class="px-3 py-1.5">
+                            <a href="{{ path('app_history_show', {id: run.id}) }}" class="hover:underline">
+                                {{ run.label }}
+                            </a>
+                        </td>
+                        <td class="px-3 py-1.5 font-mono text-xs text-slate-500">{{ run.type }}</td>
+                        <td class="px-3 py-1.5">
+                            <span class="text-xs px-1.5 py-0.5 rounded-sm font-medium
+                                {% if run.status == 'success' %}bg-emerald-100 text-emerald-800
+                                {% elseif run.status == 'error' %}bg-rose-100 text-rose-800
+                                {% elseif run.status == 'running' %}bg-sky-100 text-sky-800
+                                {% else %}bg-slate-100 text-slate-700{% endif %}">
+                                {{ run.status }}
+                            </span>
+                        </td>
+                        <td class="px-3 py-1.5 text-right text-xs text-slate-500 font-mono">
+                            {% if run.durationMs %}{{ (run.durationMs / 1000)|number_format(1) }}s{% else %}—{% endif %}
+                        </td>
+                        <td class="px-3 py-1.5 text-right text-xs text-slate-500">
+                            {{ run.startedAt|date('d/m H:i') }}
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        {% endif %}
     </div>
 {% endblock %}

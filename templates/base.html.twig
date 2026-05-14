@@ -11,6 +11,7 @@
 {% if app.user %}
 <nav class="bg-slate-800 text-slate-100 px-4 py-2 flex items-center gap-4 text-sm">
     <a href="{{ path('app_dashboard') }}" class="font-semibold hover:text-white">Navidrome Tools</a>
+    <a href="{{ path('app_history') }}" class="hover:text-slate-300">Historique</a>
     <span class="flex-1"></span>
     <a href="{{ path('app_logout') }}" class="hover:text-white">Déconnexion</a>
 </nav>

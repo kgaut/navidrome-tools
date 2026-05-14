@@ -3,6 +3,7 @@ parameters:
     app.auth_password: '%env(APP_AUTH_PASSWORD)%'
     app.version: '%env(default::APP_VERSION)%'
     app.run_history_retention_days: '%env(int:RUN_HISTORY_RETENTION_DAYS)%'
+    app.backup_dir: '%kernel.project_dir%/var/backups'
     app.backup_retention_days: '%env(int:BACKUP_RETENTION_DAYS)%'
     navidrome.db_path: '%env(NAVIDROME_DB_PATH)%'
     navidrome.url: '%env(NAVIDROME_URL)%'
@@ -35,6 +36,10 @@ services:
         bind:
             $projectDir: '%kernel.project_dir%'
 
+    _instanceof:
+        App\Notifier\NotifierDriverInterface:
+            tags: ['app.notifier_driver']
+
     App\:
         resource: '../src/'
         exclude:
@@ -46,3 +51,45 @@ services:
         arguments:
             $username: '%app.auth_user%'
             $plainPassword: '%app.auth_password%'
+
+    App\Service\BackupService:
+        arguments:
+            $backupDir: '%app.backup_dir%'
+
+    App\Command\PurgeBackupsCommand:
+        arguments:
+            $retentionDays: '%app.backup_retention_days%'
+
+    App\Command\PurgeHistoryCommand:
+        arguments:
+            $retentionDays: '%app.run_history_retention_days%'
+
+    App\Notifier\Notifier:
+        arguments:
+            $drivers: !tagged_iterator app.notifier_driver
+            $enabledDriversCsv: '%notify.drivers%'
+            $notifyOn: '%notify.on%'
+
+    App\Notifier\Driver\GotifyDriver:
+        arguments:
+            $url: '%notify.gotify.url%'
+            $token: '%notify.gotify.token%'
+            $priority: '%notify.gotify.priority%'
+
+    App\Notifier\Driver\SlackDriver:
+        arguments:
+            $webhookUrl: '%notify.slack.webhook_url%'
+
+    App\Notifier\Driver\DiscordDriver:
+        arguments:
+            $webhookUrl: '%notify.discord.webhook_url%'
+
+    App\Notifier\Driver\PushoverDriver:
+        arguments:
+            $token: '%notify.pushover.token%'
+            $user: '%notify.pushover.user%'
+
+    App\Navidrome\NavidromeRepository:
+        arguments:
+            $dbPath: '%navidrome.db_path%'
+            $userName: '%navidrome.user%'
