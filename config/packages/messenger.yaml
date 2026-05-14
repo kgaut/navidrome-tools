@@ -12,5 +12,4 @@ framework:
                     multiplier: 2
 
         routing:
-            # Messages are routed here as features are added.
-            # Example: 'App\Message\FetchLastFmMessage': async
+            'App\Message\FetchLastFmMessage': async
