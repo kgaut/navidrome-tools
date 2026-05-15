@@ -1,19 +1,44 @@
 {% extends 'base.html.twig' %}
 {% block title %}Non matchés — Navidrome{% endblock %}
 {% block body %}
-    <div class="mb-4">
-        <a href="{{ path('app_navidrome_sync') }}" class="text-sm text-sky-700 hover:underline">← Sync Navidrome</a>
+    <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+        <div>
+            <a href="{{ path('app_navidrome_sync') }}" class="text-sm text-sky-700 hover:underline">← Sync Navidrome</a>
+            <h1 class="text-2xl font-semibold mt-1">Scrobbles non matchés — Navidrome</h1>
+            <p class="text-sm text-slate-500">{{ total }} groupe{{ total != 1 ? 's' : '' }} (artiste, titre, album)</p>
+        </div>
+        <form method="post" action="{{ path('app_navidrome_rematch') }}" class="flex gap-2 items-center">
+            <input type="hidden" name="_token" value="{{ csrf_token('navidrome_rematch') }}">
+            <label class="flex items-center gap-1 text-xs text-slate-500">
+                <input type="checkbox" name="auto_stop" value="1"> auto-stop
+            </label>
+            <button type="submit"
+                    class="bg-amber-600 hover:bg-amber-700 text-white px-4 py-1.5 rounded-sm text-sm font-medium">
+                ↺ Rematcher tous
+            </button>
+        </form>
     </div>
 
-    <div class="flex items-center justify-between mb-4">
-        <h1 class="text-2xl font-semibold">Scrobbles non matchés — Navidrome</h1>
-        <span class="text-sm text-slate-500">{{ total }} groupe{{ total != 1 ? 's' : '' }}</span>
-    </div>
-
-    <p class="text-sm text-slate-500 mb-4">
-        Ces scrobbles n'ont pas trouvé de correspondance dans Navidrome. Créez un alias ou ajoutez les morceaux
-        à votre bibliothèque, puis relancez la sync avec <code>--retry-unmatched</code>.
-    </p>
+    <form method="get" class="bg-white shadow-sm rounded-sm p-4 mb-4 flex flex-wrap gap-3 items-end">
+        <div>
+            <label class="block text-xs uppercase text-slate-500 mb-1">Artiste</label>
+            <input type="text" name="artist" value="{{ filter_artist }}" placeholder="Rechercher…"
+                   class="border rounded-sm px-2 py-1 text-sm w-40">
+        </div>
+        <div>
+            <label class="block text-xs uppercase text-slate-500 mb-1">Titre</label>
+            <input type="text" name="title" value="{{ filter_title }}" placeholder="Rechercher…"
+                   class="border rounded-sm px-2 py-1 text-sm w-40">
+        </div>
+        <button type="submit" class="px-3 py-1.5 rounded-sm bg-slate-900 text-white text-sm">Filtrer</button>
+        <a href="{{ path('app_navidrome_unmatched') }}" class="text-xs text-slate-500 hover:underline self-center">Reset</a>
+        <a href="{{ path('app_lastfm_aliases') }}" class="ml-auto text-xs text-sky-700 hover:underline self-center">
+            Gérer les alias track →
+        </a>
+        <a href="{{ path('app_lastfm_artist_aliases') }}" class="text-xs text-sky-700 hover:underline self-center">
+            Alias artiste →
+        </a>
+    </form>
 
     {% if rows is empty %}
         <div class="bg-white rounded-sm p-6 text-center text-slate-500">Aucun scrobble non matché 🎉</div>
@@ -27,6 +52,7 @@
                     <th class="px-3 py-2 text-left">Album</th>
                     <th class="px-3 py-2 text-right">Scrobbles</th>
                     <th class="px-3 py-2 text-right">Dernier joué</th>
+                    <th class="px-3 py-2 text-right">Actions</th>
                 </tr>
             </thead>
             <tbody class="divide-y">
@@ -37,17 +63,20 @@
                     <td class="px-3 py-1.5 text-slate-400 text-xs">{{ row.album ?? '—' }}</td>
                     <td class="px-3 py-1.5 text-right font-mono">{{ row.count }}</td>
                     <td class="px-3 py-1.5 text-right text-xs text-slate-500">{{ row.last_played_at|date('d/m/Y') }}</td>
+                    <td class="px-3 py-1.5 text-right">
+                        <a href="{{ path('app_lastfm_alias_new', {artist: row.artist, title: row.title}) }}"
+                           class="text-xs text-sky-700 hover:underline">✏️ Alias</a>
+                    </td>
                 </tr>
             {% endfor %}
             </tbody>
         </table>
     </div>
-
     {% if pages > 1 %}
     <div class="flex gap-2 items-center text-sm">
-        {% if page > 1 %}<a href="{{ path('app_navidrome_unmatched', {page: page - 1}) }}" class="px-3 py-1 rounded-sm bg-white border">← Préc.</a>{% endif %}
+        {% if page > 1 %}<a href="{{ path('app_navidrome_unmatched', {page: page - 1, artist: filter_artist, title: filter_title}) }}" class="px-3 py-1 rounded-sm bg-white border">← Préc.</a>{% endif %}
         <span class="text-slate-500">Page {{ page }} / {{ pages }}</span>
-        {% if page < pages %}<a href="{{ path('app_navidrome_unmatched', {page: page + 1}) }}" class="px-3 py-1 rounded-sm bg-white border">Suiv. →</a>{% endif %}
+        {% if page < pages %}<a href="{{ path('app_navidrome_unmatched', {page: page + 1, artist: filter_artist, title: filter_title}) }}" class="px-3 py-1 rounded-sm bg-white border">Suiv. →</a>{% endif %}
     </div>
     {% endif %}
     {% endif %}

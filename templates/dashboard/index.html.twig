@@ -3,11 +3,53 @@
 {% block body %}
     <h1 class="text-2xl font-semibold mb-6">Dashboard</h1>
 
-    <div class="bg-amber-50 border border-amber-300 rounded-sm p-4 mb-6 text-sm text-amber-900">
-        🚧 <strong>Navidrome Tools v2</strong> — développement en cours (Lot 2 : import Last.fm à venir).
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+        <div class="bg-white shadow-sm rounded-sm p-4">
+            <div class="text-xs uppercase text-slate-500">Scrobbles locaux</div>
+            <div class="text-3xl font-semibold">{{ total_scrobbles|number_format(0, '.', ' ') }}</div>
+            <div class="text-xs text-slate-400 mt-1"><a href="{{ path('app_lastfm_import') }}" class="hover:underline">Import Last.fm →</a></div>
+        </div>
+
+        <div class="bg-white shadow-sm rounded-sm p-4 {{ navidrome_unmatched > 0 ? 'border border-amber-200' : '' }}">
+            <div class="text-xs uppercase text-slate-500">Navidrome</div>
+            <div class="text-lg font-semibold">{{ navidrome_matched|number_format(0, '.', ' ') }} matchés</div>
+            <div class="text-xs mt-1 space-y-0.5">
+                {% if navidrome_pending > 0 %}
+                <div class="text-amber-700">{{ navidrome_pending }} en attente — <a href="{{ path('app_navidrome_sync') }}" class="underline">sync</a></div>
+                {% endif %}
+                {% if navidrome_unmatched > 0 %}
+                <div class="text-rose-600">{{ navidrome_unmatched }} non matchés — <a href="{{ path('app_navidrome_unmatched') }}" class="underline">voir</a></div>
+                {% elseif navidrome_pending == 0 %}
+                <div class="text-emerald-600">✓ à jour</div>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if strawberry_active %}
+        <div class="bg-white shadow-sm rounded-sm p-4 {{ strawberry_unmatched > 0 ? 'border border-amber-200' : '' }}">
+            <div class="text-xs uppercase text-slate-500">Strawberry</div>
+            <div class="text-xs mt-1 space-y-0.5">
+                {% if strawberry_pending > 0 %}
+                <div class="text-amber-700">{{ strawberry_pending }} en attente — <a href="{{ path('app_strawberry_sync') }}" class="underline">sync</a></div>
+                {% endif %}
+                {% if strawberry_unmatched > 0 %}
+                <div class="text-rose-600">{{ strawberry_unmatched }} non matchés — <a href="{{ path('app_strawberry_unmatched') }}" class="underline">voir</a></div>
+                {% elseif strawberry_pending == 0 %}
+                <div class="text-emerald-600">✓ à jour</div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="bg-white shadow-sm rounded-sm p-4">
+            <div class="text-xs uppercase text-slate-500">Aliases</div>
+            <div class="text-xs mt-2 space-y-1">
+                <div><a href="{{ path('app_lastfm_aliases') }}" class="text-sky-700 hover:underline">Aliases track →</a></div>
+                <div><a href="{{ path('app_lastfm_artist_aliases') }}" class="text-sky-700 hover:underline">Aliases artiste →</a></div>
+            </div>
+        </div>
     </div>
 
-    {# Derniers runs #}
     <div class="bg-white shadow-sm rounded-sm overflow-hidden">
         <div class="flex items-center justify-between px-3 py-2 bg-slate-100 border-b">
             <h2 class="text-sm font-semibold text-slate-700">Derniers runs</h2>
@@ -30,9 +72,7 @@
                 {% for run in recent_runs %}
                     <tr class="hover:bg-slate-50">
                         <td class="px-3 py-1.5">
-                            <a href="{{ path('app_history_show', {id: run.id}) }}" class="hover:underline">
-                                {{ run.label }}
-                            </a>
+                            <a href="{{ path('app_history_show', {id: run.id}) }}" class="hover:underline">{{ run.label }}</a>
                         </td>
                         <td class="px-3 py-1.5 font-mono text-xs text-slate-500">{{ run.type }}</td>
                         <td class="px-3 py-1.5">
@@ -44,12 +84,10 @@
                                 {{ run.status }}
                             </span>
                         </td>
-                        <td class="px-3 py-1.5 text-right text-xs text-slate-500 font-mono">
+                        <td class="px-3 py-1.5 text-right text-xs font-mono">
                             {% if run.durationMs %}{{ (run.durationMs / 1000)|number_format(1) }}s{% else %}—{% endif %}
                         </td>
-                        <td class="px-3 py-1.5 text-right text-xs text-slate-500">
-                            {{ run.startedAt|date('d/m H:i') }}
-                        </td>
+                        <td class="px-3 py-1.5 text-right text-xs text-slate-500">{{ run.startedAt|date('d/m H:i') }}</td>
                     </tr>
                 {% endfor %}
                 </tbody>
