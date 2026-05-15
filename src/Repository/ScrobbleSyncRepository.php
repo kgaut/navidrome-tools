@@ -101,23 +101,38 @@ class ScrobbleSyncRepository extends ServiceEntityRepository
      *
      * @return list<array{artist: string, title: string, album: string|null, count: int, last_played_at: string}>
      */
-    public function aggregateUnmatched(string $target, int $limit = 50, int $offset = 0): array
-    {
+    public function aggregateUnmatched(
+        string $target,
+        int $limit = 50,
+        int $offset = 0,
+        ?string $filterArtist = null,
+        ?string $filterTitle = null,
+    ): array {
+        $where = ['ss.target = :target', 'ss.status = :status'];
+        $params = ['target' => $target, 'status' => ScrobbleSync::STATUS_UNMATCHED];
+
+        if ($filterArtist !== null) {
+            $where[] = 'LOWER(s.artist) LIKE LOWER(:artist)';
+            $params['artist'] = '%' . $filterArtist . '%';
+        }
+        if ($filterTitle !== null) {
+            $where[] = 'LOWER(s.title) LIKE LOWER(:title)';
+            $params['title'] = '%' . $filterTitle . '%';
+        }
+
+        $params['lim'] = $limit;
+        $params['off'] = $offset;
+
         /** @var list<array{artist: string, title: string, album: string|null, count: int, last_played_at: string}> */
         return $this->em->getConnection()->fetchAllAssociative(
             'SELECT s.artist, s.title, s.album, COUNT(*) AS count, MAX(s.played_at) AS last_played_at
              FROM scrobble_sync ss
              JOIN scrobbles s ON s.id = ss.scrobble_id
-             WHERE ss.target = :target AND ss.status = :status
+             WHERE ' . implode(' AND ', $where) . '
              GROUP BY s.artist, s.title, s.album
              ORDER BY count DESC, last_played_at DESC
              LIMIT :lim OFFSET :off',
-            [
-                'target' => $target,
-                'status' => ScrobbleSync::STATUS_UNMATCHED,
-                'lim' => $limit,
-                'off' => $offset,
-            ],
+            $params,
         );
     }
 }

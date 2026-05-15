@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\RunHistory;
 use App\Entity\ScrobbleSync;
+use App\Message\RematchMessage;
 use App\Message\SyncStrawberryMessage;
 use App\Repository\ScrobbleSyncRepository;
 use App\Service\RunHistoryRecorder;
@@ -159,13 +160,39 @@ class StrawberryController extends AbstractController
         return $this->redirectToRoute('app_strawberry_sync');
     }
 
+    #[Route('/strawberry/rematch', name: 'app_strawberry_rematch', methods: ['POST'])]
+    public function rematch(Request $request, MessageBusInterface $bus): Response
+    {
+        if (!$this->isCsrfTokenValid('strawberry_rematch', (string) $request->request->get('_token'))) {
+            throw $this->createAccessDeniedException();
+        }
+
+        $bus->dispatch(new RematchMessage(
+            target: ScrobbleSync::TARGET_STRAWBERRY,
+            limit: max(0, (int) $request->request->get('limit', 0)),
+            dryRun: (bool) $request->request->get('dry_run'),
+            autoStop: false,
+        ));
+
+        $this->addFlash('success', 'Rematch Strawberry lancé en arrière-plan.');
+        return $this->redirectToRoute('app_history');
+    }
+
     #[Route('/strawberry/unmatched', name: 'app_strawberry_unmatched', methods: ['GET'])]
     public function unmatched(Request $request): Response
     {
         $page = max(1, (int) $request->query->get('page', 1));
         $perPage = 50;
+        $filterArtist = trim((string) $request->query->get('artist', ''));
+        $filterTitle = trim((string) $request->query->get('title', ''));
 
-        $rows = $this->syncRepo->aggregateUnmatched(ScrobbleSync::TARGET_STRAWBERRY, $perPage, ($page - 1) * $perPage);
+        $rows = $this->syncRepo->aggregateUnmatched(
+            target: ScrobbleSync::TARGET_STRAWBERRY,
+            limit: $perPage,
+            offset: ($page - 1) * $perPage,
+            filterArtist: $filterArtist !== '' ? $filterArtist : null,
+            filterTitle: $filterTitle !== '' ? $filterTitle : null,
+        );
         $total = $this->syncRepo->countUnmatchedForTarget(ScrobbleSync::TARGET_STRAWBERRY);
 
         return $this->render('strawberry/unmatched.html.twig', [
@@ -173,6 +200,8 @@ class StrawberryController extends AbstractController
             'total' => $total,
             'page' => $page,
             'pages' => max(1, (int) ceil($total / $perPage)),
+            'filter_artist' => $filterArtist,
+            'filter_title' => $filterTitle,
         ]);
     }
 

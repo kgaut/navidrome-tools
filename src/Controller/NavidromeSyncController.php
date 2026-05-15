@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use App\Entity\ScrobbleSync;
+use App\Message\RematchMessage;
 use App\Message\SyncNavidromeMessage;
 use App\Repository\ScrobbleSyncRepository;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -31,20 +32,32 @@ class NavidromeSyncController extends AbstractController
             throw $this->createAccessDeniedException();
         }
 
-        $dryRun = (bool) $request->request->get('dry_run');
-        $autoStop = (bool) $request->request->get('auto_stop');
-        $limit = max(0, (int) $request->request->get('limit', 0));
-        $tolerance = max(0, (int) $request->request->get('tolerance', 60));
-
         $bus->dispatch(new SyncNavidromeMessage(
-            limit: $limit,
-            dryRun: $dryRun,
-            toleranceSeconds: $tolerance,
-            autoStop: $autoStop,
+            limit: max(0, (int) $request->request->get('limit', 0)),
+            dryRun: (bool) $request->request->get('dry_run'),
+            toleranceSeconds: max(0, (int) $request->request->get('tolerance', 60)),
+            autoStop: (bool) $request->request->get('auto_stop'),
         ));
 
-        $this->addFlash('success', 'Sync Navidrome lancé en arrière-plan. Suivez la progression dans l\'historique.');
+        $this->addFlash('success', 'Sync Navidrome lancé en arrière-plan.');
+        return $this->redirectToRoute('app_history');
+    }
 
+    #[Route('/navidrome/rematch', name: 'app_navidrome_rematch', methods: ['POST'])]
+    public function rematch(Request $request, MessageBusInterface $bus): Response
+    {
+        if (!$this->isCsrfTokenValid('navidrome_rematch', (string) $request->request->get('_token'))) {
+            throw $this->createAccessDeniedException();
+        }
+
+        $bus->dispatch(new RematchMessage(
+            target: ScrobbleSync::TARGET_NAVIDROME,
+            limit: max(0, (int) $request->request->get('limit', 0)),
+            dryRun: (bool) $request->request->get('dry_run'),
+            autoStop: (bool) $request->request->get('auto_stop'),
+        ));
+
+        $this->addFlash('success', 'Rematch Navidrome lancé en arrière-plan.');
         return $this->redirectToRoute('app_history');
     }
 
@@ -53,8 +66,16 @@ class NavidromeSyncController extends AbstractController
     {
         $page = max(1, (int) $request->query->get('page', 1));
         $perPage = 50;
+        $filterArtist = trim((string) $request->query->get('artist', ''));
+        $filterTitle = trim((string) $request->query->get('title', ''));
 
-        $rows = $syncRepo->aggregateUnmatched(ScrobbleSync::TARGET_NAVIDROME, $perPage, ($page - 1) * $perPage);
+        $rows = $syncRepo->aggregateUnmatched(
+            target: ScrobbleSync::TARGET_NAVIDROME,
+            limit: $perPage,
+            offset: ($page - 1) * $perPage,
+            filterArtist: $filterArtist !== '' ? $filterArtist : null,
+            filterTitle: $filterTitle !== '' ? $filterTitle : null,
+        );
         $total = $syncRepo->countUnmatchedForTarget(ScrobbleSync::TARGET_NAVIDROME);
 
         return $this->render('navidrome/unmatched.html.twig', [
@@ -62,6 +83,8 @@ class NavidromeSyncController extends AbstractController
             'total' => $total,
             'page' => $page,
             'pages' => max(1, (int) ceil($total / $perPage)),
+            'filter_artist' => $filterArtist,
+            'filter_title' => $filterTitle,
         ]);
     }
 }
