@@ -68,15 +68,42 @@ class ScrobbleSync
         $this->target = $target;
     }
 
-    public function getId(): ?int { return $this->id; }
-    public function getScrobble(): Scrobble { return $this->scrobble; }
-    public function getTarget(): string { return $this->target; }
-    public function getStatus(): string { return $this->status; }
-    public function getTargetId(): ?string { return $this->targetId; }
-    public function getStrategy(): ?string { return $this->strategy; }
-    public function getAttemptedAt(): ?\DateTimeImmutable { return $this->attemptedAt; }
-    public function getSyncedAt(): ?\DateTimeImmutable { return $this->syncedAt; }
-    public function getRun(): ?RunHistory { return $this->run; }
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+    public function getScrobble(): Scrobble
+    {
+        return $this->scrobble;
+    }
+    public function getTarget(): string
+    {
+        return $this->target;
+    }
+    public function getStatus(): string
+    {
+        return $this->status;
+    }
+    public function getTargetId(): ?string
+    {
+        return $this->targetId;
+    }
+    public function getStrategy(): ?string
+    {
+        return $this->strategy;
+    }
+    public function getAttemptedAt(): ?\DateTimeImmutable
+    {
+        return $this->attemptedAt;
+    }
+    public function getSyncedAt(): ?\DateTimeImmutable
+    {
+        return $this->syncedAt;
+    }
+    public function getRun(): ?RunHistory
+    {
+        return $this->run;
+    }
 
     public function markMatched(string $targetId, string $strategy, ?RunHistory $run = null): void
     {

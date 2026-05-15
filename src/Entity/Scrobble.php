@@ -88,17 +88,56 @@ class Scrobble
         $this->fetchedAt = new \DateTimeImmutable();
     }
 
-    public function getId(): ?int { return $this->id; }
-    public function getLastfmUser(): string { return $this->lastfmUser; }
-    public function getArtist(): string { return $this->artist; }
-    public function getTitle(): string { return $this->title; }
-    public function getAlbum(): ?string { return $this->album; }
-    public function getAlbumArtist(): ?string { return $this->albumArtist; }
-    public function getMbidTrack(): ?string { return $this->mbidTrack; }
-    public function getMbidArtist(): ?string { return $this->mbidArtist; }
-    public function getMbidAlbum(): ?string { return $this->mbidAlbum; }
-    public function getPlayedAt(): \DateTimeImmutable { return $this->playedAt; }
-    public function isLoved(): bool { return $this->loved; }
-    public function getImageUrl(): ?string { return $this->imageUrl; }
-    public function getFetchedAt(): \DateTimeImmutable { return $this->fetchedAt; }
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+    public function getLastfmUser(): string
+    {
+        return $this->lastfmUser;
+    }
+    public function getArtist(): string
+    {
+        return $this->artist;
+    }
+    public function getTitle(): string
+    {
+        return $this->title;
+    }
+    public function getAlbum(): ?string
+    {
+        return $this->album;
+    }
+    public function getAlbumArtist(): ?string
+    {
+        return $this->albumArtist;
+    }
+    public function getMbidTrack(): ?string
+    {
+        return $this->mbidTrack;
+    }
+    public function getMbidArtist(): ?string
+    {
+        return $this->mbidArtist;
+    }
+    public function getMbidAlbum(): ?string
+    {
+        return $this->mbidAlbum;
+    }
+    public function getPlayedAt(): \DateTimeImmutable
+    {
+        return $this->playedAt;
+    }
+    public function isLoved(): bool
+    {
+        return $this->loved;
+    }
+    public function getImageUrl(): ?string
+    {
+        return $this->imageUrl;
+    }
+    public function getFetchedAt(): \DateTimeImmutable
+    {
+        return $this->fetchedAt;
+    }
 }

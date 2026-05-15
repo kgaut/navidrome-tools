@@ -98,5 +98,4 @@ class ScrobbleRepository extends ServiceEntityRepository
 
         return $affected === 1;
     }
-
 }
