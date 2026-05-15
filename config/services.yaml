@@ -123,3 +123,11 @@ services:
     App\Navidrome\NavidromeDbBackup:
         arguments:
             $dbPath: '%navidrome.db_path%'
+
+    App\Strawberry\StrawberryRepository:
+        arguments:
+            $dbPath: '%strawberry.db_path%'
+
+    App\Strawberry\StrawberryUploadService:
+        arguments:
+            $varDir: '%kernel.project_dir%/var'

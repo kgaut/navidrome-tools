@@ -1,0 +1,93 @@
+{% extends 'base.html.twig' %}
+{% block title %}Sync Strawberry{% endblock %}
+{% block body %}
+    <h1 class="text-2xl font-semibold mb-4">Synchronisation → Strawberry</h1>
+
+    <div class="bg-sky-50 border border-sky-300 rounded-sm p-4 mb-6 text-sm text-sky-900">
+        Strawberry stocke les écoutes en <strong>compteurs agrégés</strong> (<code>playcount</code> +
+        <code>lastplayed</code>). Navidrome peut rester up pendant cette synchronisation.
+    </div>
+
+    {# Compteurs #}
+    <div class="grid grid-cols-3 gap-4 mb-6">
+        <div class="bg-white shadow-sm rounded-sm p-4">
+            <div class="text-xs uppercase text-slate-500">En attente</div>
+            <div class="text-3xl font-semibold {{ pending > 0 ? 'text-amber-600' : '' }}">{{ pending|number_format(0, '.', ' ') }}</div>
+        </div>
+        <div class="bg-white shadow-sm rounded-sm p-4">
+            <div class="text-xs uppercase text-slate-500">Matchés</div>
+            <div class="text-3xl font-semibold text-emerald-600">{{ matched|number_format(0, '.', ' ') }}</div>
+        </div>
+        <div class="bg-white shadow-sm rounded-sm p-4">
+            <div class="text-xs uppercase text-slate-500">
+                <a href="{{ path('app_strawberry_unmatched') }}" class="underline hover:no-underline">Non matchés</a>
+            </div>
+            <div class="text-3xl font-semibold {{ unmatched > 0 ? 'text-rose-600' : '' }}">{{ unmatched|number_format(0, '.', ' ') }}</div>
+        </div>
+    </div>
+
+    {# Section A : volume monté #}
+    {% if strawberry_configured %}
+    <div class="bg-white shadow-sm rounded-sm p-6 max-w-xl mb-6">
+        <h2 class="text-base font-semibold mb-3">Via volume monté (STRAWBERRY_DB_PATH)</h2>
+        <form method="post" action="{{ path('app_strawberry_sync_post') }}" class="space-y-3">
+            <input type="hidden" name="_token" value="{{ csrf_token('strawberry_sync') }}">
+            <div class="flex gap-4">
+                <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="dry_run" value="1"> Dry-run</label>
+                <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="retry_unmatched" value="1"> Retry unmatched</label>
+            </div>
+            <button type="submit" class="bg-slate-800 hover:bg-slate-900 text-white px-5 py-2 rounded-sm text-sm font-medium">▶ Lancer</button>
+        </form>
+        <div class="mt-3 text-xs text-slate-400">CLI : <code>php bin/console app:scrobbles:sync-strawberry [--retry-unmatched] [--dry-run]</code></div>
+    </div>
+    {% endif %}
+
+    {# Section B : upload/download #}
+    <div class="bg-white shadow-sm rounded-sm p-6 max-w-xl">
+        <h2 class="text-base font-semibold mb-3">Via upload (Strawberry sur une autre machine)</h2>
+
+        {% if upload_info %}
+        <div class="bg-emerald-50 border border-emerald-200 rounded-sm p-3 mb-4 text-sm">
+            <div class="flex items-center justify-between gap-4">
+                <div>
+                    <span class="font-medium">strawberry.db</span>
+                    — {{ (upload_info.size / 1024 / 1024)|number_format(1) }} Mo
+                    — uploadé le {{ upload_info.mtime|date('d/m/Y H:i') }}
+                </div>
+                <div class="flex gap-2 shrink-0">
+                    <a href="{{ path('app_strawberry_download') }}"
+                       class="text-xs bg-sky-600 hover:bg-sky-700 text-white px-3 py-1 rounded-sm">⬇ Download</a>
+                    <form method="post" action="{{ path('app_strawberry_delete_upload') }}" class="inline">
+                        <input type="hidden" name="_token" value="{{ csrf_token('strawberry_delete_upload') }}">
+                        <button type="submit" onclick="return confirm('Supprimer ?')"
+                                class="text-xs bg-rose-600 hover:bg-rose-700 text-white px-3 py-1 rounded-sm">✕</button>
+                    </form>
+                </div>
+            </div>
+            <form method="post" action="{{ path('app_strawberry_process_upload') }}" class="mt-3 flex items-center gap-3">
+                <input type="hidden" name="_token" value="{{ csrf_token('strawberry_process') }}">
+                <button type="submit" name="retry_unmatched" value="0"
+                        class="text-sm bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded-sm font-medium">
+                    ▶ Synchroniser
+                </button>
+                {% if unmatched > 0 %}
+                <button type="submit" name="retry_unmatched" value="1"
+                        class="text-sm bg-amber-600 hover:bg-amber-700 text-white px-4 py-1.5 rounded-sm font-medium">
+                    ↺ Retry {{ unmatched }} non matchés
+                </button>
+                {% endif %}
+            </form>
+        </div>
+        {% endif %}
+
+        <form method="post" action="{{ path('app_strawberry_upload') }}" enctype="multipart/form-data" class="flex items-center gap-3">
+            <input type="hidden" name="_token" value="{{ csrf_token('strawberry_upload') }}">
+            <input type="file" name="db_file" accept=".db"
+                   class="text-sm text-slate-600 file:mr-2 file:py-1 file:px-3 file:rounded-sm file:border-0 file:text-xs file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200">
+            <button type="submit" class="shrink-0 bg-slate-700 hover:bg-slate-800 text-white px-4 py-1.5 rounded-sm text-sm">⬆ Upload strawberry.db</button>
+        </form>
+        <p class="text-xs text-slate-400 mt-2">
+            Fichier SQLite Strawberry (~/.local/share/strawberry/strawberry/strawberry.db). Max 200 Mo.
+        </p>
+    </div>
+{% endblock %}
