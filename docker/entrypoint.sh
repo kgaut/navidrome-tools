@@ -3,7 +3,7 @@ set -eu
 
 cd /app
 
-mkdir -p var
+mkdir -p var var/sessions
 
 CACHE_DIR="${APP_CACHE_DIR:-/app/var/cache}"
 composer dump-autoload --no-dev --optimize --working-dir=/app --no-interaction --quiet
