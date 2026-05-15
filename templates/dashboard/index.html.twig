@@ -7,11 +7,19 @@
         <div class="bg-white shadow-sm rounded-sm p-4">
             <div class="text-xs uppercase text-slate-500">Scrobbles locaux</div>
             <div class="text-3xl font-semibold">{{ total_scrobbles|number_format(0, '.', ' ') }}</div>
-            <div class="text-xs text-slate-400 mt-1"><a href="{{ path('app_lastfm_import') }}" class="hover:underline">Import Last.fm →</a></div>
+            <div class="text-xs text-slate-400 mt-1">
+                {% if last_fetch %}dernière sync {{ last_fetch|date('d/m H:i') }}{% endif %}
+                — <a href="{{ path('app_lastfm_import') }}" class="hover:underline">Import</a>
+            </div>
         </div>
 
         <div class="bg-white shadow-sm rounded-sm p-4 {{ navidrome_unmatched > 0 ? 'border border-amber-200' : '' }}">
-            <div class="text-xs uppercase text-slate-500">Navidrome</div>
+            <div class="text-xs uppercase text-slate-500">
+                Navidrome
+                {% if container_configured %}
+                — <span class="font-mono {{ container_status == 'running' ? 'text-emerald-600' : (container_status == 'stopped' ? 'text-slate-500' : 'text-rose-600') }}">{{ container_label }}</span>
+                {% endif %}
+            </div>
             <div class="text-lg font-semibold">{{ navidrome_matched|number_format(0, '.', ' ') }} matchés</div>
             <div class="text-xs mt-1 space-y-0.5">
                 {% if navidrome_pending > 0 %}
@@ -42,13 +50,32 @@
         {% endif %}
 
         <div class="bg-white shadow-sm rounded-sm p-4">
-            <div class="text-xs uppercase text-slate-500">Aliases</div>
+            <div class="text-xs uppercase text-slate-500">Accès rapide</div>
             <div class="text-xs mt-2 space-y-1">
+                <div><a href="{{ path('app_stats') }}" class="text-sky-700 hover:underline">Statistiques →</a></div>
                 <div><a href="{{ path('app_lastfm_aliases') }}" class="text-sky-700 hover:underline">Aliases track →</a></div>
                 <div><a href="{{ path('app_lastfm_artist_aliases') }}" class="text-sky-700 hover:underline">Aliases artiste →</a></div>
             </div>
         </div>
     </div>
+
+    {# Container start/stop #}
+    {% if container_configured %}
+    <div class="bg-white shadow-sm rounded-sm p-4 mb-6 flex items-center gap-4">
+        <span class="text-sm font-medium">Conteneur Navidrome :</span>
+        <span class="text-sm font-mono {{ container_status == 'running' ? 'text-emerald-600' : (container_status == 'stopped' ? 'text-slate-500' : 'text-rose-600') }}">
+            {{ container_label }}
+        </span>
+        <form method="post" action="{{ path('app_navidrome_container_start') }}" class="inline">
+            <input type="hidden" name="_token" value="{{ csrf_token('navidrome_container') }}">
+            <button type="submit" class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded-sm">▶ Start</button>
+        </form>
+        <form method="post" action="{{ path('app_navidrome_container_stop') }}" class="inline">
+            <input type="hidden" name="_token" value="{{ csrf_token('navidrome_container') }}">
+            <button type="submit" class="text-xs bg-rose-600 hover:bg-rose-700 text-white px-3 py-1 rounded-sm">■ Stop</button>
+        </form>
+    </div>
+    {% endif %}
 
     <div class="bg-white shadow-sm rounded-sm overflow-hidden">
         <div class="flex items-center justify-between px-3 py-2 bg-slate-100 border-b">
