@@ -131,3 +131,15 @@ services:
     App\Strawberry\StrawberryUploadService:
         arguments:
             $varDir: '%kernel.project_dir%/var'
+
+    App\Command\ComputeStatsCommand:
+        arguments:
+            $defaultUser: '%lastfm.user%'
+
+    App\Controller\StatsController:
+        arguments:
+            $defaultUser: '%lastfm.user%'
+
+    App\Controller\DashboardController:
+        arguments:
+            $defaultUser: '%lastfm.user%'

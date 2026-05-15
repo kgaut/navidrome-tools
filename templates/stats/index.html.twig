@@ -1,0 +1,140 @@
+{% extends 'base.html.twig' %}
+{% block title %}Statistiques{% endblock %}
+
+{% block body %}
+    <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+        <h1 class="text-2xl font-semibold">Statistiques d'écoute</h1>
+        <div class="flex items-center gap-3">
+            {% if data.computed_at is defined %}
+            <span class="text-xs text-slate-400">Calculé {{ data.computed_at|date('d/m H:i') }}</span>
+            {% endif %}
+            <form method="post" action="{{ path('app_stats_refresh') }}" class="inline">
+                <input type="hidden" name="_token" value="{{ csrf_token('stats_refresh') }}">
+                <input type="hidden" name="period" value="{{ period }}">
+                <button type="submit" class="text-xs bg-slate-200 hover:bg-slate-300 px-3 py-1.5 rounded-sm">↻ Recalculer</button>
+            </form>
+        </div>
+    </div>
+
+    {# Sélecteur de période #}
+    <div class="flex gap-2 mb-6 flex-wrap">
+        {% for key, label in periods %}
+        <a href="{{ path('app_stats', {period: key}) }}"
+           class="px-3 py-1.5 rounded-sm text-sm font-medium {{ key == period ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 hover:bg-slate-100' }} shadow-sm">
+            {{ label }}
+        </a>
+        {% endfor %}
+    </div>
+
+    {# KPIs #}
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
+        <div class="bg-white shadow-sm rounded-sm p-4">
+            <div class="text-xs uppercase text-slate-500">Lectures (période)</div>
+            <div class="text-3xl font-semibold">{{ data.total_plays|number_format(0, '.', ' ') }}</div>
+        </div>
+        <div class="bg-white shadow-sm rounded-sm p-4">
+            <div class="text-xs uppercase text-slate-500">Total historique</div>
+            <div class="text-3xl font-semibold">{{ total_scrobbles|number_format(0, '.', ' ') }}</div>
+        </div>
+        {% if data.top_artists is not empty %}
+        <div class="bg-white shadow-sm rounded-sm p-4">
+            <div class="text-xs uppercase text-slate-500">Artiste #1</div>
+            <div class="text-lg font-semibold truncate">{{ data.top_artists[0].artist }}</div>
+            <div class="text-xs text-slate-500">{{ data.top_artists[0].plays }} lectures</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        {# Top artistes #}
+        {% if data.top_artists is not empty %}
+        <div class="bg-white shadow-sm rounded-sm overflow-hidden">
+            <div class="px-4 py-2 bg-slate-100 border-b text-sm font-semibold">Top artistes</div>
+            <table class="w-full text-sm">
+                <tbody class="divide-y">
+                {% set max_plays = data.top_artists[0].plays %}
+                {% for i, row in data.top_artists %}
+                <tr class="hover:bg-slate-50">
+                    <td class="px-3 py-1.5 text-slate-400 w-8 text-right text-xs">{{ i + 1 }}</td>
+                    <td class="px-3 py-1.5 font-medium">{{ row.artist }}</td>
+                    <td class="px-3 py-1.5 w-32">
+                        <div class="flex items-center gap-2">
+                            <div class="bg-sky-200 h-2 rounded-full" style="width: {{ (row.plays / max_plays * 100)|round }}%"></div>
+                        </div>
+                    </td>
+                    <td class="px-3 py-1.5 text-right font-mono text-xs">{{ row.plays }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        {# Top morceaux #}
+        {% if data.top_tracks is not empty %}
+        <div class="bg-white shadow-sm rounded-sm overflow-hidden">
+            <div class="px-4 py-2 bg-slate-100 border-b text-sm font-semibold">Top morceaux</div>
+            <table class="w-full text-sm">
+                <tbody class="divide-y">
+                {% set max_plays_t = data.top_tracks[0].plays %}
+                {% for i, row in data.top_tracks|slice(0, 25) %}
+                <tr class="hover:bg-slate-50">
+                    <td class="px-3 py-1.5 text-slate-400 w-8 text-right text-xs">{{ i + 1 }}</td>
+                    <td class="px-3 py-1.5">
+                        <div class="font-medium truncate max-w-40">{{ row.title }}</div>
+                        <div class="text-xs text-slate-500 truncate max-w-40">{{ row.artist }}</div>
+                    </td>
+                    <td class="px-3 py-1.5 w-32">
+                        <div class="flex items-center gap-2">
+                            <div class="bg-emerald-200 h-2 rounded-full" style="width: {{ (row.plays / max_plays_t * 100)|round }}%"></div>
+                        </div>
+                    </td>
+                    <td class="px-3 py-1.5 text-right font-mono text-xs">{{ row.plays }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>
+
+    {# Lectures par mois #}
+    {% if data.plays_by_month is not empty %}
+    <div class="bg-white shadow-sm rounded-sm p-4 mb-6">
+        <div class="text-sm font-semibold mb-3">Lectures par mois</div>
+        {% set max_month = data.plays_by_month|map(r => r.plays)|max %}
+        <div class="flex items-end gap-1 h-24">
+            {% for row in data.plays_by_month %}
+            <div class="flex-1 flex flex-col items-center gap-1 min-w-0">
+                <div class="w-full bg-sky-400 rounded-t-sm"
+                     style="height: {{ max_month > 0 ? ((row.plays / max_month * 88)|round) : 0 }}px"
+                     title="{{ row.month }} : {{ row.plays }} lectures"></div>
+                <div class="text-xs text-slate-400 truncate" style="font-size:9px">{{ row.month|slice(5, 2) }}/{{ row.month|slice(2, 2) }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {# Lectures par jour de la semaine #}
+    {% if data.plays_by_dow is not empty %}
+    <div class="bg-white shadow-sm rounded-sm p-4">
+        <div class="text-sm font-semibold mb-3">Lectures par jour de la semaine</div>
+        {% set days = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'] %}
+        {% set dow_map = {} %}
+        {% for row in data.plays_by_dow %}{% set dow_map = dow_map|merge({(row.dow): row.plays}) %}{% endfor %}
+        {% set max_dow = data.plays_by_dow|map(r => r.plays)|max %}
+        <div class="flex items-end gap-2 h-20">
+            {% for d in 0..6 %}
+            {% set plays = dow_map[d] is defined ? dow_map[d] : 0 %}
+            <div class="flex-1 flex flex-col items-center gap-1">
+                <div class="w-full bg-emerald-400 rounded-t-sm"
+                     style="height: {{ max_dow > 0 ? ((plays / max_dow * 72)|round) : 0 }}px"
+                     title="{{ days[d] }} : {{ plays }} lectures"></div>
+                <div class="text-xs text-slate-500">{{ days[d] }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+{% endblock %}
