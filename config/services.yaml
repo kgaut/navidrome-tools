@@ -12,6 +12,7 @@ parameters:
     navidrome.container_name: '%env(NAVIDROME_CONTAINER_NAME)%'
     navidrome.container_stop_timeout: '%env(int:NAVIDROME_STOP_TIMEOUT_SECONDS)%'
     navidrome.container_stop_wait_ceiling: '%env(int:NAVIDROME_STOP_WAIT_CEILING_SECONDS)%'
+    lastfm.user: '%env(LASTFM_USER)%'
     lastfm.api_key: '%env(LASTFM_API_KEY)%'
     lastfm.api_secret: '%env(LASTFM_API_SECRET)%'
     lastfm.page_delay_seconds: '%env(int:LASTFM_PAGE_DELAY_SECONDS)%'
