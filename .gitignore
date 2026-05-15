@@ -36,3 +36,19 @@ docker-compose.override.yml
 ###> project ###
 .symfony-cache/
 ###< project ###
+
+###> flex-generated (unused) ###
+/compose.yaml
+/compose.override.yaml
+/config/preload.php
+/config/routes/framework.yaml
+/config/routes/security.yaml
+/config/packages/cache.yaml
+/config/packages/csrf.yaml
+/config/packages/routing.yaml
+/config/packages/validator.yaml
+/bin/phpunit
+/symfony.lock
+/.env.dev
+/.env.test
+###< flex-generated ###
