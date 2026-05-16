@@ -45,6 +45,54 @@
         {% endif %}
     </div>
 
+    {# Heatmap d'activité — fenêtre fixe sur les 365 derniers jours, indépendante du sélecteur de période. #}
+    {% if heatmap.total > 0 %}
+    {% set day_labels = ['Lun', '', 'Mer', '', 'Ven', '', 'Dim'] %}
+    {% set level_classes = ['bg-slate-100', 'bg-emerald-200', 'bg-emerald-400', 'bg-emerald-600', 'bg-emerald-800'] %}
+    <div class="bg-white shadow-sm rounded-sm p-4 mb-6 overflow-x-auto">
+        <div class="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
+            <div>
+                <div class="text-sm font-semibold">Activité — 12 derniers mois</div>
+                <div class="text-xs text-slate-500">
+                    {{ heatmap.total|number_format(0, '.', ' ') }} lectures du
+                    {{ heatmap.start|date('d/m/Y') }} au {{ heatmap.end|date('d/m/Y') }} —
+                    pic à {{ heatmap.max|number_format(0, '.', ' ') }}/jour
+                </div>
+            </div>
+            <div class="flex items-center gap-1.5 text-xs text-slate-500">
+                <span>Moins</span>
+                {% for lvl in 0..4 %}
+                <span class="inline-block w-3 h-3 rounded-sm {{ level_classes[lvl] }}"></span>
+                {% endfor %}
+                <span>Plus</span>
+            </div>
+        </div>
+
+        <div class="flex gap-1 min-w-fit">
+            {# Day-of-week labels column #}
+            <div class="grid grid-rows-7 gap-0.5 text-[10px] text-slate-400 pr-1">
+                {% for label in day_labels %}
+                <div class="h-3 leading-3">{{ label }}</div>
+                {% endfor %}
+            </div>
+
+            {# Heatmap grid: weeks = columns, days = rows (Mon→Sun). #}
+            <div class="grid grid-flow-col grid-rows-7 gap-0.5">
+                {% for week in heatmap.weeks %}
+                    {% for cell in week %}
+                        {% if cell is null %}
+                            <div class="w-3 h-3"></div>
+                        {% else %}
+                            <div class="w-3 h-3 rounded-sm {{ level_classes[cell.level] }}"
+                                 title="{{ cell.date|date('d/m/Y') }} — {{ cell.plays }} lecture{{ cell.plays > 1 ? 's' : '' }}"></div>
+                        {% endif %}
+                    {% endfor %}
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {# Top artistes #}
         {% if data.top_artists is not empty %}

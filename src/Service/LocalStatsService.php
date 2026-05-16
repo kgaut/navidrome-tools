@@ -34,6 +34,7 @@ class LocalStatsService
     private const TOP_ARTISTS_LIMIT = 25;
     private const TOP_TRACKS_LIMIT = 50;
     private const PLAYS_BY_MONTH_LIMIT = 24;
+    private const HEATMAP_DAYS = 365;
 
     public function __construct(
         private readonly Connection $connection,
@@ -157,6 +158,116 @@ class LocalStatsService
 
         /** @var list<array{month: string, plays: int}> */
         return array_reverse($this->connection->fetchAllAssociative($sql, $params));
+    }
+
+    /**
+     * GitHub-style activity heatmap over the last HEATMAP_DAYS, aligned to
+     * Monday-starting weeks. Independent of the period selector — always
+     * the same rolling window so the visual is stable across nav clicks.
+     *
+     * Levels (0..4) are bucketed by the quartiles of NON-ZERO days so a
+     * single outlier (a 12h playlist marathon) doesn't crush everything
+     * else into level 1.
+     *
+     * @return array{
+     *     weeks: list<list<array{date: string, plays: int, level: int}|null>>,
+     *     start: string,
+     *     end: string,
+     *     total: int,
+     *     max: int,
+     *     thresholds: list<int>,
+     * }
+     */
+    public function heatmap(?string $user = null): array
+    {
+        $tz = new \DateTimeZone('UTC');
+        $today = new \DateTimeImmutable('today', $tz);
+        $start = $today->modify(sprintf('-%d days', self::HEATMAP_DAYS));
+        // Snap start back to Monday. PHP date('w'): 0=Sun..6=Sat → we want 0=Mon..6=Sun.
+        $startDow = ((int) $start->format('w') + 6) % 7;
+        $start = $start->modify(sprintf('-%d days', $startDow));
+
+        [$where, $params] = $this->buildWhere($start, $today->modify('+1 day'), $user);
+        $sql = "SELECT date(played_at) AS d, COUNT(*) AS n FROM scrobbles"
+            . ($where !== '' ? ' WHERE ' . $where : '')
+            . ' GROUP BY d';
+        /** @var array<string, int> $plays */
+        $plays = $this->connection->fetchAllKeyValue($sql, $params);
+        $plays = array_map('intval', $plays);
+
+        $thresholds = $this->quartileThresholds(array_values($plays));
+
+        $weeks = [];
+        $cursor = $start;
+        while ($cursor <= $today) {
+            $week = [];
+            for ($i = 0; $i < 7; $i++) {
+                if ($cursor > $today) {
+                    // Right-pad: days after today within the last column.
+                    $week[] = null;
+                } else {
+                    $date = $cursor->format('Y-m-d');
+                    $n = $plays[$date] ?? 0;
+                    $week[] = [
+                        'date' => $date,
+                        'plays' => $n,
+                        'level' => $this->level($n, $thresholds),
+                    ];
+                }
+                $cursor = $cursor->modify('+1 day');
+            }
+            $weeks[] = $week;
+        }
+
+        return [
+            'weeks' => $weeks,
+            'start' => $start->format('Y-m-d'),
+            'end' => $today->format('Y-m-d'),
+            'total' => array_sum($plays),
+            'max' => $plays === [] ? 0 : max($plays),
+            'thresholds' => $thresholds,
+        ];
+    }
+
+    /**
+     * @param list<int> $values
+     * @return list<int>  [q1, q2, q3] of non-zero values, ascending
+     */
+    private function quartileThresholds(array $values): array
+    {
+        $nonZero = array_values(array_filter($values, static fn (int $v): bool => $v > 0));
+        if ($nonZero === []) {
+            return [0, 0, 0];
+        }
+        sort($nonZero);
+        $n = count($nonZero);
+
+        // Pick the value at each quartile boundary. With <4 distinct values
+        // the thresholds collapse, which is fine — `level()` just falls
+        // through to the next bucket.
+        return [
+            $nonZero[(int) floor(($n - 1) * 0.25)],
+            $nonZero[(int) floor(($n - 1) * 0.50)],
+            $nonZero[(int) floor(($n - 1) * 0.75)],
+        ];
+    }
+
+    /** @param list<int> $thresholds */
+    private function level(int $plays, array $thresholds): int
+    {
+        if ($plays <= 0) {
+            return 0;
+        }
+        if ($plays <= $thresholds[0]) {
+            return 1;
+        }
+        if ($plays <= $thresholds[1]) {
+            return 2;
+        }
+        if ($plays <= $thresholds[2]) {
+            return 3;
+        }
+        return 4;
     }
 
     /**

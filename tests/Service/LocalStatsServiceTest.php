@@ -71,6 +71,89 @@ class LocalStatsServiceTest extends TestCase
         $conn->close();
     }
 
+    public function testHeatmapCoversFullYearAlignedToMonday(): void
+    {
+        $conn = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'path' => $this->dbPath]);
+        $service = $this->makeService($conn);
+
+        $heatmap = $service->heatmap('alice');
+
+        // Start must be a Monday — that's what the day-of-week labels rely on.
+        $startDow = (int) (new \DateTimeImmutable($heatmap['start']))->format('w');
+        $this->assertSame(1, $startDow, 'heatmap start day must be Monday');
+
+        // Window spans ~366 days (365 + back-to-Monday snap).
+        $start = new \DateTimeImmutable($heatmap['start']);
+        $end = new \DateTimeImmutable($heatmap['end']);
+        $days = $start->diff($end)->days + 1;
+        $this->assertGreaterThanOrEqual(365, $days);
+        $this->assertLessThanOrEqual(371, $days);
+
+        // Each week is exactly 7 cells (Monday..Sunday), null-padded after today.
+        foreach ($heatmap['weeks'] as $week) {
+            $this->assertCount(7, $week);
+        }
+
+        $conn->close();
+    }
+
+    public function testHeatmapLevelsUseQuartileBucketsOfNonZeroDays(): void
+    {
+        $conn = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'path' => $this->dbPath]);
+        // Wipe the setUp fixtures (old 2024 dates fall outside the rolling
+        // 365d window so they're irrelevant — but make it explicit).
+        $conn->executeStatement('DELETE FROM scrobbles');
+
+        // 4 distinct non-zero counts: 1, 5, 10, 50 — quartiles at 1, 5, 10.
+        $today = new \DateTimeImmutable('today');
+        $this->insertN($conn, $today->modify('-1 day'), 1);
+        $this->insertN($conn, $today->modify('-2 days'), 5);
+        $this->insertN($conn, $today->modify('-3 days'), 10);
+        $this->insertN($conn, $today->modify('-4 days'), 50);
+
+        $service = $this->makeService($conn);
+        $heatmap = $service->heatmap('alice');
+
+        $this->assertSame([1, 5, 10], $heatmap['thresholds']);
+        $this->assertSame(50, $heatmap['max']);
+        $this->assertSame(66, $heatmap['total']);
+
+        // Flatten and check each level assignment.
+        $byDate = [];
+        foreach ($heatmap['weeks'] as $week) {
+            foreach ($week as $cell) {
+                if ($cell !== null) {
+                    $byDate[$cell['date']] = $cell['level'];
+                }
+            }
+        }
+        $this->assertSame(1, $byDate[$today->modify('-1 day')->format('Y-m-d')]); // 1 plays → q1
+        $this->assertSame(2, $byDate[$today->modify('-2 days')->format('Y-m-d')]); // 5 plays → q2
+        $this->assertSame(3, $byDate[$today->modify('-3 days')->format('Y-m-d')]); // 10 plays → q3
+        $this->assertSame(4, $byDate[$today->modify('-4 days')->format('Y-m-d')]); // 50 plays → >q3
+
+        $conn->close();
+    }
+
+    private function makeService(\Doctrine\DBAL\Connection $conn): LocalStatsService
+    {
+        $snapshots = $this->createMock(StatsSnapshotRepository::class);
+        $snapshots->method('findOneByPeriod')->willReturn(null);
+        $em = $this->createMock(EntityManagerInterface::class);
+
+        return new LocalStatsService($conn, $snapshots, $em);
+    }
+
+    private function insertN(\Doctrine\DBAL\Connection $conn, \DateTimeImmutable $day, int $count): void
+    {
+        for ($i = 0; $i < $count; $i++) {
+            $conn->executeStatement(
+                'INSERT INTO scrobbles (lastfm_user, artist, title, played_at) VALUES (?, ?, ?, ?)',
+                ['alice', 'A', 'T' . $i, $day->modify(sprintf('+%d minutes', $i))->format('Y-m-d H:i:s')],
+            );
+        }
+    }
+
     public function testTopTracksGroupsByArtistAndTitle(): void
     {
         $conn = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'path' => $this->dbPath]);
