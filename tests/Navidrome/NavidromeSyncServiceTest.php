@@ -123,6 +123,44 @@ class NavidromeSyncServiceTest extends TestCase
         $this->assertSame(1, $report->unmatched);
     }
 
+    public function testPersistIsNeverCalledOnDetachedSync(): void
+    {
+        // Regression: detaching a sync before persist() crashes Doctrine ORM 3
+        // with "Detached entity cannot be persisted", closing the EM and
+        // surfacing to the user as "The EntityManager is closed."
+        $scrobble = $this->makeScrobble('Daft Punk', 'Get Lucky', '2024-01-01 12:00:00');
+        $sync = new ScrobbleSync($scrobble, ScrobbleSync::TARGET_NAVIDROME);
+
+        $syncRepo = $this->createMock(ScrobbleSyncRepository::class);
+        $syncRepo->method('prepareForTarget')->willReturn(1);
+        $syncRepo->method('streamPending')->willReturnCallback(fn () => yield $sync);
+
+        $ndRepo = new NavidromeRepository($this->ndDbPath, 'admin');
+        $matcher = $this->createMock(ScrobbleMatcher::class);
+        $matcher->method('match')->willReturn(MatchResult::matched('mf-1', 'couple', null));
+
+        $backup = $this->createMock(NavidromeDbBackup::class);
+        $backup->method('backup')->willReturn(null);
+
+        $detached = new \SplObjectStorage();
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->method('contains')->willReturnCallback(static fn (object $e): bool => !isset($detached[$e]));
+        $em->method('detach')->willReturnCallback(static function (object $e) use ($detached): void {
+            $detached[$e] = true;
+        });
+        $em->method('persist')->willReturnCallback(static function (object $e) use ($detached): void {
+            if (isset($detached[$e])) {
+                throw new \Doctrine\ORM\Exception\ORMException('Detached entity cannot be persisted');
+            }
+        });
+        $em->method('flush');
+
+        $service = new NavidromeSyncService($syncRepo, $matcher, $ndRepo, $backup, $em);
+        $report = $service->process();
+
+        $this->assertSame(1, $report->matched);
+    }
+
     private function makeScrobble(string $artist, string $title, string $playedAt): Scrobble
     {
         return new Scrobble(

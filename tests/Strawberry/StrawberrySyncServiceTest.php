@@ -98,6 +98,41 @@ class StrawberrySyncServiceTest extends TestCase
         $this->assertSame(5, $playcount);
     }
 
+    public function testPersistIsNeverCalledOnDetachedSync(): void
+    {
+        // Regression: detaching a sync before persist() crashes Doctrine ORM 3
+        // with "Detached entity cannot be persisted", which closes the EM and
+        // surfaces to the user as "The EntityManager is closed."
+        $scrobble = $this->makeScrobble('Daft Punk', 'Get Lucky', '2024-01-01 12:00:00');
+        $sync = new ScrobbleSync($scrobble, ScrobbleSync::TARGET_STRAWBERRY);
+
+        $syncRepo = $this->createMock(ScrobbleSyncRepository::class);
+        $syncRepo->method('prepareForTarget')->willReturn(1);
+        $syncRepo->method('streamPending')->willReturnCallback(fn () => yield $sync);
+        $syncRepo->method('resetUnmatchedToPending')->willReturn(0);
+
+        $detached = new \SplObjectStorage();
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->method('contains')->willReturnCallback(static fn (object $e): bool => !isset($detached[$e]));
+        $em->method('detach')->willReturnCallback(static function (object $e) use ($detached): void {
+            $detached[$e] = true;
+        });
+        $em->method('persist')->willReturnCallback(static function (object $e) use ($detached): void {
+            if (isset($detached[$e])) {
+                throw new \Doctrine\ORM\Exception\ORMException('Detached entity cannot be persisted');
+            }
+        });
+        $em->method('flush');
+
+        $repo = new StrawberryRepository($this->sbDbPath);
+        $service = new StrawberrySyncService($syncRepo, $repo, $em);
+
+        // Must not throw — would mean we detached before persisting.
+        $report = $service->process();
+
+        $this->assertSame(1, $report->matched);
+    }
+
     public function testDryRunDoesNotWrite(): void
     {
         $scrobble = $this->makeScrobble('Daft Punk', 'Get Lucky', '2024-01-01 12:00:00');

@@ -95,10 +95,6 @@ class NavidromeSyncService
                     ];
                 }
 
-                if ($this->em->contains($sync)) {
-                    $this->em->detach($sync);
-                }
-
                 if (!$dryRun && count($batch) >= self::BATCH_SIZE) {
                     if (!$backupTaken) {
                         $report->backupPath = $this->backup->backup();
@@ -225,5 +221,15 @@ class NavidromeSyncService
             $this->em->persist($sync);
         }
         $this->em->flush();
+
+        // Detach AFTER flush — detaching before persist() throws
+        // ORMInvalidArgumentException ("detached entity cannot be persisted")
+        // in Doctrine ORM 3, which closes the EM. Doing it here bounds the
+        // identity map to one batch worth of entities at most.
+        foreach ($batch as $row) {
+            if ($this->em->contains($row['sync'])) {
+                $this->em->detach($row['sync']);
+            }
+        }
     }
 }
