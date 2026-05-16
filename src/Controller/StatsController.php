@@ -37,6 +37,7 @@ class StatsController extends AbstractController
             'period' => $period,
             'periods' => LocalStatsService::PERIODS,
             'total_scrobbles' => $this->scrobbleRepo->countAll(),
+            'heatmap' => $this->statsService->heatmap($user),
         ]);
     }
 
