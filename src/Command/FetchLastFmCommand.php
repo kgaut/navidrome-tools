@@ -4,8 +4,8 @@ namespace App\Command;
 
 use App\Entity\RunHistory;
 use App\LastFm\FetchReport;
+use App\LastFm\FetchWindowResolver;
 use App\LastFm\LastFmFetcher;
-use App\Repository\SettingRepository;
 use App\Service\RunHistoryRecorder;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -18,11 +18,9 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 /**
  * Fetch scrobbles from Last.fm and store them in the local `scrobbles` table.
  *
- * Smart date mode (no --date-min): on subsequent runs reads
- * setting[lastfm_last_fetch_{user}] and fetches from that date - 1h to now.
- * On the first run (no previous fetch recorded) defaults to the last 48h —
- * a full-history bootstrap is opt-in via --date-min=1970-01-01.
- * With --date-min: explicit window, does NOT update the last_fetch setting.
+ * Window resolution is delegated to {@see FetchWindowResolver} so the CLI
+ * and the web button (FetchLastFmMessageHandler) agree on what "by default"
+ * means — 48h on a fresh install, smart date on subsequent runs.
  */
 #[AsCommand(
     name: 'app:lastfm:fetch',
@@ -30,14 +28,10 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 )]
 class FetchLastFmCommand extends Command
 {
-    private const SETTING_KEY_PREFIX = 'lastfm_last_fetch_';
-    private const OVERLAP_HOURS = 1;
-    private const DEFAULT_WINDOW_HOURS = 48;
-
     public function __construct(
         private readonly LastFmFetcher $fetcher,
         private readonly RunHistoryRecorder $recorder,
-        private readonly SettingRepository $settings,
+        private readonly FetchWindowResolver $windowResolver,
         private readonly string $defaultApiKey,
         private readonly string $defaultUser,
     ) {
@@ -73,20 +67,25 @@ class FetchLastFmCommand extends Command
             return Command::FAILURE;
         }
 
-        $explicitDateMin = $input->getOption('date-min');
-        $explicitDateMax = $input->getOption('date-max');
-        $smartDate = $explicitDateMin === null;
+        $window = $this->windowResolver->resolve(
+            $user,
+            $input->getOption('date-min'),
+            $input->getOption('date-max'),
+        );
+        $dateMin = $window['dateMin'];
+        $dateMax = $window['dateMax'];
+        $smartDate = $window['source'] !== 'explicit';
 
-        [$dateMin, $dateMax] = $this->resolveDateRange($user, $explicitDateMin, $explicitDateMax, $io);
-
-        if ($dateMin !== null) {
-            $io->note(sprintf(
-                'Fetch window: %s → %s%s',
-                $dateMin->format('Y-m-d H:i:s'),
-                $dateMax?->format('Y-m-d H:i:s') ?? 'now',
-                $smartDate ? ' (smart date)' : ' (explicit)',
-            ));
-        }
+        $io->note(sprintf(
+            'Fetch window: %s → %s (%s)',
+            $dateMin->format('Y-m-d H:i:s'),
+            $dateMax?->format('Y-m-d H:i:s') ?? 'now',
+            match ($window['source']) {
+                'smart' => 'smart date',
+                'default' => sprintf('default %dh — no previous fetch on record', FetchWindowResolver::DEFAULT_WINDOW_HOURS),
+                'explicit' => 'explicit',
+            },
+        ));
 
         $label = sprintf('Last.fm fetch %s%s', $user, $dryRun ? ' [dry-run]' : '');
         $now = new \DateTimeImmutable();
@@ -120,9 +119,9 @@ class FetchLastFmCommand extends Command
             return Command::FAILURE;
         }
 
-        // Update last_fetch setting only on explicit (non-dry-run, non-explicit-date) runs.
+        // Update last_fetch only when the user did not pin an explicit window.
         if ($smartDate && !$dryRun && $report->fetched > 0) {
-            $this->settings->set(self::SETTING_KEY_PREFIX . $user, $now->format('Y-m-d H:i:s'));
+            $this->windowResolver->markFetchedAt($user, $now);
         }
 
         $io->success(sprintf(
@@ -134,43 +133,5 @@ class FetchLastFmCommand extends Command
         ));
 
         return Command::SUCCESS;
-    }
-
-    /**
-     * @return array{0: ?\DateTimeImmutable, 1: ?\DateTimeImmutable}
-     */
-    private function resolveDateRange(string $user, ?string $explicitMin, ?string $explicitMax, SymfonyStyle $io): array
-    {
-        $dateMax = $explicitMax !== null ? new \DateTimeImmutable($explicitMax) : null;
-
-        if ($explicitMin !== null) {
-            return [new \DateTimeImmutable($explicitMin), $dateMax];
-        }
-
-        // Smart date: read last successful fetch from settings.
-        $lastFetch = $this->settings->get(self::SETTING_KEY_PREFIX . $user);
-        if ($lastFetch !== '') {
-            $dateMin = (new \DateTimeImmutable($lastFetch))
-                ->modify(sprintf('-%d hours', self::OVERLAP_HOURS));
-            $io->note(sprintf(
-                'Smart date: last fetch was %s, starting from %s (-%dh overlap).',
-                $lastFetch,
-                $dateMin->format('Y-m-d H:i:s'),
-                self::OVERLAP_HOURS,
-            ));
-            return [$dateMin, $dateMax];
-        }
-
-        // No previous fetch — default to the last DEFAULT_WINDOW_HOURS. A full
-        // bootstrap is opt-in via --date-min=1970-01-01 so a fresh install
-        // doesn't accidentally pull years of history on a cron tick.
-        $dateMin = (new \DateTimeImmutable())->modify(sprintf('-%d hours', self::DEFAULT_WINDOW_HOURS));
-        $io->note(sprintf(
-            'No previous fetch found — defaulting to the last %dh (from %s). '
-            . 'Pass --date-min for a different window.',
-            self::DEFAULT_WINDOW_HOURS,
-            $dateMin->format('Y-m-d H:i:s'),
-        ));
-        return [$dateMin, $dateMax];
     }
 }
