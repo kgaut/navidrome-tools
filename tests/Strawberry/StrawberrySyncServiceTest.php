@@ -119,7 +119,7 @@ class StrawberrySyncServiceTest extends TestCase
         });
         $em->method('persist')->willReturnCallback(static function (object $e) use ($detached): void {
             if (isset($detached[$e])) {
-                throw new \Doctrine\ORM\Exception\ORMException('Detached entity cannot be persisted');
+                throw \Doctrine\ORM\ORMInvalidArgumentException::detachedEntityCannot($e, 'persisted');
             }
         });
         $em->method('flush');
