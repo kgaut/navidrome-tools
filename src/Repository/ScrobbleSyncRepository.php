@@ -5,6 +5,7 @@ namespace App\Repository;
 use App\Entity\Scrobble;
 use App\Entity\ScrobbleSync;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
+use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -70,9 +71,35 @@ class ScrobbleSyncRepository extends ServiceEntityRepository
             ->getSingleScalarResult();
     }
 
+    /**
+     * Pending = scrobbles awaiting a first sync attempt for $target. This
+     * covers both rows already marked `pending` in scrobble_sync AND
+     * scrobbles that don't have a scrobble_sync row yet for this target
+     * (rows are created lazily by {@see self::prepareForTarget()} on the
+     * first sync run, so the counter must include un-prepared scrobbles
+     * — otherwise it reads 0 right after a fetch and the user thinks
+     * nothing needs to be done).
+     */
     public function countPendingForTarget(string $target): int
     {
-        return $this->countByTargetStatus($target, ScrobbleSync::STATUS_PENDING);
+        return self::queryPendingCount($this->em->getConnection(), $target);
+    }
+
+    /**
+     * Pure-SQL counterpart of {@see self::countPendingForTarget()} — exposed
+     * statically so tests can hit a bare DBAL connection without spinning
+     * up Doctrine's ManagerRegistry just to instantiate the repository.
+     */
+    public static function queryPendingCount(Connection $conn, string $target): int
+    {
+        return (int) $conn->fetchOne(
+            'SELECT COUNT(s.id)
+             FROM scrobbles s
+             LEFT JOIN scrobble_sync ss
+                 ON ss.scrobble_id = s.id AND ss.target = :target
+             WHERE ss.id IS NULL OR ss.status = :pending',
+            ['target' => $target, 'pending' => ScrobbleSync::STATUS_PENDING],
+        );
     }
 
     public function countUnmatchedForTarget(string $target): int
