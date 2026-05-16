@@ -5,6 +5,7 @@ namespace App\Tests\Command;
 use App\Command\FetchLastFmCommand;
 use App\Entity\RunHistory;
 use App\LastFm\FetchReport;
+use App\LastFm\FetchWindowResolver;
 use App\LastFm\LastFmFetcher;
 use App\Repository\SettingRepository;
 use App\Service\RunHistoryRecorder;
@@ -16,8 +17,6 @@ class FetchLastFmCommandTest extends TestCase
 {
     public function testDefaultWindowIsLast48HoursOnFirstRun(): void
     {
-        // Capture the window the fetcher is called with — that's what we
-        // are actually asserting (the printed note is just for the user).
         $captured = null;
         $fetcher = $this->createMock(LastFmFetcher::class);
         $fetcher->expects($this->once())
@@ -28,7 +27,7 @@ class FetchLastFmCommandTest extends TestCase
             });
 
         $settings = $this->createMock(SettingRepository::class);
-        $settings->method('get')->willReturn(''); // no previous fetch
+        $settings->method('get')->willReturn('');
         $settings->expects($this->never())->method('set');
 
         $tester = $this->makeTester($fetcher, $settings);
@@ -36,7 +35,6 @@ class FetchLastFmCommandTest extends TestCase
 
         $this->assertNotNull($captured['dateMin']);
         $this->assertNull($captured['dateMax']);
-        // Default window is 48h — accept a 5s drift to account for test latency.
         $expected = (new \DateTimeImmutable())->modify('-48 hours')->getTimestamp();
         $this->assertLessThanOrEqual(5, abs($captured['dateMin']->getTimestamp() - $expected));
     }
@@ -52,8 +50,6 @@ class FetchLastFmCommandTest extends TestCase
             }
         );
 
-        // Last fetch 7 days ago — smart date should use that minus 1h overlap,
-        // NOT the 48h default.
         $lastFetch = (new \DateTimeImmutable('-7 days'))->format('Y-m-d H:i:s');
         $settings = $this->createMock(SettingRepository::class);
         $settings->method('get')->willReturn($lastFetch);
@@ -88,13 +84,13 @@ class FetchLastFmCommandTest extends TestCase
 
     private function makeTester(LastFmFetcher $fetcher, SettingRepository $settings): CommandTester
     {
-        // Recorder that just invokes the action — no DB writes in tests.
         $recorder = $this->createMock(RunHistoryRecorder::class);
         $recorder->method('record')->willReturnCallback(
             static fn (string $type, string $ref, string $label, callable $action) => $action(new RunHistory($type, $ref, $label)),
         );
 
-        $command = new FetchLastFmCommand($fetcher, $recorder, $settings, 'default-key', 'default-user');
+        $resolver = new FetchWindowResolver($settings);
+        $command = new FetchLastFmCommand($fetcher, $recorder, $resolver, 'default-key', 'default-user');
         $app = new Application();
         $app->add($command);
 
