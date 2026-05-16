@@ -102,7 +102,7 @@
     {% if data.plays_by_month is not empty %}
     <div class="bg-white shadow-sm rounded-sm p-4 mb-6">
         <div class="text-sm font-semibold mb-3">Lectures par mois</div>
-        {% set max_month = data.plays_by_month|map(r => r.plays)|max %}
+        {% set max_month = max(data.plays_by_month|map(r => r.plays)) %}
         <div class="flex items-end gap-1 h-24">
             {% for row in data.plays_by_month %}
             <div class="flex-1 flex flex-col items-center gap-1 min-w-0">
@@ -123,7 +123,7 @@
         {% set days = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'] %}
         {% set dow_map = {} %}
         {% for row in data.plays_by_dow %}{% set dow_map = dow_map|merge({(row.dow): row.plays}) %}{% endfor %}
-        {% set max_dow = data.plays_by_dow|map(r => r.plays)|max %}
+        {% set max_dow = max(data.plays_by_dow|map(r => r.plays)) %}
         <div class="flex items-end gap-2 h-20">
             {% for d in 0..6 %}
             {% set plays = dow_map[d] is defined ? dow_map[d] : 0 %}
