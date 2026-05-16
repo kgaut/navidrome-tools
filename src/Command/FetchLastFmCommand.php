@@ -18,8 +18,10 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 /**
  * Fetch scrobbles from Last.fm and store them in the local `scrobbles` table.
  *
- * Smart date mode (no --date-min): reads setting[lastfm_last_fetch_{user}]
- * and fetches from that date - 1h to now. On success, updates the setting.
+ * Smart date mode (no --date-min): on subsequent runs reads
+ * setting[lastfm_last_fetch_{user}] and fetches from that date - 1h to now.
+ * On the first run (no previous fetch recorded) defaults to the last 48h —
+ * a full-history bootstrap is opt-in via --date-min=1970-01-01.
  * With --date-min: explicit window, does NOT update the last_fetch setting.
  */
 #[AsCommand(
@@ -30,6 +32,7 @@ class FetchLastFmCommand extends Command
 {
     private const SETTING_KEY_PREFIX = 'lastfm_last_fetch_';
     private const OVERLAP_HOURS = 1;
+    private const DEFAULT_WINDOW_HOURS = 48;
 
     public function __construct(
         private readonly LastFmFetcher $fetcher,
@@ -158,7 +161,16 @@ class FetchLastFmCommand extends Command
             return [$dateMin, $dateMax];
         }
 
-        $io->note('No previous fetch found. Fetching full history (this may take a while).');
-        return [null, $dateMax];
+        // No previous fetch — default to the last DEFAULT_WINDOW_HOURS. A full
+        // bootstrap is opt-in via --date-min=1970-01-01 so a fresh install
+        // doesn't accidentally pull years of history on a cron tick.
+        $dateMin = (new \DateTimeImmutable())->modify(sprintf('-%d hours', self::DEFAULT_WINDOW_HOURS));
+        $io->note(sprintf(
+            'No previous fetch found — defaulting to the last %dh (from %s). '
+            . 'Pass --date-min for a different window.',
+            self::DEFAULT_WINDOW_HOURS,
+            $dateMin->format('Y-m-d H:i:s'),
+        ));
+        return [$dateMin, $dateMax];
     }
 }
