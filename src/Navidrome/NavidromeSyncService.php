@@ -226,9 +226,18 @@ class NavidromeSyncService
         // ORMInvalidArgumentException ("detached entity cannot be persisted")
         // in Doctrine ORM 3, which closes the EM. Doing it here bounds the
         // identity map to one batch worth of entities at most.
+        //
+        // We also detach the joined Scrobble, otherwise `toIterable()` keeps
+        // loading them into the identity map forever (one per yielded row)
+        // and a `--limit=50000` run OOMs at ~30k rows on a 128M heap.
         foreach ($batch as $row) {
-            if ($this->em->contains($row['sync'])) {
-                $this->em->detach($row['sync']);
+            $sync = $row['sync'];
+            $scrobble = $sync->getScrobble();
+            if ($this->em->contains($sync)) {
+                $this->em->detach($sync);
+            }
+            if ($this->em->contains($scrobble)) {
+                $this->em->detach($scrobble);
             }
         }
     }
