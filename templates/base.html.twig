@@ -7,22 +7,40 @@
     <title>{% block title %}{% endblock %} — Navidrome Tools{% if app_version is defined and app_version != 'dev' %} {{ app_version }}{% endif %}</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 </head>
-<body class="bg-slate-100 text-slate-900 min-h-screen">
+<body class="bg-slate-100 text-slate-900 min-h-screen flex flex-col">
 
 {% if app.user %}
-<nav class="bg-slate-800 text-slate-100 px-4 py-2 flex items-center gap-4 text-sm">
-    <a href="{{ path('app_dashboard') }}" class="font-semibold hover:text-white">Navidrome Tools</a>
-    <a href="{{ path('app_lastfm_import') }}" class="hover:text-slate-300">Import Last.fm</a>
-    <a href="{{ path('app_navidrome_sync') }}" class="hover:text-slate-300">Sync Navidrome</a>
-    <a href="{{ path('app_strawberry_sync') }}" class="hover:text-slate-300">Sync Strawberry</a>
-    <a href="{{ path('app_stats') }}" class="hover:text-slate-300">Stats</a>
-    <a href="{{ path('app_history') }}" class="hover:text-slate-300">Historique</a>
-    <span class="flex-1"></span>
-    <a href="{{ path('app_logout') }}" class="hover:text-white">Déconnexion</a>
-</nav>
+<header class="bg-slate-800 text-slate-100">
+    <div class="max-w-6xl mx-auto px-4 py-2 flex items-center gap-4">
+        <a href="{{ path('app_dashboard') }}" class="font-semibold hover:text-white whitespace-nowrap">Navidrome Tools</a>
+
+        {% include '_navbar.html.twig' with { variant: 'desktop' } only %}
+
+        <div class="hidden md:flex items-center gap-3 text-sm whitespace-nowrap">
+            <span class="text-slate-400">{{ app.user.userIdentifier }}</span>
+            <a href="{{ path('app_logout') }}" class="hover:text-white">Déconnexion</a>
+        </div>
+
+        <button type="button"
+                id="burger-toggle"
+                class="md:hidden ml-auto inline-flex items-center justify-center w-10 h-10 rounded-sm hover:bg-slate-700"
+                aria-label="Ouvrir le menu"
+                aria-controls="mobile-nav"
+                aria-expanded="false">
+            <svg id="burger-icon-open" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+            </svg>
+            <svg id="burger-icon-close" class="w-6 h-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+        </button>
+    </div>
+
+    {% include '_navbar.html.twig' with { variant: 'mobile' } only %}
+</header>
 {% endif %}
 
-<main class="max-w-6xl mx-auto px-4 py-6">
+<main class="flex-1 max-w-6xl w-full mx-auto px-4 py-6">
     {% for type, messages in app.flashes %}
         {% for message in messages %}
             <div class="mb-4 p-3 rounded-sm text-sm
@@ -36,5 +54,24 @@
 
     {% block body %}{% endblock %}
 </main>
+
+{% if app.user %}
+<script>
+    (function () {
+        var btn = document.getElementById('burger-toggle');
+        var nav = document.getElementById('mobile-nav');
+        var iconOpen = document.getElementById('burger-icon-open');
+        var iconClose = document.getElementById('burger-icon-close');
+        if (!btn || !nav) return;
+        btn.addEventListener('click', function () {
+            var willOpen = nav.classList.contains('hidden');
+            nav.classList.toggle('hidden', !willOpen);
+            iconOpen.classList.toggle('hidden', willOpen);
+            iconClose.classList.toggle('hidden', !willOpen);
+            btn.setAttribute('aria-expanded', String(willOpen));
+        });
+    })();
+</script>
+{% endif %}
 </body>
 </html>
