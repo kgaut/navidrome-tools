@@ -159,6 +159,36 @@ class StrawberrySyncServiceTest extends TestCase
         $this->assertSame(5, $playcount);
     }
 
+    public function testBatchFlushDetachesBothSyncAndScrobble(): void
+    {
+        // Regression for the OOM on --limit=50000 : the old code detached
+        // ScrobbleSync but left the joined Scrobble entity in the identity
+        // map, so the map grew unbounded across iterations.
+        $scrobble = $this->makeScrobble('Daft Punk', 'Get Lucky', '2024-01-01 12:00:00');
+        $sync = new ScrobbleSync($scrobble, ScrobbleSync::TARGET_STRAWBERRY);
+
+        $syncRepo = $this->createMock(ScrobbleSyncRepository::class);
+        $syncRepo->method('prepareForTarget')->willReturn(1);
+        $syncRepo->method('streamPending')->willReturnCallback(fn () => yield $sync);
+        $syncRepo->method('resetUnmatchedToPending')->willReturn(0);
+
+        $detached = new \SplObjectStorage();
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->method('contains')->willReturnCallback(static fn (object $e): bool => !isset($detached[$e]));
+        $em->method('detach')->willReturnCallback(static function (object $e) use ($detached): void {
+            $detached[$e] = true;
+        });
+        $em->method('persist');
+        $em->method('flush');
+
+        $repo = new StrawberryRepository($this->sbDbPath);
+        $service = new StrawberrySyncService($syncRepo, $repo, $em);
+        $service->process();
+
+        $this->assertTrue(isset($detached[$sync]), 'ScrobbleSync must be detached');
+        $this->assertTrue(isset($detached[$scrobble]), 'Scrobble must be detached (otherwise toIterable() leaks them on long runs)');
+    }
+
     private function makeScrobble(string $artist, string $title, string $playedAt): Scrobble
     {
         return new Scrobble(
