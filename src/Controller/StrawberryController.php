@@ -178,6 +178,19 @@ class StrawberryController extends AbstractController
         return $this->redirectToRoute('app_history');
     }
 
+    #[Route('/strawberry/sync/reset', name: 'app_strawberry_sync_reset', methods: ['POST'])]
+    public function reset(Request $request): Response
+    {
+        if (!$this->isCsrfTokenValid('strawberry_sync_reset', (string) $request->request->get('_token'))) {
+            throw $this->createAccessDeniedException();
+        }
+
+        $reset = $this->syncRepo->resetAllToPending(ScrobbleSync::TARGET_STRAWBERRY);
+        $this->addFlash('success', sprintf('Reset Strawberry : %d ligne(s) remises en pending.', $reset));
+
+        return $this->redirectToRoute('app_strawberry_sync');
+    }
+
     #[Route('/strawberry/unmatched', name: 'app_strawberry_unmatched', methods: ['GET'])]
     public function unmatched(Request $request): Response
     {
