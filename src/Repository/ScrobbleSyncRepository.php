@@ -124,6 +124,29 @@ class ScrobbleSyncRepository extends ServiceEntityRepository
     }
 
     /**
+     * Reset every non-pending row for $target back to pending. Wipes
+     * target_id and strategy too so the next sync starts from a clean
+     * slate (they will be re-resolved by the matching cascade anyway).
+     */
+    public function resetAllToPending(string $target): int
+    {
+        return (int) $this->em->getConnection()->executeStatement(
+            'UPDATE scrobble_sync
+                SET status = :pending,
+                    target_id = NULL,
+                    strategy = NULL,
+                    attempted_at = NULL,
+                    synced_at = NULL,
+                    run_id = NULL
+              WHERE target = :target AND status <> :pending',
+            [
+                'pending' => ScrobbleSync::STATUS_PENDING,
+                'target' => $target,
+            ],
+        );
+    }
+
+    /**
      * Aggregate unmatched rows grouped by (artist, title, album) for display.
      *
      * @return list<array{artist: string, title: string, album: string|null, count: int, last_played_at: string}>

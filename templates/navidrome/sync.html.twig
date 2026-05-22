@@ -70,4 +70,22 @@
             <code>php bin/console app:scrobbles:sync-navidrome [--auto-stop] [--dry-run] [--limit=N]</code>
         </div>
     </div>
+
+    {# Reset #}
+    <div class="bg-white shadow-sm rounded-sm p-6 max-w-xl border-l-4 border-rose-400">
+        <h2 class="text-lg font-semibold mb-2">Zone dangereuse — Reset</h2>
+        <p class="text-sm text-slate-600 mb-4">
+            Remet <strong>tous</strong> les morceaux (matchés, doublons, non matchés, skipped)
+            en <em>pending</em> pour retenter la synchronisation à zéro. Les playcounts déjà
+            écrits dans Navidrome ne sont pas modifiés.
+        </p>
+        <form method="post" action="{{ path('app_navidrome_sync_reset') }}"
+              onsubmit="return confirm('Confirmer le reset de tous les statuts Navidrome en pending ?');">
+            <input type="hidden" name="_token" value="{{ csrf_token('navidrome_sync_reset') }}">
+            <button type="submit"
+                    class="bg-rose-600 hover:bg-rose-700 text-white px-6 py-2 rounded-sm text-sm font-medium">
+                ⟲ Reset → pending
+            </button>
+        </form>
+    </div>
 {% endblock %}
