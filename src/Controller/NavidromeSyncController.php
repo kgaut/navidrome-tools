@@ -43,6 +43,19 @@ class NavidromeSyncController extends AbstractController
         return $this->redirectToRoute('app_history');
     }
 
+    #[Route('/navidrome/sync/reset', name: 'app_navidrome_sync_reset', methods: ['POST'])]
+    public function reset(Request $request, ScrobbleSyncRepository $syncRepo): Response
+    {
+        if (!$this->isCsrfTokenValid('navidrome_sync_reset', (string) $request->request->get('_token'))) {
+            throw $this->createAccessDeniedException();
+        }
+
+        $reset = $syncRepo->resetAllToPending(ScrobbleSync::TARGET_NAVIDROME);
+        $this->addFlash('success', sprintf('Reset Navidrome : %d ligne(s) remises en pending.', $reset));
+
+        return $this->redirectToRoute('app_navidrome_sync');
+    }
+
     #[Route('/navidrome/rematch', name: 'app_navidrome_rematch', methods: ['POST'])]
     public function rematch(Request $request, MessageBusInterface $bus): Response
     {
