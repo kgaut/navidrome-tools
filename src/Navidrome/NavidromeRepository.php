@@ -78,6 +78,113 @@ class NavidromeRepository
         return (int) $this->connection()->fetchOne('SELECT COUNT(*) FROM scrobbles');
     }
 
+    /**
+     * Library-wide aggregates from `media_file`. Used by the stats page to
+     * show « combien on a » indépendamment de l'écoute.
+     *
+     * @return array{tracks: int, artists: int, albums: int, duration_seconds: int}
+     */
+    public function getLibraryCounts(): array
+    {
+        $row = $this->connection()->fetchAssociative(
+            "SELECT COUNT(*) AS tracks,
+                    COUNT(DISTINCT CASE WHEN artist != '' THEN artist END) AS artists,
+                    COUNT(DISTINCT CASE WHEN album != '' THEN album END) AS albums,
+                    COALESCE(SUM(duration), 0) AS dur
+             FROM media_file",
+        );
+
+        return [
+            'tracks' => (int) ($row['tracks'] ?? 0),
+            'artists' => (int) ($row['artists'] ?? 0),
+            'albums' => (int) ($row['albums'] ?? 0),
+            'duration_seconds' => (int) ($row['dur'] ?? 0),
+        ];
+    }
+
+    /**
+     * Number of starred items for the configured user, split by type.
+     * `annotation.starred` is a boolean column present since Navidrome
+     * pre-0.50; safe to query unconditionally.
+     *
+     * @return array{tracks: int, albums: int, artists: int}
+     */
+    public function getStarredCounts(): array
+    {
+        $userId = $this->resolveUserId();
+
+        $rows = $this->connection()->fetchAllAssociative(
+            'SELECT item_type, COUNT(*) AS c
+             FROM annotation
+             WHERE user_id = :uid AND starred = 1
+             GROUP BY item_type',
+            ['uid' => $userId],
+        );
+
+        $out = ['tracks' => 0, 'albums' => 0, 'artists' => 0];
+        foreach ($rows as $r) {
+            $count = (int) $r['c'];
+            switch ((string) $r['item_type']) {
+                case 'media_file':
+                    $out['tracks'] = $count;
+                    break;
+                case 'album':
+                    $out['albums'] = $count;
+                    break;
+                case 'artist':
+                    $out['artists'] = $count;
+                    break;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Most recently starred ("loved") tracks for the configured user.
+     * Items whose `starred_at` is null (very old starred rows from before
+     * Navidrome started recording the timestamp) are excluded so the
+     * ordering stays meaningful.
+     *
+     * @return list<array{id: string, title: string, artist: string, album: string, starred_at: \DateTimeImmutable}>
+     */
+    public function getRecentStarredTracks(int $limit): array
+    {
+        $userId = $this->resolveUserId();
+        $tz = new \DateTimeZone(date_default_timezone_get());
+
+        $rows = $this->connection()->fetchAllAssociative(
+            "SELECT a.item_id AS id, a.starred_at AS starred_at,
+                    mf.title AS title, mf.artist AS artist, mf.album AS album
+             FROM annotation a
+             JOIN media_file mf ON mf.id = a.item_id
+             WHERE a.user_id = :uid
+               AND a.item_type = 'media_file'
+               AND a.starred = 1
+               AND a.starred_at IS NOT NULL
+             ORDER BY a.starred_at DESC
+             LIMIT :lim",
+            ['uid' => $userId, 'lim' => $limit],
+            ['lim' => \Doctrine\DBAL\ParameterType::INTEGER],
+        );
+
+        return array_map(static function (array $r) use ($tz): array {
+            try {
+                $starredAt = new \DateTimeImmutable((string) $r['starred_at']);
+            } catch (\Throwable) {
+                $starredAt = new \DateTimeImmutable('@0');
+            }
+
+            return [
+                'id' => (string) $r['id'],
+                'title' => (string) ($r['title'] ?? ''),
+                'artist' => (string) ($r['artist'] ?? ''),
+                'album' => (string) ($r['album'] ?? ''),
+                'starred_at' => $starredAt->setTimezone($tz),
+            ];
+        }, $rows);
+    }
+
     public function hasScrobblesTable(): bool
     {
         if ($this->hasScrobblesCache !== null) {
