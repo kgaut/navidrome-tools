@@ -11,6 +11,8 @@ use App\MessageHandler\FetchLastFmMessageHandler;
 use App\Repository\SettingRepository;
 use App\Service\RunHistoryRecorder;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Messenger\Envelope;
+use Symfony\Component\Messenger\MessageBusInterface;
 
 class FetchLastFmMessageHandlerTest extends TestCase
 {
@@ -46,6 +48,9 @@ class FetchLastFmMessageHandlerTest extends TestCase
             static fn (string $type, string $ref, string $label, callable $action) => $action(new RunHistory($type, $ref, $label)),
         );
 
-        return new FetchLastFmMessageHandler($fetcher, $recorder, new FetchWindowResolver($settings));
+        $bus = $this->createMock(MessageBusInterface::class);
+        $bus->method('dispatch')->willReturnCallback(static fn (object $msg): Envelope => new Envelope($msg));
+
+        return new FetchLastFmMessageHandler($fetcher, $recorder, new FetchWindowResolver($settings), $bus);
     }
 }

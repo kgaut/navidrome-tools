@@ -98,4 +98,64 @@ class ScrobbleRepository extends ServiceEntityRepository
 
         return $affected === 1;
     }
+
+    /**
+     * Flip `loved=1` on every scrobble of (user, track). MBID match wins
+     * when present (Last.fm and Navidrome agree on MusicBrainz ids when
+     * tagged), case-insensitive (artist, title) otherwise. Returns the
+     * number of rows actually flipped — 0 when the track has no matching
+     * scrobble (loved-but-never-scrobbled), or when every matching row
+     * was already loved.
+     */
+    public function markLoved(string $user, string $artist, string $title, ?string $mbidTrack): int
+    {
+        $conn = $this->getEntityManager()->getConnection();
+
+        if ($mbidTrack !== null && $mbidTrack !== '') {
+            $affected = (int) $conn->executeStatement(
+                'UPDATE scrobbles SET loved = 1
+                 WHERE lastfm_user = :u AND loved = 0 AND mbid_track = :mbid',
+                ['u' => $user, 'mbid' => $mbidTrack],
+            );
+            if ($affected > 0) {
+                return $affected;
+            }
+        }
+
+        return (int) $conn->executeStatement(
+            'UPDATE scrobbles SET loved = 1
+             WHERE lastfm_user = :u AND loved = 0
+               AND LOWER(artist) = LOWER(:a) AND LOWER(title) = LOWER(:t)',
+            ['u' => $user, 'a' => $artist, 't' => $title],
+        );
+    }
+
+    /**
+     * True if (user, artist, title) has at least one scrobble in the DB,
+     * regardless of its current loved state. Lets the loved-sync count
+     * « known by Navidrome-tools » as matched even when every existing
+     * scrobble was already flagged.
+     */
+    public function hasScrobble(string $user, string $artist, string $title, ?string $mbidTrack): bool
+    {
+        $conn = $this->getEntityManager()->getConnection();
+
+        if ($mbidTrack !== null && $mbidTrack !== '') {
+            $found = $conn->fetchOne(
+                'SELECT 1 FROM scrobbles WHERE lastfm_user = :u AND mbid_track = :mbid LIMIT 1',
+                ['u' => $user, 'mbid' => $mbidTrack],
+            );
+            if ($found !== false) {
+                return true;
+            }
+        }
+
+        $found = $conn->fetchOne(
+            'SELECT 1 FROM scrobbles WHERE lastfm_user = :u
+              AND LOWER(artist) = LOWER(:a) AND LOWER(title) = LOWER(:t) LIMIT 1',
+            ['u' => $user, 'a' => $artist, 't' => $title],
+        );
+
+        return $found !== false;
+    }
 }
