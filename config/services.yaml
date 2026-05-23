@@ -141,6 +141,14 @@ services:
         arguments:
             $defaultUser: '%lastfm.user%'
 
+    App\Controller\LastFmStatsController:
+        arguments:
+            $defaultUser: '%lastfm.user%'
+
+    App\Command\ComputeLastFmStatsCommand:
+        arguments:
+            $defaultUser: '%lastfm.user%'
+
     App\Controller\DashboardController:
         arguments:
             $defaultUser: '%lastfm.user%'
