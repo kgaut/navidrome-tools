@@ -2,57 +2,59 @@
 
 namespace App\Controller;
 
+use App\Entity\RunHistory;
 use App\Navidrome\NavidromeRepository;
+use App\Service\NavidromeStatsService;
+use App\Service\RunHistoryRecorder;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 
 class NavidromeStatsController extends AbstractController
 {
-    public function __construct(private readonly NavidromeRepository $navidrome)
-    {
+    public function __construct(
+        private readonly NavidromeStatsService $statsService,
+        private readonly NavidromeRepository $navidrome,
+        private readonly RunHistoryRecorder $recorder,
+    ) {
     }
 
     #[Route('/navidrome/stats', name: 'app_navidrome_stats', methods: ['GET'])]
     public function index(): Response
     {
+        $data = $this->statsService->get();
+
+        return $this->render('navidrome/stats.html.twig', [
+            'data' => $data,
+            'navidrome_available' => $this->navidrome->isAvailable(),
+        ]);
+    }
+
+    #[Route('/navidrome/stats/refresh', name: 'app_navidrome_stats_refresh', methods: ['POST'])]
+    public function refresh(Request $request): Response
+    {
+        if (!$this->isCsrfTokenValid('navidrome_stats_refresh', (string) $request->request->get('_token'))) {
+            throw $this->createAccessDeniedException();
+        }
+
         if (!$this->navidrome->isAvailable()) {
-            return $this->render('navidrome/stats.html.twig', [
-                'unavailable' => true,
-            ]);
+            $this->addFlash('error', 'Base Navidrome indisponible — impossible de recalculer.');
+            return $this->redirectToRoute('app_navidrome_stats');
         }
 
         try {
-            $library = $this->navidrome->getLibraryCounts();
-            $starred = $this->navidrome->getStarredCounts();
-            $totalPlays = $this->navidrome->getTotalPlays(null, null);
-            $distinctPlayed = $this->navidrome->getDistinctTracksPlayed(null, null);
-            $recentScrobbles = $this->navidrome->getRecentScrobbles(100);
-            $recentStarred = $this->navidrome->getRecentStarredTracks(25);
-            $topArtists = $this->navidrome->getTopArtists(null, null, 15);
-            $topTracks = $this->navidrome->getTopTracksWithDetails(null, null, 15);
-            $topAlbums = $this->navidrome->getTopAlbums(null, null, 15);
-            $playsByMonth = $this->navidrome->getPlaysByMonth(12);
+            $this->recorder->record(
+                type: RunHistory::TYPE_STATS,
+                reference: 'navidrome',
+                label: 'Navidrome stats compute',
+                action: fn () => $this->statsService->compute(),
+            );
+            $this->addFlash('success', 'Statistiques Navidrome recalculées.');
         } catch (\Throwable $e) {
-            return $this->render('navidrome/stats.html.twig', [
-                'unavailable' => true,
-                'error' => $e->getMessage(),
-            ]);
+            $this->addFlash('error', 'Erreur : ' . $e->getMessage());
         }
 
-        return $this->render('navidrome/stats.html.twig', [
-            'unavailable' => false,
-            'has_scrobbles' => $this->navidrome->hasScrobblesTable(),
-            'library' => $library,
-            'starred' => $starred,
-            'total_plays' => $totalPlays,
-            'distinct_played' => $distinctPlayed,
-            'recent_scrobbles' => $recentScrobbles,
-            'recent_starred' => $recentStarred,
-            'top_artists' => $topArtists,
-            'top_tracks' => $topTracks,
-            'top_albums' => $topAlbums,
-            'plays_by_month' => $playsByMonth,
-        ]);
+        return $this->redirectToRoute('app_navidrome_stats');
     }
 }
