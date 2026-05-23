@@ -39,6 +39,7 @@ class LastFmStatsService
      */
     public function compute(?string $user = null): array
     {
+        $user = $this->resolveUser($user);
         $library = $this->libraryCounts($user);
         $bounds = $this->scrobbleBounds($user);
 
@@ -74,13 +75,37 @@ class LastFmStatsService
      */
     public function get(?string $user = null): ?array
     {
-        $snapshot = $this->snapshots->findOneByPeriod($this->snapshotKey($user));
+        $snapshot = $this->snapshots->findOneByPeriod($this->snapshotKey($this->resolveUser($user)));
         if ($snapshot === null) {
             return null;
         }
 
         /** @var array<string, mixed> */
         return $snapshot->getData();
+    }
+
+    /**
+     * Resolve the user to filter on. Explicit value wins ; otherwise auto-pick
+     * the most-scrobbled `lastfm_user` from the local DB so the CLI and the
+     * UI default to the dominant user when the LASTFM_USER env is empty
+     * (which is the case in fresh installs). Returns null only when there
+     * isn't a single scrobble in the DB.
+     */
+    public function resolveUser(?string $user): ?string
+    {
+        if ($user !== null && $user !== '') {
+            return $user;
+        }
+
+        $row = $this->connection->fetchOne(
+            'SELECT lastfm_user FROM scrobbles
+              WHERE lastfm_user != \'\'
+              GROUP BY lastfm_user
+              ORDER BY COUNT(*) DESC
+              LIMIT 1',
+        );
+
+        return is_string($row) && $row !== '' ? $row : null;
     }
 
     public function snapshotKey(?string $user): string

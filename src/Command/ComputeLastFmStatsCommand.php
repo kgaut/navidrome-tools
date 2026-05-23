@@ -35,13 +35,21 @@ class ComputeLastFmStatsCommand extends Command
     {
         $io = new SymfonyStyle($input, $output);
         $user = $input->getOption('user') ?? ($this->defaultUser !== '' ? $this->defaultUser : null);
+        $resolved = $this->statsService->resolveUser($user);
+
+        if ($resolved === null) {
+            $io->warning('Aucun utilisateur Last.fm trouvé en base et LASTFM_USER non renseigné. Lancez d\'abord un import.');
+            return Command::FAILURE;
+        }
+
+        $io->writeln(sprintf('Calcul du snapshot pour <info>%s</info>…', $resolved));
 
         try {
             $data = $this->recorder->record(
                 type: RunHistory::TYPE_STATS,
                 reference: 'lastfm',
-                label: 'Last.fm stats compute',
-                action: fn () => $this->statsService->compute($user),
+                label: sprintf('Last.fm stats compute (%s)', $resolved),
+                action: fn () => $this->statsService->compute($resolved),
             );
         } catch (\Throwable $e) {
             $io->error($e->getMessage());
@@ -49,7 +57,8 @@ class ComputeLastFmStatsCommand extends Command
         }
 
         $io->success(sprintf(
-            'Snapshot Last.fm recalculé : %d scrobbles, %d morceaux, %d artistes, %d albums, %d loved.',
+            'Snapshot Last.fm recalculé pour %s : %d scrobbles, %d morceaux, %d artistes, %d albums, %d loved.',
+            $resolved,
             $data['library']['scrobbles'] ?? 0,
             $data['library']['tracks'] ?? 0,
             $data['library']['artists'] ?? 0,
