@@ -1,0 +1,233 @@
+{% extends 'base.html.twig' %}
+{% block title %}Stats Last.fm{% endblock %}
+
+{% block body %}
+    <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+        <h1 class="text-2xl font-semibold">
+            Stats Last.fm
+            {% if user %}<span class="text-sm font-normal text-slate-500">— {{ user }}</span>{% endif %}
+        </h1>
+        <div class="flex items-center gap-3">
+            {% if data %}
+                <span class="text-xs text-slate-400">Calculé {{ data.computed_at|date('d/m/Y H:i') }}</span>
+            {% endif %}
+            <form method="post" action="{{ path('app_lastfm_stats_refresh') }}" class="inline">
+                <input type="hidden" name="_token" value="{{ csrf_token('lastfm_stats_refresh') }}">
+                <button type="submit" class="text-xs bg-slate-200 hover:bg-slate-300 px-3 py-1.5 rounded-sm">↻ Recalculer</button>
+            </form>
+        </div>
+    </div>
+
+    {% if not data %}
+        <div class="bg-amber-50 border border-amber-300 text-amber-900 rounded-sm p-4">
+            <strong>Aucune statistique en cache.</strong>
+            Cliquez sur <em>↻ Recalculer</em> pour générer un premier instantané,
+            ou planifiez la commande <code>app:lastfm:stats:compute</code> dans un crontab.
+        </div>
+    {% else %}
+
+    {# Bibliothèque #}
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+        <div class="bg-white shadow-sm rounded-sm p-4">
+            <div class="text-xs uppercase text-slate-500">Scrobbles</div>
+            <div class="text-3xl font-semibold">{{ data.library.scrobbles|number_format(0, '.', ' ') }}</div>
+        </div>
+        <div class="bg-white shadow-sm rounded-sm p-4">
+            <div class="text-xs uppercase text-slate-500">Morceaux distincts</div>
+            <div class="text-3xl font-semibold">{{ data.library.tracks|number_format(0, '.', ' ') }}</div>
+        </div>
+        <div class="bg-white shadow-sm rounded-sm p-4">
+            <div class="text-xs uppercase text-slate-500">Artistes distincts</div>
+            <div class="text-3xl font-semibold">{{ data.library.artists|number_format(0, '.', ' ') }}</div>
+        </div>
+        <div class="bg-white shadow-sm rounded-sm p-4">
+            <div class="text-xs uppercase text-slate-500">Albums distincts</div>
+            <div class="text-3xl font-semibold">{{ data.library.albums|number_format(0, '.', ' ') }}</div>
+        </div>
+    </div>
+
+    {# Loved + plage temporelle #}
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
+        <div class="bg-white shadow-sm rounded-sm p-4">
+            <div class="text-xs uppercase text-slate-500">♥ Loved</div>
+            <div class="text-3xl font-semibold text-rose-600">{{ data.loved_count|number_format(0, '.', ' ') }}</div>
+            {% if data.library.tracks > 0 %}
+                <div class="text-xs text-slate-500">
+                    {{ (data.loved_count / data.library.tracks * 100)|round(1) }} % des morceaux
+                </div>
+            {% endif %}
+        </div>
+        <div class="bg-white shadow-sm rounded-sm p-4">
+            <div class="text-xs uppercase text-slate-500">Premier scrobble</div>
+            <div class="text-lg font-semibold">
+                {{ data.first_scrobble_at ? data.first_scrobble_at|date('d/m/Y') : '—' }}
+            </div>
+        </div>
+        <div class="bg-white shadow-sm rounded-sm p-4">
+            <div class="text-xs uppercase text-slate-500">Dernier scrobble</div>
+            <div class="text-lg font-semibold">
+                {{ data.last_scrobble_at ? data.last_scrobble_at|date('d/m/Y H:i') : '—' }}
+            </div>
+        </div>
+    </div>
+
+    {# Lectures par mois (12 derniers) #}
+    {% if data.plays_by_month is not empty %}
+    <div class="bg-white shadow-sm rounded-sm p-4 mb-6">
+        <div class="text-sm font-semibold mb-3">Scrobbles — 12 derniers mois</div>
+        {% set max_month = max(data.plays_by_month|map(r => r.plays)) %}
+        <div class="flex items-end gap-1 h-24">
+            {% for row in data.plays_by_month %}
+            <div class="flex-1 flex flex-col items-center gap-1 min-w-0">
+                <div class="w-full bg-sky-400 rounded-t-sm"
+                     style="height: {{ max_month > 0 ? ((row.plays / max_month * 88)|round) : 0 }}px"
+                     title="{{ row.month }} : {{ row.plays }} scrobbles"></div>
+                <div class="text-xs text-slate-400 truncate" style="font-size:9px">{{ row.month|slice(5, 2) }}/{{ row.month|slice(2, 2) }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {# Top all-time #}
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        {% if data.top_artists is not empty %}
+        <div class="bg-white shadow-sm rounded-sm overflow-hidden">
+            <div class="px-4 py-2 bg-slate-100 border-b text-sm font-semibold">Top artistes (all-time)</div>
+            <table class="w-full text-sm">
+                <tbody class="divide-y">
+                {% set max_a = data.top_artists[0].plays %}
+                {% for i, row in data.top_artists %}
+                <tr class="hover:bg-slate-50">
+                    <td class="px-3 py-1.5 text-slate-400 w-8 text-right text-xs">{{ i + 1 }}</td>
+                    <td class="px-3 py-1.5 font-medium truncate">{{ row.artist }}</td>
+                    <td class="px-3 py-1.5 w-24">
+                        <div class="bg-sky-200 h-2 rounded-full" style="width: {{ (row.plays / max_a * 100)|round }}%"></div>
+                    </td>
+                    <td class="px-3 py-1.5 text-right font-mono text-xs">{{ row.plays }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        {% if data.top_tracks is not empty %}
+        <div class="bg-white shadow-sm rounded-sm overflow-hidden">
+            <div class="px-4 py-2 bg-slate-100 border-b text-sm font-semibold">Top morceaux (all-time)</div>
+            <table class="w-full text-sm">
+                <tbody class="divide-y">
+                {% set max_t = data.top_tracks[0].plays %}
+                {% for i, row in data.top_tracks %}
+                <tr class="hover:bg-slate-50">
+                    <td class="px-3 py-1.5 text-slate-400 w-8 text-right text-xs">{{ i + 1 }}</td>
+                    <td class="px-3 py-1.5">
+                        <div class="font-medium truncate max-w-40">{{ row.title }}</div>
+                        <div class="text-xs text-slate-500 truncate max-w-40">{{ row.artist }}</div>
+                    </td>
+                    <td class="px-3 py-1.5 w-20">
+                        <div class="bg-emerald-200 h-2 rounded-full" style="width: {{ (row.plays / max_t * 100)|round }}%"></div>
+                    </td>
+                    <td class="px-3 py-1.5 text-right font-mono text-xs">{{ row.plays }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        {% if data.top_albums is not empty %}
+        <div class="bg-white shadow-sm rounded-sm overflow-hidden">
+            <div class="px-4 py-2 bg-slate-100 border-b text-sm font-semibold">Top albums (all-time)</div>
+            <table class="w-full text-sm">
+                <tbody class="divide-y">
+                {% set max_al = data.top_albums[0].plays %}
+                {% for i, row in data.top_albums %}
+                <tr class="hover:bg-slate-50">
+                    <td class="px-3 py-1.5 text-slate-400 w-8 text-right text-xs">{{ i + 1 }}</td>
+                    <td class="px-3 py-1.5">
+                        <div class="font-medium truncate max-w-40">{{ row.album }}</div>
+                        <div class="text-xs text-slate-500 truncate max-w-40">{{ row.artist }}</div>
+                    </td>
+                    <td class="px-3 py-1.5 w-20">
+                        <div class="bg-amber-200 h-2 rounded-full" style="width: {{ (row.plays / max_al * 100)|round }}%"></div>
+                    </td>
+                    <td class="px-3 py-1.5 text-right font-mono text-xs">{{ row.plays }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>
+
+    {# 100 derniers + 25 derniers ♥ #}
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {% if data.recent_scrobbles is not empty %}
+        <div class="bg-white shadow-sm rounded-sm overflow-hidden">
+            <div class="px-4 py-2 bg-slate-100 border-b text-sm font-semibold">
+                100 derniers scrobbles
+            </div>
+            <div class="max-h-[640px] overflow-y-auto">
+                <table class="w-full text-sm">
+                    <tbody class="divide-y">
+                    {% for row in data.recent_scrobbles %}
+                    <tr class="hover:bg-slate-50">
+                        <td class="px-3 py-1.5 w-32 text-xs text-slate-500 whitespace-nowrap">
+                            {{ row.played_at|date('d/m H:i') }}
+                        </td>
+                        <td class="px-3 py-1.5">
+                            <div class="font-medium truncate max-w-xs">
+                                {% if row.loved %}<span class="text-rose-500 mr-1">♥</span>{% endif %}{{ row.title ?: '—' }}
+                            </div>
+                            <div class="text-xs text-slate-500 truncate max-w-xs">
+                                {{ row.artist ?: '—' }}{% if row.album %} · {{ row.album }}{% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% else %}
+        <div class="bg-white shadow-sm rounded-sm p-4 text-sm text-slate-500">
+            Aucun scrobble en base. Lancez un import Last.fm pour démarrer.
+        </div>
+        {% endif %}
+
+        {% if data.recent_loved is not empty %}
+        <div class="bg-white shadow-sm rounded-sm overflow-hidden">
+            <div class="px-4 py-2 bg-slate-100 border-b text-sm font-semibold">
+                25 derniers coups de cœur
+            </div>
+            <div class="max-h-[640px] overflow-y-auto">
+                <table class="w-full text-sm">
+                    <tbody class="divide-y">
+                    {% for row in data.recent_loved %}
+                    <tr class="hover:bg-slate-50">
+                        <td class="px-3 py-1.5 w-12 text-rose-500 text-center">♥</td>
+                        <td class="px-3 py-1.5">
+                            <div class="font-medium truncate max-w-xs">{{ row.title ?: '—' }}</div>
+                            <div class="text-xs text-slate-500 truncate max-w-xs">
+                                {{ row.artist ?: '—' }}{% if row.album %} · {{ row.album }}{% endif %}
+                            </div>
+                        </td>
+                        <td class="px-3 py-1.5 w-24 text-xs text-slate-500 whitespace-nowrap text-right">
+                            {{ row.played_at|date('d/m/Y') }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% else %}
+        <div class="bg-white shadow-sm rounded-sm p-4 text-sm text-slate-500">
+            Aucun morceau marqué loved.
+        </div>
+        {% endif %}
+    </div>
+
+    {% endif %}
+{% endblock %}
