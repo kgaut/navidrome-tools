@@ -144,6 +144,12 @@ services:
     App\Controller\LastFmStatsController:
         arguments:
             $defaultUser: '%lastfm.user%'
+            $defaultApiKey: '%lastfm.api_key%'
+
+    App\Command\SyncLastFmLovedCommand:
+        arguments:
+            $defaultApiKey: '%lastfm.api_key%'
+            $defaultUser: '%lastfm.user%'
 
     App\Command\ComputeLastFmStatsCommand:
         arguments:

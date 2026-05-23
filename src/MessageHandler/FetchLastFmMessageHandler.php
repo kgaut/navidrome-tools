@@ -7,8 +7,10 @@ use App\LastFm\FetchReport;
 use App\LastFm\FetchWindowResolver;
 use App\LastFm\LastFmFetcher;
 use App\Message\FetchLastFmMessage;
+use App\Message\SyncLastFmLovedMessage;
 use App\Service\RunHistoryRecorder;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
+use Symfony\Component\Messenger\MessageBusInterface;
 
 #[AsMessageHandler]
 class FetchLastFmMessageHandler
@@ -17,6 +19,7 @@ class FetchLastFmMessageHandler
         private readonly LastFmFetcher $fetcher,
         private readonly RunHistoryRecorder $recorder,
         private readonly FetchWindowResolver $windowResolver,
+        private readonly MessageBusInterface $bus,
     ) {
     }
 
@@ -49,6 +52,17 @@ class FetchLastFmMessageHandler
 
         if ($smartDate && !$message->dryRun && $report->fetched > 0) {
             $this->windowResolver->markFetchedAt($message->user, $now);
+        }
+
+        // Chain a loved-sync so /lastfm/stats heart counts stay honest
+        // even when older scrobbles missed the live `loved` flag. Skip on
+        // dry-run (would still hit the API for nothing).
+        if (!$message->dryRun) {
+            $this->bus->dispatch(new SyncLastFmLovedMessage(
+                user: $message->user,
+                apiKey: $message->apiKey,
+                dryRun: false,
+            ));
         }
     }
 }

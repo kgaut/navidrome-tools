@@ -3,11 +3,13 @@
 namespace App\Controller;
 
 use App\Entity\RunHistory;
+use App\Message\SyncLastFmLovedMessage;
 use App\Service\LastFmStatsService;
 use App\Service\RunHistoryRecorder;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Attribute\Route;
 
 class LastFmStatsController extends AbstractController
@@ -16,6 +18,7 @@ class LastFmStatsController extends AbstractController
         private readonly LastFmStatsService $statsService,
         private readonly RunHistoryRecorder $recorder,
         private readonly string $defaultUser,
+        private readonly string $defaultApiKey,
     ) {
     }
 
@@ -28,6 +31,7 @@ class LastFmStatsController extends AbstractController
         return $this->render('lastfm/stats.html.twig', [
             'data' => $data,
             'user' => $user,
+            'can_sync_loved' => $this->defaultApiKey !== '',
         ]);
     }
 
@@ -51,6 +55,30 @@ class LastFmStatsController extends AbstractController
         } catch (\Throwable $e) {
             $this->addFlash('error', 'Erreur : ' . $e->getMessage());
         }
+
+        return $this->redirectToRoute('app_lastfm_stats');
+    }
+
+    #[Route('/lastfm/stats/sync-loved', name: 'app_lastfm_stats_sync_loved', methods: ['POST'])]
+    public function syncLoved(Request $request, MessageBusInterface $bus): Response
+    {
+        if (!$this->isCsrfTokenValid('lastfm_stats_sync_loved', (string) $request->request->get('_token'))) {
+            throw $this->createAccessDeniedException();
+        }
+
+        $user = $this->defaultUser !== '' ? $this->defaultUser : null;
+        if ($user === null || $this->defaultApiKey === '') {
+            $this->addFlash('error', 'LASTFM_USER ou LASTFM_API_KEY non configuré.');
+            return $this->redirectToRoute('app_lastfm_stats');
+        }
+
+        $bus->dispatch(new SyncLastFmLovedMessage(
+            user: $user,
+            apiKey: $this->defaultApiKey,
+            dryRun: false,
+        ));
+
+        $this->addFlash('success', 'Sync des loved tracks Last.fm lancé en arrière-plan. Pensez à recalculer le snapshot ensuite.');
 
         return $this->redirectToRoute('app_lastfm_stats');
     }

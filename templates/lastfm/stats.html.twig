@@ -8,9 +8,18 @@
             {% set displayed_user = data and data.user ? data.user : user %}
             {% if displayed_user %}<span class="text-sm font-normal text-slate-500">— {{ displayed_user }}</span>{% endif %}
         </h1>
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-3 flex-wrap">
             {% if data %}
                 <span class="text-xs text-slate-400">Calculé {{ data.computed_at|date('d/m/Y H:i') }}</span>
+            {% endif %}
+            {% if can_sync_loved %}
+            <form method="post" action="{{ path('app_lastfm_stats_sync_loved') }}" class="inline"
+                  onsubmit="return confirm('Récupérer la liste des loved tracks depuis Last.fm et marquer les scrobbles correspondants ?');">
+                <input type="hidden" name="_token" value="{{ csrf_token('lastfm_stats_sync_loved') }}">
+                <button type="submit" class="text-xs bg-rose-100 hover:bg-rose-200 text-rose-700 px-3 py-1.5 rounded-sm" title="Récupère la liste des coups de cœur depuis Last.fm et flag les scrobbles correspondants">
+                    ♥ Sync loved
+                </button>
+            </form>
             {% endif %}
             <form method="post" action="{{ path('app_lastfm_stats_refresh') }}" class="inline">
                 <input type="hidden" name="_token" value="{{ csrf_token('lastfm_stats_refresh') }}">
