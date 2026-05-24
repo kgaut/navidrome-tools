@@ -98,6 +98,29 @@
         </div>
     </div>
 
+    {# Streaks #}
+    {% if data.streaks is defined %}
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <div class="bg-white shadow-sm rounded-sm p-4">
+            <div class="text-xs uppercase text-slate-500">🔥 Streak actuelle</div>
+            <div class="text-3xl font-semibold {{ data.streaks.current > 0 ? 'text-orange-600' : '' }}">
+                {{ data.streaks.current|number_format(0, '.', ' ') }}<span class="text-base text-slate-500"> j</span>
+            </div>
+            {% if data.streaks.current > 0 and data.streaks.current_started_at %}
+                <div class="text-xs text-slate-500">depuis le {{ data.streaks.current_started_at|date('d/m/Y') }}</div>
+            {% endif %}
+        </div>
+        <div class="bg-white shadow-sm rounded-sm p-4">
+            <div class="text-xs uppercase text-slate-500">Plus longue (12 mois)</div>
+            <div class="text-3xl font-semibold">{{ data.streaks.longest_period|number_format(0, '.', ' ') }}<span class="text-base text-slate-500"> j</span></div>
+        </div>
+        <div class="bg-white shadow-sm rounded-sm p-4">
+            <div class="text-xs uppercase text-slate-500">Plus longue (all-time)</div>
+            <div class="text-3xl font-semibold">{{ data.streaks.longest_alltime|number_format(0, '.', ' ') }}<span class="text-base text-slate-500"> j</span></div>
+        </div>
+    </div>
+    {% endif %}
+
     {# Lectures par mois (12 derniers) #}
     {% if data.plays_by_month is not empty %}
     <div class="bg-white shadow-sm rounded-sm p-4 mb-6">

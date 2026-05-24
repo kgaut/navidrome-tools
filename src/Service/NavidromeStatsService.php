@@ -37,6 +37,13 @@ class NavidromeStatsService
     {
         $hasScrobbles = $this->navidrome->hasScrobblesTable();
 
+        $today = new \DateTimeImmutable('today');
+        $periodFrom = $today->modify('-12 months');
+        $allDays = $this->navidrome->getListenedDays(null, null);
+        $periodDays = $this->navidrome->getListenedDays($periodFrom, null);
+        $alltime = StreakStats::compute($allDays, $today);
+        $period = StreakStats::compute($periodDays, $today);
+
         $data = [
             'computed_at' => (new \DateTimeImmutable())->format(\DATE_ATOM),
             'has_scrobbles' => $hasScrobbles,
@@ -44,6 +51,14 @@ class NavidromeStatsService
             'starred' => $this->navidrome->getStarredCounts(),
             'total_plays' => $this->navidrome->getTotalPlays(null, null),
             'distinct_played' => $this->navidrome->getDistinctTracksPlayed(null, null),
+            'streaks' => [
+                'longest_alltime' => $alltime['longest'],
+                'longest_period' => $period['longest'],
+                'current' => $alltime['current'],
+                'current_started_at' => $alltime['current_started_at'],
+                'current_ended_at' => $alltime['current_ended_at'],
+                'period_months' => 12,
+            ],
             'recent_scrobbles' => self::flattenScrobbles($this->navidrome->getRecentScrobbles(100)),
             'recent_starred' => self::flattenStarred($this->navidrome->getRecentStarredTracks(25)),
             'top_artists' => $this->navidrome->getTopArtists(null, null, 15),

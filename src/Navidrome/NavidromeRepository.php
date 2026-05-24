@@ -1231,6 +1231,42 @@ class NavidromeRepository
     }
 
     /**
+     * Distinct calendar dates (Y-m-d) where the user scrobbled at least
+     * once, restricted to [from, to). Pass null bounds for the full
+     * history. Returns [] when the scrobbles table is missing.
+     *
+     * @return list<string>
+     */
+    public function getListenedDays(?\DateTimeInterface $from = null, ?\DateTimeInterface $to = null): array
+    {
+        if (!$this->hasScrobblesTable()) {
+            return [];
+        }
+
+        $userId = $this->resolveUserId();
+        $sql = "SELECT DISTINCT date(submission_time, 'unixepoch') AS d
+                FROM scrobbles
+                WHERE user_id = :uid";
+        $params = ['uid' => $userId];
+        $types = [];
+        if ($from !== null) {
+            $sql .= ' AND submission_time >= :from';
+            $params['from'] = $from->getTimestamp();
+            $types['from'] = \Doctrine\DBAL\ParameterType::INTEGER;
+        }
+        if ($to !== null) {
+            $sql .= ' AND submission_time < :to';
+            $params['to'] = $to->getTimestamp();
+            $types['to'] = \Doctrine\DBAL\ParameterType::INTEGER;
+        }
+        $sql .= ' ORDER BY d';
+
+        $rows = $this->connection()->fetchAllAssociative($sql, $params, $types);
+
+        return array_map(static fn (array $r): string => (string) $r['d'], $rows);
+    }
+
+    /**
      * Most active month (by plays) of $year.
      *
      * @return array{month: string, plays: int}|null
