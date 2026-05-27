@@ -104,23 +104,36 @@
     </div>
     {% endif %}
 
-    {# Lectures par mois (12 derniers) #}
-    {% if data.plays_by_month is not empty %}
+    {# Scrobbles par mois / semaine / jour #}
+    {% set charts = [
+        { title: 'Scrobbles — 12 derniers mois', rows: data.plays_by_month, key: 'month' },
+        { title: 'Scrobbles — 15 dernières semaines', rows: data.plays_by_week ?? [], key: 'week' },
+        { title: 'Scrobbles — 15 derniers jours', rows: data.plays_by_day ?? [], key: 'day' },
+    ] %}
+    {% for chart in charts %}
+    {% if chart.rows is not empty %}
     <div class="bg-white shadow-sm rounded-sm p-4 mb-6">
-        <div class="text-sm font-semibold mb-3">Scrobbles — 12 derniers mois</div>
-        {% set max_month = max(data.plays_by_month|map(r => r.plays)) %}
+        <div class="text-sm font-semibold mb-3">{{ chart.title }}</div>
+        {% set max_v = max(chart.rows|map(r => r.plays)) %}
         <div class="flex items-end gap-1 h-24">
-            {% for row in data.plays_by_month %}
+            {% for row in chart.rows %}
             <div class="flex-1 flex flex-col items-center gap-1 min-w-0">
                 <div class="w-full bg-sky-400 rounded-t-sm"
-                     style="height: {{ max_month > 0 ? ((row.plays / max_month * 88)|round) : 0 }}px"
-                     title="{{ row.month }} : {{ row.plays }} scrobbles"></div>
-                <div class="text-xs text-slate-400 truncate" style="font-size:9px">{{ row.month|slice(5, 2) }}/{{ row.month|slice(2, 2) }}</div>
+                     style="height: {{ max_v > 0 ? ((row.plays / max_v * 88)|round) : 0 }}px"
+                     title="{{ attribute(row, chart.key) }} : {{ row.plays }} scrobbles"></div>
+                <div class="text-xs text-slate-400 truncate" style="font-size:9px">
+                    {%- if chart.key == 'month' -%}
+                        {{ row.month|slice(5, 2) }}/{{ row.month|slice(2, 2) }}
+                    {%- else -%}
+                        {{ attribute(row, chart.key)|slice(8, 2) }}/{{ attribute(row, chart.key)|slice(5, 2) }}
+                    {%- endif -%}
+                </div>
             </div>
             {% endfor %}
         </div>
     </div>
     {% endif %}
+    {% endfor %}
 
     {# Top all-time #}
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
