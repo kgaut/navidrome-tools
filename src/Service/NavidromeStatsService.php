@@ -65,6 +65,8 @@ class NavidromeStatsService
             'top_tracks' => $this->navidrome->getTopTracksWithDetails(null, null, 15),
             'top_albums' => $this->navidrome->getTopAlbums(null, null, 15),
             'plays_by_month' => $this->navidrome->getPlaysByMonth(12),
+            'plays_by_week' => $this->navidrome->getPlaysByWeek(15),
+            'plays_by_day' => $this->navidrome->getPlaysByDay(15),
         ];
 
         $snapshot = $this->snapshots->findOneByPeriod(self::SNAPSHOT_KEY);

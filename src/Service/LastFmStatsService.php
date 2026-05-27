@@ -26,6 +26,8 @@ class LastFmStatsService
     private const RECENT_SCROBBLES_LIMIT = 100;
     private const RECENT_LOVED_LIMIT = 25;
     private const PLAYS_BY_MONTH_COUNT = 12;
+    private const PLAYS_BY_WEEK_COUNT = 15;
+    private const PLAYS_BY_DAY_COUNT = 15;
 
     public function __construct(
         private readonly Connection $connection,
@@ -64,6 +66,8 @@ class LastFmStatsService
                 'period_months' => 12,
             ],
             'plays_by_month' => $this->playsByMonth(self::PLAYS_BY_MONTH_COUNT, $user),
+            'plays_by_week' => $this->playsByWeek(self::PLAYS_BY_WEEK_COUNT, $user),
+            'plays_by_day' => $this->playsByDay(self::PLAYS_BY_DAY_COUNT, $user),
             'top_artists' => $this->topArtists($user, self::TOP_LIMIT),
             'top_tracks' => $this->topTracks($user, self::TOP_LIMIT),
             'top_albums' => $this->topAlbums($user, self::TOP_LIMIT),
@@ -238,6 +242,88 @@ class LastFmStatsService
             $key = $cursor->format('Y-m');
             $out[] = ['month' => $key, 'plays' => $byMonth[$key] ?? 0];
             $cursor = $cursor->modify('+1 month');
+        }
+
+        return $out;
+    }
+
+    /**
+     * Plays per Monday-started week over the last $weeksBack weeks. The
+     * `week` key is the Monday date (Y-m-d) of each bucket.
+     *
+     * @return list<array{week: string, plays: int}>
+     */
+    private function playsByWeek(int $weeksBack, ?string $user): array
+    {
+        $monday = (new \DateTimeImmutable('monday this week'))->setTime(0, 0);
+        $from = $monday->modify(sprintf('-%d weeks', max(0, $weeksBack - 1)));
+
+        [$where, $params] = $this->buildWhere($user);
+        $clauses = ['played_at >= :from'];
+        if ($where !== '') {
+            $clauses[] = $where;
+        }
+        $params['from'] = $from->format('Y-m-d H:i:s');
+
+        // SQLite weekday: 0=Sunday..6=Saturday → shift back to Monday.
+        $sql = "SELECT date(played_at, '-' || ((strftime('%w', played_at) + 6) % 7) || ' days') AS week,
+                       COUNT(*) AS plays
+                FROM scrobbles
+                WHERE " . implode(' AND ', $clauses)
+            . ' GROUP BY week ORDER BY week ASC';
+
+        /** @var list<array{week: string, plays: int}> $rows */
+        $rows = $this->connection->fetchAllAssociative($sql, $params);
+        $byWeek = [];
+        foreach ($rows as $r) {
+            $byWeek[(string) $r['week']] = (int) $r['plays'];
+        }
+
+        $out = [];
+        $cursor = $from;
+        for ($i = 0; $i < $weeksBack; $i++) {
+            $key = $cursor->format('Y-m-d');
+            $out[] = ['week' => $key, 'plays' => $byWeek[$key] ?? 0];
+            $cursor = $cursor->modify('+1 week');
+        }
+
+        return $out;
+    }
+
+    /**
+     * Plays per day over the last $daysBack days (today included).
+     *
+     * @return list<array{day: string, plays: int}>
+     */
+    private function playsByDay(int $daysBack, ?string $user): array
+    {
+        $from = (new \DateTimeImmutable('today'))->modify(sprintf('-%d days', max(0, $daysBack - 1)));
+
+        [$where, $params] = $this->buildWhere($user);
+        $clauses = ['played_at >= :from'];
+        if ($where !== '') {
+            $clauses[] = $where;
+        }
+        $params['from'] = $from->format('Y-m-d H:i:s');
+
+        $sql = "SELECT date(played_at) AS day, COUNT(*) AS plays
+                FROM scrobbles
+                WHERE " . implode(' AND ', $clauses)
+            . ' GROUP BY day ORDER BY day ASC';
+
+        /** @var list<array{day: string, plays: int}> $rows */
+        $rows = $this->connection->fetchAllAssociative($sql, $params);
+        $byDay = [];
+        foreach ($rows as $r) {
+            $byDay[(string) $r['day']] = (int) $r['plays'];
+        }
+
+        $out = [];
+        $cursor = $from;
+        for ($i = 0; $i < $daysBack; $i++) {
+            $key = $cursor->format('Y-m-d');
+            $out[] = ['day' => $key, 'plays' => $byDay[$key] ?? 0];
+            $cursor = $cursor->modify('+1 day');
         }
 
         return $out;

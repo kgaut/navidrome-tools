@@ -812,6 +812,92 @@ class NavidromeRepository
     }
 
     /**
+     * Plays per ISO week over the last $weeksBack weeks (current week
+     * included). Weeks without scrobbles are returned with plays=0. The
+     * `week` key is the Monday date (Y-m-d) of each bucket so the chart
+     * has a stable, sortable label.
+     *
+     * @return list<array{week: string, plays: int}>
+     */
+    public function getPlaysByWeek(int $weeksBack): array
+    {
+        if (!$this->hasScrobblesTable()) {
+            return [];
+        }
+
+        $userId = $this->resolveUserId();
+        // Monday of the current week, then walk back $weeksBack-1 weeks.
+        $monday = (new \DateTimeImmutable('monday this week'))->setTime(0, 0);
+        $from = $monday->modify(sprintf('-%d weeks', max(0, $weeksBack - 1)));
+
+        // SQLite: weekday 0=Sunday..6=Saturday. Shift to Monday-based week
+        // start by subtracting ((weekday+6) % 7) days from each play date.
+        $rows = $this->connection()->fetchAllAssociative(
+            "SELECT date(s.submission_time, 'unixepoch',
+                         '-' || ((strftime('%w', s.submission_time, 'unixepoch') + 6) % 7) || ' days') AS week,
+                    COUNT(*) AS plays
+             FROM scrobbles s
+             WHERE s.user_id = :uid AND s.submission_time >= :from
+             GROUP BY week ORDER BY week ASC",
+            ['uid' => $userId, 'from' => $from->getTimestamp()],
+            ['from' => \Doctrine\DBAL\ParameterType::INTEGER],
+        );
+        $byWeek = [];
+        foreach ($rows as $r) {
+            $byWeek[(string) $r['week']] = (int) $r['plays'];
+        }
+
+        $out = [];
+        $cursor = $from;
+        for ($i = 0; $i < $weeksBack; $i++) {
+            $key = $cursor->format('Y-m-d');
+            $out[] = ['week' => $key, 'plays' => $byWeek[$key] ?? 0];
+            $cursor = $cursor->modify('+1 week');
+        }
+
+        return $out;
+    }
+
+    /**
+     * Plays per day over the last $daysBack days (today included). Days
+     * without scrobbles are returned with plays=0.
+     *
+     * @return list<array{day: string, plays: int}>
+     */
+    public function getPlaysByDay(int $daysBack): array
+    {
+        if (!$this->hasScrobblesTable()) {
+            return [];
+        }
+
+        $userId = $this->resolveUserId();
+        $from = (new \DateTimeImmutable('today'))->modify(sprintf('-%d days', max(0, $daysBack - 1)));
+
+        $rows = $this->connection()->fetchAllAssociative(
+            "SELECT date(s.submission_time, 'unixepoch') AS day, COUNT(*) AS plays
+             FROM scrobbles s
+             WHERE s.user_id = :uid AND s.submission_time >= :from
+             GROUP BY day ORDER BY day ASC",
+            ['uid' => $userId, 'from' => $from->getTimestamp()],
+            ['from' => \Doctrine\DBAL\ParameterType::INTEGER],
+        );
+        $byDay = [];
+        foreach ($rows as $r) {
+            $byDay[(string) $r['day']] = (int) $r['plays'];
+        }
+
+        $out = [];
+        $cursor = $from;
+        for ($i = 0; $i < $daysBack; $i++) {
+            $key = $cursor->format('Y-m-d');
+            $out[] = ['day' => $key, 'plays' => $byDay[$key] ?? 0];
+            $cursor = $cursor->modify('+1 day');
+        }
+
+        return $out;
+    }
+
+    /**
      * Set of normalized artist names already present in `media_file`.
      * Returned as `[normalized => true]` for O(1) « do we already own X? »
      * lookups (used by the discover suggestions). Uses the same
