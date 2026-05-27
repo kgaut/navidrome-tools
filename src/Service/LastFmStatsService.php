@@ -43,6 +43,11 @@ class LastFmStatsService
         $library = $this->libraryCounts($user);
         $bounds = $this->scrobbleBounds($user);
 
+        $today = new \DateTimeImmutable('today');
+        $periodFrom = $today->modify('-12 months');
+        $alltime = StreakStats::compute($this->listenedDays($user, null), $today);
+        $period = StreakStats::compute($this->listenedDays($user, $periodFrom), $today);
+
         $data = [
             'computed_at' => (new \DateTimeImmutable())->format(\DATE_ATOM),
             'user' => $user,
@@ -50,6 +55,14 @@ class LastFmStatsService
             'loved_count' => $this->lovedCount($user),
             'first_scrobble_at' => $bounds['first'],
             'last_scrobble_at' => $bounds['last'],
+            'streaks' => [
+                'longest_alltime' => $alltime['longest'],
+                'longest_period' => $period['longest'],
+                'current' => $alltime['current'],
+                'current_started_at' => $alltime['current_started_at'],
+                'current_ended_at' => $alltime['current_ended_at'],
+                'period_months' => 12,
+            ],
             'plays_by_month' => $this->playsByMonth(self::PLAYS_BY_MONTH_COUNT, $user),
             'top_artists' => $this->topArtists($user, self::TOP_LIMIT),
             'top_tracks' => $this->topTracks($user, self::TOP_LIMIT),
@@ -333,6 +346,29 @@ class LastFmStatsService
             'album' => $r['album'] !== null ? (string) $r['album'] : null,
             'played_at' => (string) $r['played_at'],
         ], $rows);
+    }
+
+    /**
+     * Distinct calendar dates (Y-m-d) where $user scrobbled at least once,
+     * filtered on `played_at >= :from` when $from is provided.
+     *
+     * @return list<string>
+     */
+    private function listenedDays(?string $user, ?\DateTimeImmutable $from): array
+    {
+        [$where, $params] = $this->buildWhere($user);
+        $clauses = $where !== '' ? [$where] : [];
+        if ($from !== null) {
+            $clauses[] = 'played_at >= :from';
+            $params['from'] = $from->format('Y-m-d H:i:s');
+        }
+        $sql = "SELECT DISTINCT date(played_at) AS d FROM scrobbles"
+            . ($clauses !== [] ? ' WHERE ' . implode(' AND ', $clauses) : '')
+            . ' ORDER BY d';
+
+        $rows = $this->connection->fetchAllAssociative($sql, $params);
+
+        return array_map(static fn (array $r): string => (string) $r['d'], $rows);
     }
 
     /**
