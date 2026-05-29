@@ -32,7 +32,7 @@ final class FetchWindowResolver
      */
     public function resolve(string $user, ?string $explicitDateMin, ?string $explicitDateMax): array
     {
-        $dateMax = $explicitDateMax !== null ? new \DateTimeImmutable($explicitDateMax) : null;
+        $dateMax = $explicitDateMax !== null ? self::parseDateMax($explicitDateMax) : null;
 
         if ($explicitDateMin !== null) {
             return [
@@ -69,5 +69,26 @@ final class FetchWindowResolver
     public function markFetchedAt(string $user, \DateTimeImmutable $at): void
     {
         $this->settings->set(self::SETTING_KEY_PREFIX . $user, $at->format('Y-m-d H:i:s'));
+    }
+
+    /**
+     * Parse the explicit date-max. The CLI doc advertises `YYYY-MM-DD`, and
+     * the web form sends an HTML `<input type="date">` value in the same
+     * shape — both naturally mean « inclure tout ce jour-là ». PHP's
+     * default new DateTimeImmutable('YYYY-MM-DD') would set 00:00:00, i.e.
+     * the START of the day; sent as `to=` to Last.fm that excludes every
+     * scrobble of the day. Promote bare dates to the start of the NEXT day
+     * so today's scrobbles aren't dropped.
+     *
+     * Inputs that already carry a time component are kept verbatim — power
+     * users may want precise windows for backfills.
+     */
+    private static function parseDateMax(string $value): \DateTimeImmutable
+    {
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) === 1) {
+            return (new \DateTimeImmutable($value))->modify('+1 day');
+        }
+
+        return new \DateTimeImmutable($value);
     }
 }
