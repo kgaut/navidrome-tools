@@ -1,0 +1,240 @@
+#!/usr/bin/env bash
+# -----------------------------------------------------------------------------
+# navidrome-sync.sh — point d'entrée crontab pour la sync Last.fm → Navidrome.
+#
+# Recopier ce fichier en `navidrome-sync.sh` (gitignoré), adapter les chemins,
+# le webhook éventuel, puis l'invoquer via cron.
+#
+# Flow :
+#   1. stop conteneur Navidrome (docker compose)
+#   2. backup horodaté de la DB (+ WAL/SHM si présents)
+#   3. sync scrobbles + sync loves Last.fm → Navidrome
+#   4. PRAGMA quick_check ; rollback + notif si KO
+#   5. start conteneur Navidrome
+#   6. purge des backups au-delà de BACKUP_RETENTION_DAYS
+#
+# Codes de sortie :
+#   0  succès
+#   1  erreur de configuration (DB / compose introuvable, sqlite3 absent)
+#   2  docker compose stop a échoué
+#   3  une commande de sync a échoué (DB rollback OK, conteneur relancé)
+#   4  quick_check KO          (DB rollback OK, conteneur relancé)
+#   5  docker compose start a échoué après une sync OK
+# -----------------------------------------------------------------------------
+
+set -euo pipefail
+
+# === Config ==================================================================
+# Racine du projet (par défaut : parent du dossier qui contient ce script).
+PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+
+# Chemin du fichier SQLite Navidrome. Doit pointer sur la VRAIE DB, pas un
+# montage read-only.
+NAVIDROME_DB_PATH="${PROJECT_DIR}/var/navidrome.db"
+
+# Où stocker les backups. Créé si absent.
+BACKUP_DIR="${PROJECT_DIR}/backups"
+
+# Rétention en jours (find -mtime). Les .db / -wal / -shm plus vieux sont
+# supprimés en fin de run.
+BACKUP_RETENTION_DAYS=7
+
+# Docker compose : fichier + nom du service Navidrome.
+COMPOSE_FILE="${PROJECT_DIR}/docker-compose.yml"
+COMPOSE_SERVICE="navidrome"
+
+# Binaire PHP utilisé pour bin/console (chemin absolu si php n'est pas dans le
+# PATH du cron).
+PHP_BIN="php"
+
+# Notification en cas d'échec — laisser GOTIFY_URL vide pour désactiver, ou
+# remplacer la fonction notify_failure() ci-dessous par un POST vers
+# Slack/Discord/Pushover.
+GOTIFY_URL=""
+GOTIFY_TOKEN=""
+GOTIFY_PRIORITY=8
+
+# === Helpers =================================================================
+
+log() {
+    printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >&2
+}
+
+notify_failure() {
+    local message="$1"
+    if [[ -z "$GOTIFY_URL" || -z "$GOTIFY_TOKEN" ]]; then
+        return 0
+    fi
+    # Best-effort : ne pas masquer l'erreur d'origine si la notif rate.
+    curl --silent --show-error --max-time 10 \
+        --data "title=navidrome-sync" \
+        --data "message=${message}" \
+        --data "priority=${GOTIFY_PRIORITY}" \
+        "${GOTIFY_URL%/}/message?token=${GOTIFY_TOKEN}" \
+        >/dev/null 2>&1 || true
+
+    # Exemples — décommenter et remplir si vous préférez un autre canal :
+    # curl -X POST -H 'Content-type: application/json' --max-time 10 \
+    #     --data "{\"text\": \"navidrome-sync: ${message}\"}" \
+    #     "$SLACK_WEBHOOK_URL" >/dev/null 2>&1 || true
+    # curl -X POST -H 'Content-type: application/json' --max-time 10 \
+    #     --data "{\"content\": \"navidrome-sync: ${message}\"}" \
+    #     "$DISCORD_WEBHOOK_URL" >/dev/null 2>&1 || true
+}
+
+# État partagé avec les fonctions de cleanup.
+BACKUP_PATH=""
+STOPPED=0
+
+start_container_if_stopped() {
+    if [[ "$STOPPED" -eq 1 ]]; then
+        log "Redémarrage du conteneur ${COMPOSE_SERVICE}…"
+        if docker compose -f "$COMPOSE_FILE" start "$COMPOSE_SERVICE" >/dev/null; then
+            STOPPED=0
+        else
+            log "Impossible de redémarrer ${COMPOSE_SERVICE}."
+            return 1
+        fi
+    fi
+}
+
+rollback_db() {
+    if [[ -z "$BACKUP_PATH" || ! -f "$BACKUP_PATH" ]]; then
+        log "Aucun backup à restaurer ($BACKUP_PATH absent)."
+        return 1
+    fi
+    log "Rollback DB depuis $BACKUP_PATH…"
+    cp -p "$BACKUP_PATH" "$NAVIDROME_DB_PATH"
+    if [[ -f "${BACKUP_PATH}-wal" ]]; then
+        cp -p "${BACKUP_PATH}-wal" "${NAVIDROME_DB_PATH}-wal"
+    else
+        rm -f "${NAVIDROME_DB_PATH}-wal"
+    fi
+    if [[ -f "${BACKUP_PATH}-shm" ]]; then
+        cp -p "${BACKUP_PATH}-shm" "${NAVIDROME_DB_PATH}-shm"
+    else
+        rm -f "${NAVIDROME_DB_PATH}-shm"
+    fi
+}
+
+# Filet de sécurité : si le script est interrompu (CTRL-C, kill) après le stop
+# mais avant le start, on tente quand même de relancer le conteneur pour ne pas
+# laisser Navidrome down.
+cleanup_on_exit() {
+    local code=$?
+    if [[ "$STOPPED" -eq 1 ]]; then
+        log "Sortie inattendue (code=$code) avec conteneur arrêté — tentative de redémarrage."
+        docker compose -f "$COMPOSE_FILE" start "$COMPOSE_SERVICE" >/dev/null 2>&1 || true
+    fi
+    exit "$code"
+}
+trap cleanup_on_exit EXIT
+
+# === Pré-flight ==============================================================
+
+if [[ ! -f "$NAVIDROME_DB_PATH" ]]; then
+    log "NAVIDROME_DB_PATH introuvable : $NAVIDROME_DB_PATH"
+    exit 1
+fi
+if [[ ! -f "$COMPOSE_FILE" ]]; then
+    log "COMPOSE_FILE introuvable : $COMPOSE_FILE"
+    exit 1
+fi
+if ! command -v sqlite3 >/dev/null 2>&1; then
+    log "sqlite3 absent du PATH — requis pour le quick_check."
+    exit 1
+fi
+if ! command -v docker >/dev/null 2>&1; then
+    log "docker absent du PATH."
+    exit 1
+fi
+
+mkdir -p "$BACKUP_DIR"
+cd "$PROJECT_DIR"
+
+# === 1. Stop conteneur =======================================================
+
+log "Stop ${COMPOSE_SERVICE}…"
+if ! docker compose -f "$COMPOSE_FILE" stop "$COMPOSE_SERVICE" >/dev/null; then
+    msg="Échec de l'arrêt du conteneur ${COMPOSE_SERVICE}."
+    log "$msg"
+    notify_failure "$msg"
+    exit 2
+fi
+STOPPED=1
+
+# === 2. Backup ==============================================================
+
+TS="$(date +%Y%m%d_%H%M%S)"
+BACKUP_PATH="${BACKUP_DIR}/navidrome-${TS}.db"
+log "Backup → $BACKUP_PATH"
+cp -p "$NAVIDROME_DB_PATH" "$BACKUP_PATH"
+# WAL/SHM ne sont pas toujours présents (SQLite peut les avoir fusionnés au
+# stop) — best-effort, pas d'erreur fatale s'ils manquent.
+cp -p "${NAVIDROME_DB_PATH}-wal" "${BACKUP_PATH}-wal" 2>/dev/null || true
+cp -p "${NAVIDROME_DB_PATH}-shm" "${BACKUP_PATH}-shm" 2>/dev/null || true
+
+# === 3. Sync Last.fm → Navidrome ============================================
+
+run_sync() {
+    local label="$1"
+    shift
+    log "Sync ${label}…"
+    if ! "$@"; then
+        local msg="Échec de la commande ${label}."
+        log "$msg"
+        rollback_db || true
+        start_container_if_stopped || true
+        notify_failure "$msg DB restaurée depuis $BACKUP_PATH."
+        exit 3
+    fi
+}
+
+run_sync "scrobbles → Navidrome" \
+    "$PHP_BIN" bin/console app:scrobbles:sync-navidrome --no-interaction
+run_sync "loves Last.fm → Navidrome" \
+    "$PHP_BIN" bin/console app:loves:lastfm-to-navidrome --no-interaction
+
+# === 4. Intégrité ============================================================
+
+log "PRAGMA quick_check…"
+if ! check_output="$(sqlite3 "$NAVIDROME_DB_PATH" 'PRAGMA quick_check;' 2>&1)"; then
+    msg="quick_check n'a pas pu s'exécuter : ${check_output}"
+    log "$msg"
+    rollback_db || true
+    start_container_if_stopped || true
+    notify_failure "$msg DB restaurée depuis $BACKUP_PATH."
+    exit 4
+fi
+if [[ "$check_output" != "ok" ]]; then
+    msg="quick_check KO : ${check_output}"
+    log "$msg"
+    rollback_db || true
+    start_container_if_stopped || true
+    notify_failure "$msg DB restaurée depuis $BACKUP_PATH."
+    exit 4
+fi
+log "quick_check OK."
+
+# === 5. Restart conteneur ===================================================
+
+log "Start ${COMPOSE_SERVICE}…"
+if ! docker compose -f "$COMPOSE_FILE" start "$COMPOSE_SERVICE" >/dev/null; then
+    msg="Sync OK mais impossible de redémarrer ${COMPOSE_SERVICE}."
+    log "$msg"
+    notify_failure "$msg"
+    exit 5
+fi
+STOPPED=0
+
+# === 6. Purge des backups vieux =============================================
+
+log "Purge des backups > ${BACKUP_RETENTION_DAYS} j dans $BACKUP_DIR…"
+find "$BACKUP_DIR" \
+    -maxdepth 1 -type f \
+    \( -name 'navidrome-*.db' -o -name 'navidrome-*.db-wal' -o -name 'navidrome-*.db-shm' \) \
+    -mtime +"${BACKUP_RETENTION_DAYS}" \
+    -delete
+
+log "Sync terminée avec succès."
+exit 0
