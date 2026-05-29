@@ -151,6 +151,23 @@ services:
             $defaultApiKey: '%lastfm.api_key%'
             $defaultUser: '%lastfm.user%'
 
+    App\Command\LastFmAuthCommand:
+        arguments:
+            $defaultApiKey: '%lastfm.api_key%'
+            $defaultApiSecret: '%lastfm.api_secret%'
+            $defaultUser: '%lastfm.user%'
+
+    App\Command\SyncLovesLastFmToNavidromeCommand:
+        arguments:
+            $defaultApiKey: '%lastfm.api_key%'
+            $defaultUser: '%lastfm.user%'
+
+    App\Command\SyncLovesNavidromeToLastFmCommand:
+        arguments:
+            $defaultApiKey: '%lastfm.api_key%'
+            $defaultApiSecret: '%lastfm.api_secret%'
+            $defaultUser: '%lastfm.user%'
+
     App\Command\ComputeLastFmStatsCommand:
         arguments:
             $defaultUser: '%lastfm.user%'
