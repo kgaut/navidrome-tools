@@ -155,6 +155,53 @@ class LastFmClient
         $this->writeAction('track.unlove', $apiKey, $apiSecret, $sk, $artist, $title);
     }
 
+    /**
+     * Exchange (username, password) for a never-expiring session key via the
+     * `auth.getMobileSession` endpoint. Used once at setup; the SK is then
+     * cached and reused for every track.love / track.unlove call without
+     * needing to keep the password around.
+     *
+     * Last.fm spec: same signing rules as the other write endpoints — the
+     * `password` field IS included in the signature (unlike `format`).
+     * See https://www.last.fm/api/mobileauth.
+     */
+    public function authGetMobileSession(string $apiKey, string $apiSecret, string $user, string $password): string
+    {
+        $params = [
+            'method' => 'auth.getMobileSession',
+            'api_key' => $apiKey,
+            'username' => $user,
+            'password' => $password,
+        ];
+        $params['api_sig'] = LastFmApiSigner::sign($params, $apiSecret);
+        $params['format'] = 'json';
+
+        try {
+            $response = $this->httpClient->request('POST', self::BASE_URL, [
+                'body' => $params,
+                'timeout' => 30,
+            ]);
+            $body = $response->toArray(throw: true);
+        } catch (\Throwable $e) {
+            throw new \RuntimeException('Last.fm auth.getMobileSession failed: ' . $e->getMessage(), 0, $e);
+        }
+
+        if (isset($body['error'])) {
+            throw new \RuntimeException(sprintf(
+                'Last.fm auth error %s: %s',
+                $body['error'],
+                $body['message'] ?? 'unknown',
+            ));
+        }
+
+        $sk = (string) ($body['session']['key'] ?? '');
+        if ($sk === '') {
+            throw new \RuntimeException('Last.fm auth.getMobileSession returned no session key.');
+        }
+
+        return $sk;
+    }
+
     public function trackGetInfo(string $apiKey, string $artist, string $title): LastFmTrackInfo
     {
         return $this->lookup('track.getInfo', $apiKey, $artist, $title, 'track');

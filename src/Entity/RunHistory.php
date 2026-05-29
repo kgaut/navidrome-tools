@@ -15,6 +15,8 @@ class RunHistory
 {
     public const TYPE_LASTFM_FETCH = 'lastfm-fetch';
     public const TYPE_LASTFM_LOVED_SYNC = 'lastfm-loved-sync';
+    public const TYPE_LOVES_LASTFM_TO_NAVIDROME = 'loves-lastfm-to-navidrome';
+    public const TYPE_LOVES_NAVIDROME_TO_LASTFM = 'loves-navidrome-to-lastfm';
     public const TYPE_NAVIDROME_SYNC = 'navidrome-sync';
     public const TYPE_NAVIDROME_REMATCH = 'navidrome-rematch';
     public const TYPE_STRAWBERRY_SYNC = 'strawberry-sync';

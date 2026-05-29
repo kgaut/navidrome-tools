@@ -141,6 +141,111 @@ class NavidromeRepository
     }
 
     /**
+     * Stream the user's starred media_files, joined with media_file to
+     * expose (artist, title). Used by the Navidrome → Last.fm love-sync
+     * to feed `track.love` calls. Yields rows oldest-first so a long run
+     * can be resumed and a partial failure doesn't lose progress on the
+     * most recently starred items.
+     *
+     * @return \Generator<array{id: string, artist: string, title: string, album: string, mbid: ?string, starred_at: ?string}>
+     */
+    public function iterateStarredMediaFiles(): \Generator
+    {
+        $userId = $this->resolveUserId();
+        $columns = $this->mediaFileColumns();
+        $mbidCol = in_array('mbz_track_id', $columns, true)
+            ? 'mf.mbz_track_id'
+            : (in_array('mbz_recording_id', $columns, true) ? 'mf.mbz_recording_id' : "''");
+
+        $rows = $this->connection()->fetchAllAssociative(
+            "SELECT mf.id AS id, mf.artist AS artist, mf.title AS title, mf.album AS album,
+                    $mbidCol AS mbid, a.starred_at AS starred_at
+             FROM annotation a
+             JOIN media_file mf ON mf.id = a.item_id
+             WHERE a.user_id = :uid
+               AND a.item_type = 'media_file'
+               AND a.starred = 1
+             ORDER BY a.starred_at ASC, mf.id ASC",
+            ['uid' => $userId],
+        );
+
+        foreach ($rows as $r) {
+            yield [
+                'id' => (string) $r['id'],
+                'artist' => (string) ($r['artist'] ?? ''),
+                'title' => (string) ($r['title'] ?? ''),
+                'album' => (string) ($r['album'] ?? ''),
+                'mbid' => isset($r['mbid']) && $r['mbid'] !== '' ? (string) $r['mbid'] : null,
+                'starred_at' => isset($r['starred_at']) ? (string) $r['starred_at'] : null,
+            ];
+        }
+    }
+
+    /**
+     * Upsert the user's starred flag on a media_file. Honours the « loved
+     * wins » policy: if a row already exists with starred=1 we leave
+     * starred_at untouched (don't overwrite the original timestamp); if
+     * starred=0 we promote it. INSERTs use a fresh UUID v4 for ann_id so
+     * the row matches the format Navidrome itself produces.
+     *
+     * Returns true when the row's state actually changed (newly inserted
+     * or promoted from 0→1), false when it was already starred.
+     */
+    public function markStarred(string $mediaFileId, ?\DateTimeInterface $starredAt = null): bool
+    {
+        $userId = $this->resolveUserId();
+        $now = $starredAt !== null
+            ? $starredAt->format('Y-m-d H:i:s.u')
+            : (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('Y-m-d H:i:s.u');
+
+        // Promote existing row first — covers the « already exists with
+        // starred=0 » case (typically a playcount-only annotation row).
+        $affected = (int) $this->connection()->executeStatement(
+            "UPDATE annotation
+                SET starred = 1,
+                    starred_at = COALESCE(NULLIF(starred_at, ''), :now)
+              WHERE user_id = :uid AND item_id = :iid AND item_type = 'media_file'
+                AND starred = 0",
+            ['uid' => $userId, 'iid' => $mediaFileId, 'now' => $now],
+        );
+        if ($affected > 0) {
+            return true;
+        }
+
+        // Insert a new annotation row when none exists; ignore on conflict
+        // (some other process raced us and now starred=1 — no change needed).
+        $inserted = (int) $this->connection()->executeStatement(
+            "INSERT OR IGNORE INTO annotation
+                (ann_id, user_id, item_id, item_type, play_count, rating, starred, starred_at)
+             VALUES (:ann, :uid, :iid, 'media_file', 0, 0, 1, :now)",
+            [
+                'ann' => self::uuidV4(),
+                'uid' => $userId,
+                'iid' => $mediaFileId,
+                'now' => $now,
+            ],
+        );
+
+        return $inserted > 0;
+    }
+
+    private static function uuidV4(): string
+    {
+        $b = random_bytes(16);
+        $b[6] = chr(ord($b[6]) & 0x0f | 0x40);
+        $b[8] = chr(ord($b[8]) & 0x3f | 0x80);
+        $hex = bin2hex($b);
+        return sprintf(
+            '%s-%s-%s-%s-%s',
+            substr($hex, 0, 8),
+            substr($hex, 8, 4),
+            substr($hex, 12, 4),
+            substr($hex, 16, 4),
+            substr($hex, 20, 12),
+        );
+    }
+
+    /**
      * Most recently starred ("loved") tracks for the configured user.
      * Items whose `starred_at` is null (very old starred rows from before
      * Navidrome started recording the timestamp) are excluded so the
