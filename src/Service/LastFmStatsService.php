@@ -59,7 +59,11 @@ class LastFmStatsService
             'last_scrobble_at' => $bounds['last'],
             'streaks' => [
                 'longest_alltime' => $alltime['longest'],
+                'longest_alltime_started_at' => $alltime['longest_started_at'],
+                'longest_alltime_ended_at' => $alltime['longest_ended_at'],
                 'longest_period' => $period['longest'],
+                'longest_period_started_at' => $period['longest_started_at'],
+                'longest_period_ended_at' => $period['longest_ended_at'],
                 'current' => $alltime['current'],
                 'current_started_at' => $alltime['current_started_at'],
                 'current_ended_at' => $alltime['current_ended_at'],
