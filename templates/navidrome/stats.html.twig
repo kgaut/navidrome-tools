@@ -113,10 +113,22 @@
         <div class="bg-white shadow-sm rounded-sm p-4">
             <div class="text-xs uppercase text-slate-500">Plus longue (12 mois)</div>
             <div class="text-3xl font-semibold">{{ data.streaks.longest_period|number_format(0, '.', ' ') }}<span class="text-base text-slate-500"> j</span></div>
+            {% if data.streaks.longest_period > 0 and data.streaks.longest_period_started_at %}
+                <div class="text-xs text-slate-500">
+                    du {{ data.streaks.longest_period_started_at|date('d/m/Y') }}
+                    au {{ data.streaks.longest_period_ended_at|date('d/m/Y') }}
+                </div>
+            {% endif %}
         </div>
         <div class="bg-white shadow-sm rounded-sm p-4">
             <div class="text-xs uppercase text-slate-500">Plus longue (all-time)</div>
             <div class="text-3xl font-semibold">{{ data.streaks.longest_alltime|number_format(0, '.', ' ') }}<span class="text-base text-slate-500"> j</span></div>
+            {% if data.streaks.longest_alltime > 0 and data.streaks.longest_alltime_started_at %}
+                <div class="text-xs text-slate-500">
+                    du {{ data.streaks.longest_alltime_started_at|date('d/m/Y') }}
+                    au {{ data.streaks.longest_alltime_ended_at|date('d/m/Y') }}
+                </div>
+            {% endif %}
         </div>
     </div>
     {% endif %}
