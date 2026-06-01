@@ -82,12 +82,13 @@ class LocalStatsServiceTest extends TestCase
         $startDow = (int) (new \DateTimeImmutable($heatmap['start']))->format('w');
         $this->assertSame(1, $startDow, 'heatmap start day must be Monday');
 
-        // Window spans ~366 days (365 + back-to-Monday snap).
+        // Window spans 366..372 days: HEATMAP_DAYS=365 + 0..6 snap-to-Monday
+        // + 1 (today is inclusive). Hits 372 when today itself is a Monday.
         $start = new \DateTimeImmutable($heatmap['start']);
         $end = new \DateTimeImmutable($heatmap['end']);
         $days = $start->diff($end)->days + 1;
-        $this->assertGreaterThanOrEqual(365, $days);
-        $this->assertLessThanOrEqual(371, $days);
+        $this->assertGreaterThanOrEqual(366, $days);
+        $this->assertLessThanOrEqual(372, $days);
 
         // Each week is exactly 7 cells (Monday..Sunday), null-padded after today.
         foreach ($heatmap['weeks'] as $week) {
