@@ -16,7 +16,14 @@ final class StreakStats
     /**
      * @param iterable<string> $days Y-m-d strings, any order, duplicates allowed.
      *
-     * @return array{longest: int, current: int, current_started_at: ?string, current_ended_at: ?string}
+     * @return array{
+     *     longest: int,
+     *     longest_started_at: ?string,
+     *     longest_ended_at: ?string,
+     *     current: int,
+     *     current_started_at: ?string,
+     *     current_ended_at: ?string
+     * }
      */
     public static function compute(iterable $days, ?\DateTimeImmutable $today = null): array
     {
@@ -25,7 +32,14 @@ final class StreakStats
             $set[$d] = true;
         }
         if ($set === []) {
-            return ['longest' => 0, 'current' => 0, 'current_started_at' => null, 'current_ended_at' => null];
+            return [
+                'longest' => 0,
+                'longest_started_at' => null,
+                'longest_ended_at' => null,
+                'current' => 0,
+                'current_started_at' => null,
+                'current_ended_at' => null,
+            ];
         }
         $sorted = array_keys($set);
         sort($sorted);
@@ -33,14 +47,28 @@ final class StreakStats
         $longest = 1;
         $run = 1;
         $prev = null;
+        $runStart = $sorted[0];
+        $longestStart = $sorted[0];
+        $longestEnd = $sorted[0];
         foreach ($sorted as $d) {
             if ($prev === null) {
                 $prev = $d;
+                $runStart = $d;
                 continue;
             }
             $diff = (int) (new \DateTimeImmutable($prev))->diff(new \DateTimeImmutable($d))->days;
-            $run = $diff === 1 ? $run + 1 : 1;
-            $longest = max($longest, $run);
+            if ($diff === 1) {
+                $run++;
+            } else {
+                $run = 1;
+                $runStart = $d;
+            }
+            // Tie-break: keep the earliest streak of the maximal length (strict >).
+            if ($run > $longest) {
+                $longest = $run;
+                $longestStart = $runStart;
+                $longestEnd = $d;
+            }
             $prev = $d;
         }
 
@@ -63,6 +91,8 @@ final class StreakStats
 
         return [
             'longest' => $longest,
+            'longest_started_at' => $longestStart,
+            'longest_ended_at' => $longestEnd,
             'current' => $current,
             'current_started_at' => $startedAt,
             'current_ended_at' => $endedAt,
