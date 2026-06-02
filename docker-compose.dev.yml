@@ -1,0 +1,98 @@
+# Environnement de DÉVELOPPEMENT local pour Navidrome Tools.
+#
+#   docker compose -f docker-compose.dev.yml up --build
+#
+# Ce que ça fait :
+#   - build l'image depuis le Dockerfile local (FrankenPHP + PHP 8.4) ;
+#   - monte le code source en volume → édition à chaud, aucun rebuild ;
+#   - APP_ENV=dev / APP_DEBUG=1, dépendances dev installées au démarrage ;
+#   - web (http://localhost:8080) + worker Messenger, comme en prod.
+#
+# Stockage : /app/var (cache compilé, sessions, SQLite var/data.db) vit dans
+# un volume Docker nommé `dev-var`, pas dans le dépôt — ça évite les
+# conflits de permissions du bind-mount (le conteneur tourne avec votre uid).
+# Repartir de zéro : `docker compose -f docker-compose.dev.yml down -v`.
+#
+# Pré-requis :
+#   - copier .env.dist en .env si absent (déjà fourni dans le dépôt avec des
+#     valeurs de dev) ; y renseigner vos clés Last.fm au besoin.
+#
+# Commandes utiles :
+#   docker compose -f docker-compose.dev.yml exec web composer ci
+#   docker compose -f docker-compose.dev.yml exec web php bin/console <cmd>
+#   docker compose -f docker-compose.dev.yml logs -f worker
+#
+# UID/GID : par défaut 1000:1000. Si votre uid hôte diffère, lancez avec
+#   UID=$(id -u) GID=$(id -g) docker compose -f docker-compose.dev.yml up
+# pour que vendor/ (monté depuis l'hôte) reste éditable.
+
+name: navidrome-tools-dev
+
+x-app: &app
+  build:
+    context: .
+    dockerfile: Dockerfile
+  user: "${UID:-1000}:${GID:-1000}"
+  restart: unless-stopped
+
+x-app-env: &app-env
+  APP_ENV: dev
+  APP_DEBUG: "1"
+  # Requis par config/packages/routing.yaml (génération d'URLs hors contexte HTTP).
+  DEFAULT_URI: "http://localhost:8080"
+  # HOME writable pour le cache Composer (conteneur non-root).
+  HOME: /tmp
+  # FrankenPHP/Caddy non-root : données dans un dossier inscriptible.
+  XDG_CONFIG_HOME: /tmp/xdg
+  XDG_DATA_HOME: /tmp/xdg
+
+services:
+  # Initialise le volume dev-var avec le bon propriétaire (sinon root, et le
+  # conteneur non-root ne peut pas y écrire). One-shot, tourne avant web/worker.
+  init:
+    image: alpine:3
+    command: sh -c "chown -R ${UID:-1000}:${GID:-1000} /var-data"
+    volumes:
+      - dev-var:/var-data
+    restart: "no"
+
+  web:
+    <<: *app
+    entrypoint: ["sh", "/app/docker/entrypoint.dev.sh"]
+    environment:
+      <<: *app-env
+      APP_MODE: web
+      SERVER_NAME: ":8080"
+      # Cache compilé : un sous-dossier distinct par service évite la course
+      # web/worker décrite dans CLAUDE.md (piège n°1).
+      APP_CACHE_DIR: /app/var/cache/web
+    volumes:
+      - .:/app
+      - dev-var:/app/var
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+    depends_on:
+      init:
+        condition: service_completed_successfully
+
+  worker:
+    <<: *app
+    entrypoint: ["sh", "/app/docker/entrypoint.dev.sh"]
+    environment:
+      <<: *app-env
+      APP_MODE: worker
+      APP_CACHE_DIR: /app/var/cache/worker
+    # Pas de serveur HTTP côté worker : on neutralise le healthcheck de l'image.
+    healthcheck:
+      disable: true
+    volumes:
+      - .:/app
+      - dev-var:/app/var
+    depends_on:
+      init:
+        condition: service_completed_successfully
+      web:
+        condition: service_started
+
+volumes:
+  dev-var:
