@@ -37,6 +37,27 @@ class LastFmAliasRepository extends ServiceEntityRepository
     }
 
     /**
+     * Set of all existing aliases keyed by `"artistNorm\x1ftitleNorm"`, for
+     * O(1) "does a track alias already cover this couple?" checks during a
+     * bulk generation run — avoids one SELECT per scrobble couple.
+     *
+     * @return array<string, true>
+     */
+    public function existingNormalizedKeys(): array
+    {
+        $out = [];
+        foreach (
+            $this->getEntityManager()->getConnection()->fetchAllAssociative(
+                'SELECT source_artist_norm AS a, source_title_norm AS t FROM lastfm_alias',
+            ) as $r
+        ) {
+            $out[((string) $r['a']) . "\x1f" . ((string) $r['t'])] = true;
+        }
+
+        return $out;
+    }
+
+    /**
      * Paginated search by raw substring on either source field. Used by
      * the alias admin page.
      *

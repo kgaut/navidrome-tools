@@ -1960,6 +1960,133 @@ class NavidromeRepository
     }
 
     /**
+     * Bulk map: normalized artist name → that artist's media_files as
+     * `['id' => …, 'title_norm' => …]`. One full table scan with the
+     * `np_normalize` UDF applied server-side, grouped in PHP. Lets a caller
+     * (e.g. {@see \App\Service\AliasGenerator}) fuzzy-match many scrobble
+     * titles against a single artist's catalogue without re-scanning the
+     * whole `media_file` table once per lookup.
+     *
+     * @return array<string, list<array{id: string, title_norm: string}>>
+     */
+    public function getMediaFilesByArtistNorm(): array
+    {
+        $rows = $this->connection()->fetchAllAssociative(
+            "SELECT id, np_normalize(artist) AS an, np_normalize(title) AS tn
+             FROM media_file
+             WHERE artist != '' AND title != ''",
+        );
+
+        $out = [];
+        foreach ($rows as $r) {
+            $an = (string) $r['an'];
+            if ($an === '') {
+                continue;
+            }
+            $out[$an][] = ['id' => (string) $r['id'], 'title_norm' => (string) $r['tn']];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Bulk map: MusicBrainz album id → that album's media_files as
+     * `['id' => …, 'title_norm' => …]`. Only rows carrying a non-empty
+     * `mbz_album_id`. Returns [] when the column is absent (old Navidrome).
+     *
+     * @return array<string, list<array{id: string, title_norm: string}>>
+     */
+    public function getMediaFilesByAlbumMbid(): array
+    {
+        if (!in_array('mbz_album_id', $this->mediaFileColumns(), true)) {
+            return [];
+        }
+
+        $rows = $this->connection()->fetchAllAssociative(
+            "SELECT id, mbz_album_id AS mb, np_normalize(title) AS tn
+             FROM media_file
+             WHERE mbz_album_id IS NOT NULL AND mbz_album_id != '' AND title != ''",
+        );
+
+        $out = [];
+        foreach ($rows as $r) {
+            $mb = (string) $r['mb'];
+            if ($mb === '') {
+                continue;
+            }
+            $out[$mb][] = ['id' => (string) $r['id'], 'title_norm' => (string) $r['tn']];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Resolve media_file ids to a human "artist — title" label. Used to make
+     * generated track aliases reviewable in the CLI instead of showing the
+     * opaque media_file id.
+     *
+     * @param list<string> $ids
+     *
+     * @return array<string, string> id => "artist — title"
+     */
+    public function getMediaFileLabels(array $ids): array
+    {
+        $ids = array_values(array_unique(array_filter($ids, static fn (string $i): bool => $i !== '')));
+        if ($ids === []) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $rows = $this->connection()->fetchAllAssociative(
+            sprintf('SELECT id, artist, title FROM media_file WHERE id IN (%s)', $placeholders),
+            $ids,
+        );
+
+        $out = [];
+        foreach ($rows as $r) {
+            $out[(string) $r['id']] = trim((string) ($r['artist'] ?? '') . ' — ' . (string) ($r['title'] ?? ''));
+        }
+
+        return $out;
+    }
+
+    /**
+     * Map MusicBrainz artist id → the artist name(s) Navidrome stores for it
+     * (from the `artist` table). Empty when the table / column is absent.
+     * `media_file.mbz_artist_id` is frequently blank even when the `artist`
+     * table carries the id, so we bridge through the dedicated table.
+     *
+     * @return array<string, list<string>>
+     */
+    public function getArtistNamesByMbid(): array
+    {
+        $hasArtistTable = $this->connection()->fetchOne(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='artist'",
+        );
+        if ($hasArtistTable === false) {
+            return [];
+        }
+
+        try {
+            $rows = $this->connection()->fetchAllAssociative(
+                "SELECT mbz_artist_id AS mb, name
+                 FROM artist
+                 WHERE mbz_artist_id IS NOT NULL AND mbz_artist_id != '' AND name != ''",
+            );
+        } catch (\Throwable) {
+            // No mbz_artist_id column on this Navidrome version.
+            return [];
+        }
+
+        $out = [];
+        foreach ($rows as $r) {
+            $out[(string) $r['mb']][] = (string) $r['name'];
+        }
+
+        return $out;
+    }
+
+    /**
      * Disambiguate a (artist, title) lookup with the album. Used as a
      * tighter pre-step to {@see findMediaFileByArtistTitle()} when the
      * scrobble carries a non-empty album: the same song can be present on

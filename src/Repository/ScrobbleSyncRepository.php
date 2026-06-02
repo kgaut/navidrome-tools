@@ -147,6 +147,52 @@ class ScrobbleSyncRepository extends ServiceEntityRepository
     }
 
     /**
+     * Distinct (artist, mbid_artist) of unmatched scrobbles carrying a
+     * MusicBrainz artist id, ordered by play volume. Feeds the MBID-based
+     * artist-alias generator ({@see \App\Service\AliasGenerator}).
+     *
+     * @return list<array{artist: string, mbid_artist: string, plays: int}>
+     */
+    public function unmatchedArtistMbids(string $target): array
+    {
+        /** @var list<array{artist: string, mbid_artist: string, plays: int}> */
+        return $this->em->getConnection()->fetchAllAssociative(
+            "SELECT s.artist AS artist, s.mbid_artist AS mbid_artist, COUNT(*) AS plays
+             FROM scrobble_sync ss
+             JOIN scrobbles s ON s.id = ss.scrobble_id
+             WHERE ss.target = :target AND ss.status = :status
+               AND s.mbid_artist IS NOT NULL AND s.mbid_artist != ''
+             GROUP BY s.artist, s.mbid_artist
+             ORDER BY plays DESC",
+            ['target' => $target, 'status' => ScrobbleSync::STATUS_UNMATCHED],
+        );
+    }
+
+    /**
+     * Distinct unmatched (artist, title) couples with the set of MusicBrainz
+     * album ids seen for them (comma-joined; UUIDs never contain commas) and
+     * their play volume. Feeds the track-alias generator
+     * ({@see \App\Service\AliasGenerator}).
+     *
+     * @return list<array{artist: string, title: string, mbid_albums: ?string, plays: int}>
+     */
+    public function unmatchedCouples(string $target): array
+    {
+        /** @var list<array{artist: string, title: string, mbid_albums: ?string, plays: int}> */
+        return $this->em->getConnection()->fetchAllAssociative(
+            "SELECT s.artist AS artist, s.title AS title,
+                    GROUP_CONCAT(DISTINCT NULLIF(s.mbid_album, '')) AS mbid_albums,
+                    COUNT(*) AS plays
+             FROM scrobble_sync ss
+             JOIN scrobbles s ON s.id = ss.scrobble_id
+             WHERE ss.target = :target AND ss.status = :status
+             GROUP BY s.artist, s.title
+             ORDER BY plays DESC",
+            ['target' => $target, 'status' => ScrobbleSync::STATUS_UNMATCHED],
+        );
+    }
+
+    /**
      * Aggregate unmatched rows grouped by (artist, title, album) for display.
      *
      * @return list<array{artist: string, title: string, album: string|null, count: int, last_played_at: string}>

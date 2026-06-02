@@ -46,6 +46,26 @@ class LastFmArtistAliasRepository extends ServiceEntityRepository
     }
 
     /**
+     * Set of all aliased source-artist normalized names, for O(1) "is this
+     * artist already aliased?" checks during a bulk generation run.
+     *
+     * @return array<string, true>
+     */
+    public function existingSourceNorms(): array
+    {
+        $out = [];
+        foreach (
+            $this->getEntityManager()->getConnection()->fetchAllAssociative(
+                'SELECT source_artist_norm AS a FROM lastfm_artist_alias',
+            ) as $r
+        ) {
+            $out[(string) $r['a']] = true;
+        }
+
+        return $out;
+    }
+
+    /**
      * Paginated search by substring on source / target artist.
      *
      * @return list<LastFmArtistAlias>
