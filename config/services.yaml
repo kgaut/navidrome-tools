@@ -5,7 +5,7 @@ parameters:
     app.run_history_retention_days: '%env(int:RUN_HISTORY_RETENTION_DAYS)%'
     app.backup_dir: '%kernel.project_dir%/var/backups'
     app.backup_retention_days: '%env(int:BACKUP_RETENTION_DAYS)%'
-    navidrome.db_path: '%env(NAVIDROME_DB_PATH)%'
+    navidrome.db_path: '%env(resolve:NAVIDROME_DB_PATH)%'
     navidrome.url: '%env(NAVIDROME_URL)%'
     navidrome.user: '%env(NAVIDROME_USER)%'
     navidrome.password: '%env(NAVIDROME_PASSWORD)%'
