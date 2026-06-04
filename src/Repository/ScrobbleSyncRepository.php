@@ -231,4 +231,28 @@ class ScrobbleSyncRepository extends ServiceEntityRepository
             $params,
         );
     }
+
+    /**
+     * Distinct unmatched artists for the given target with their lifetime
+     * unmatched play count, ordered by plays. Feeds the MusicBrainz online
+     * alias suggester ({@see \App\Service\MusicBrainzAliasSuggester}) which —
+     * unlike the MBID-based generator — needs to query even artists that have
+     * no `mbid_artist` on their scrobbles.
+     *
+     * @return list<array{artist: string, plays: int}>
+     */
+    public function unmatchedArtistsWithPlays(string $target): array
+    {
+        /** @var list<array{artist: string, plays: int}> */
+        return $this->em->getConnection()->fetchAllAssociative(
+            "SELECT s.artist AS artist, COUNT(*) AS plays
+             FROM scrobble_sync ss
+             JOIN scrobbles s ON s.id = ss.scrobble_id
+             WHERE ss.target = :target AND ss.status = :status
+               AND s.artist IS NOT NULL AND s.artist != ''
+             GROUP BY s.artist
+             ORDER BY plays DESC",
+            ['target' => $target, 'status' => ScrobbleSync::STATUS_UNMATCHED],
+        );
+    }
 }

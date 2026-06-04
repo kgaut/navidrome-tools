@@ -1029,6 +1029,28 @@ class NavidromeRepository
     }
 
     /**
+     * Distinct artist names exactly as stored in `media_file.artist`. Used by
+     * the MusicBrainz alias suggester to map a normalized form back to a
+     * canonical spelling for alias targets / UI display. Counterpart to
+     * {@see self::getKnownArtistsNormalized()}.
+     *
+     * @return list<string>
+     */
+    public function getKnownArtistOriginalNames(): array
+    {
+        $rows = $this->connection()->fetchAllAssociative(
+            "SELECT DISTINCT artist FROM media_file WHERE artist != '' ORDER BY artist ASC",
+        );
+
+        $out = [];
+        foreach ($rows as $r) {
+            $out[] = (string) $r['artist'];
+        }
+
+        return $out;
+    }
+
+    /**
      * Albums with no MusicBrainz album id, ranked by lifetime plays.
      * Plays count is taken from `scrobbles` when available (lifetime),
      * falls back to `annotation.play_count` otherwise. Returns [] when

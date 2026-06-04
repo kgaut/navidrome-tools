@@ -18,6 +18,8 @@ parameters:
     lastfm.page_delay_seconds: '%env(int:LASTFM_PAGE_DELAY_SECONDS)%'
     lastfm.fuzzy_max_distance: '%env(int:LASTFM_FUZZY_MAX_DISTANCE)%'
     lastfm.match_cache_ttl_days: '%env(int:LASTFM_MATCH_CACHE_TTL_DAYS)%'
+    musicbrainz.user_agent: '%env(MUSICBRAINZ_USER_AGENT)%'
+    musicbrainz.base_url: '%env(MUSICBRAINZ_BASE_URL)%'
     strawberry.db_path: '%env(resolve:STRAWBERRY_DB_PATH)%'
     notify.drivers: '%env(NOTIFY_DRIVERS)%'
     notify.on: '%env(NOTIFY_ON)%'
@@ -98,6 +100,11 @@ services:
     App\LastFm\LastFmClient:
         arguments:
             $pageDelaySeconds: '%lastfm.page_delay_seconds%'
+
+    App\MusicBrainz\MusicBrainzClient:
+        arguments:
+            $userAgent: '%musicbrainz.user_agent%'
+            $baseUrl: '%musicbrainz.base_url%'
 
     App\Command\FetchLastFmCommand:
         arguments:
