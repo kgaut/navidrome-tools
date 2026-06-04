@@ -178,6 +178,15 @@ d'environnement Docker en prod) :
 | `LASTFM_FUZZY_MAX_DISTANCE` | `0` | distance Levenshtein du matching fuzzy (0 = désactivé) |
 | `LASTFM_MATCH_CACHE_TTL_DAYS` | `30` | durée de vie des entrées négatives du cache de matching |
 
+### MusicBrainz
+
+Utilisé par `app:aliases:musicbrainz` (lookup en ligne pour la génération d'alias).
+
+| Variable | Défaut | Description |
+|---|---|---|
+| `MUSICBRAINZ_USER_AGENT` | — | UA contact-bearing exigé par le ToS MB (ex. `mon-projet/1.0 (mon@mail.tld)`) |
+| `MUSICBRAINZ_BASE_URL` | `https://musicbrainz.org/ws/2/` | racine de l'API ; à changer pour viser un mirror ou un mbserver local |
+
 ### Strawberry / Backups / Historique / Notifications
 
 | Variable | Défaut | Description |
@@ -298,6 +307,35 @@ Stratégies (chaque alias par la première qui aboutit) :
 | `--artist-fuzzy-distance` | distance Levenshtein max (artiste, défaut `2`) |
 | `--limit` | nombre max de couples scannés (`0` = illimité) |
 
+#### `app:aliases:musicbrainz`
+Complète `app:aliases:generate` (offline, MBID-only) avec une passe **en ligne sur
+MusicBrainz** : récupère, pour chaque artiste non-matché, son nom canonique et
+ses aliases MB, et les confronte aux artistes possédés. Rattrape les cas que la
+normalisation n'attrape pas (`Beatles, The` ↔ `The Beatles`, `Sigur Ros` ↔
+`Sigur Rós`, `MPL` ↔ `Ma Pauvre Lucette`…), y compris quand Last.fm n'a jamais
+envoyé d'MBID. Lit Navidrome en lecture seule, n'écrit que `lastfm_artist_alias`
+et purge le cache de matching concerné.
+
+Stratégie :
+
+- intersecte les noms canoniques + aliases MB (score ≥ 80) avec les artistes
+  possédés (`np_normalize`) ;
+- **1 match lib unique → UNIQUE** → alias auto-appliqué ;
+- **plusieurs matches → AMBIGUOUS** → skip silencieux, ou prompt avec `-i` ;
+- **0 match → NO_MATCH** → simplement consigné dans le report.
+
+Throttle obligatoire (MB exige ≈ 1 req/s par UA) ; UA contact-bearing
+**requis** dans `MUSICBRAINZ_USER_AGENT` (cf. section *MusicBrainz* plus haut).
+Lancer `app:scrobbles:rematch` ensuite pour appliquer les alias créés.
+
+| Option | Description |
+|---|---|
+| `--target` / `-t` | `navidrome` (défaut) ou `strawberry` |
+| `--dry-run` | aperçu (échantillon + résumé), n'écrit rien |
+| `-i` / `--interactive` | prompt pour trancher les candidats ambigus |
+| `--limit` | nombre max d'artistes à requêter (`0` = illimité) |
+| `--rate-limit-ms` | délai entre requêtes MB (défaut `1100` ; warning sous `1000`) |
+
 #### `app:scrobbles:sync-strawberry`
 Synchronise les scrobbles en attente dans la base Strawberry (`playcount` /
 `lastplayed`).
@@ -368,8 +406,10 @@ Supprime les entrées `run_history` plus vieilles que
 php bin/console app:lastfm:fetch --max-scrobbles=0
 
 # 2. (optionnel) générer des alias pour les non-matchés résolubles
-php bin/console app:aliases:generate --dry-run     # aperçu
-php bin/console app:aliases:generate               # applique
+php bin/console app:aliases:generate --dry-run        # offline, MBID-only
+php bin/console app:aliases:generate                  # applique
+php bin/console app:aliases:musicbrainz --dry-run     # online, via MusicBrainz
+php bin/console app:aliases:musicbrainz               # applique les unique-matches
 
 # 3. Matcher + insérer dans Navidrome (Navidrome arrêté, ou --auto-stop)
 php bin/console app:scrobbles:sync-navidrome --auto-stop
@@ -381,9 +421,11 @@ php bin/console app:scrobbles:rematch --target navidrome --auto-stop
 php bin/console app:loves:lastfm-to-navidrome --auto-stop
 ```
 
-Ordre recommandé pour les alias : **`app:aliases:generate` → `app:scrobbles:rematch`**
-(la commande de génération n'écrit pas dans Navidrome ; le rematch applique les
-alias et insère les écoutes nouvellement résolues).
+Ordre recommandé pour les alias : **`app:aliases:generate` →
+`app:aliases:musicbrainz` → `app:scrobbles:rematch`** (les deux générateurs
+n'écrivent pas dans Navidrome — l'offline d'abord puisqu'il ne coûte rien et
+épuise les cas faciles, l'online ensuite pour ce qui reste ; le rematch
+applique les alias et insère les écoutes nouvellement résolues).
 
 ---
 
@@ -405,8 +447,9 @@ premier succès) :
 Normalisation (`np_normalize`) : minuscules, suppression des accents (NFKD) et
 de la ponctuation — `Beyoncé` = `Beyonce`, `AC/DC` = `ACDC`, etc.
 
-Les couples insolubles automatiquement se gèrent via les **alias** (UI ou
-`app:aliases:generate`).
+Les couples insolubles automatiquement se gèrent via les **alias** : UI,
+`app:aliases:generate` (offline, MBID-only) ou `app:aliases:musicbrainz`
+(online, MB).
 
 ---
 
