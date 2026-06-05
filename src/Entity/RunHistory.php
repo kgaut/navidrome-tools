@@ -20,6 +20,7 @@ class RunHistory
     public const TYPE_NAVIDROME_SYNC = 'navidrome-sync';
     public const TYPE_NAVIDROME_REMATCH = 'navidrome-rematch';
     public const TYPE_NAVIDROME_ALIAS_MUSICBRAINZ = 'navidrome-alias-musicbrainz';
+    public const TYPE_NAVIDROME_WIPE = 'navidrome-wipe';
     public const TYPE_STRAWBERRY_SYNC = 'strawberry-sync';
     public const TYPE_STRAWBERRY_REMATCH = 'strawberry-rematch';
     public const TYPE_STATS = 'stats';

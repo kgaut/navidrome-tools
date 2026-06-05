@@ -2573,6 +2573,64 @@ class NavidromeRepository
     }
 
     /**
+     * Count scrobbles for the configured user. Used to display a "will delete N rows" summary
+     * before a wipe operation.
+     */
+    public function countUserScrobbles(string $userId): int
+    {
+        if (!$this->hasScrobblesTable()) {
+            return 0;
+        }
+
+        return (int) $this->connection()->fetchOne(
+            'SELECT COUNT(*) FROM scrobbles WHERE user_id = ?',
+            [$userId],
+        );
+    }
+
+    /**
+     * Count annotation rows with play_count > 0 for the user. Used to display a "will reset N
+     * rows" summary before a wipe operation.
+     */
+    public function countAnnotationWithPlays(string $userId): int
+    {
+        return (int) $this->connection()->fetchOne(
+            "SELECT COUNT(*) FROM annotation WHERE user_id = ? AND item_type = 'media_file' AND play_count > 0",
+            [$userId],
+        );
+    }
+
+    /**
+     * Delete all scrobble rows for the given user. Must be called inside a write transaction.
+     * Returns the number of rows deleted.
+     */
+    public function deleteAllScrobbles(string $userId): int
+    {
+        if (!$this->hasScrobblesTable()) {
+            return 0;
+        }
+
+        return (int) $this->connection()->executeStatement(
+            'DELETE FROM scrobbles WHERE user_id = ?',
+            [$userId],
+        );
+    }
+
+    /**
+     * Reset play_count to 0 and play_date to NULL on every media_file annotation row for the
+     * user. Leaves starred, rating and starred_at intact.
+     * Must be called inside a write transaction. Returns the number of rows updated.
+     */
+    public function resetAnnotationPlayCounts(string $userId): int
+    {
+        return (int) $this->connection()->executeStatement(
+            "UPDATE annotation SET play_count = 0, play_date = NULL
+              WHERE user_id = ? AND item_type = 'media_file'",
+            [$userId],
+        );
+    }
+
+    /**
      * Lowercase, trim, strip Unicode diacritics, then strip every character
      * that is not a letter, digit or whitespace (collapsing repeated
      * whitespace afterwards). So "Beyoncé" matches "Beyonce", "Sigur Rós"
