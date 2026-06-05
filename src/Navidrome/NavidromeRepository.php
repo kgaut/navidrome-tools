@@ -290,6 +290,37 @@ class NavidromeRepository
         }, $rows);
     }
 
+    /**
+     * Returns MIN/MAX submission_time for the configured user's scrobbles.
+     * Returns null values when the scrobbles table is missing or empty.
+     *
+     * @return array{first: ?\DateTimeImmutable, last: ?\DateTimeImmutable}
+     */
+    public function getScrobbleBounds(): array
+    {
+        if (!$this->hasScrobblesTable()) {
+            return ['first' => null, 'last' => null];
+        }
+
+        $userId = $this->resolveUserId();
+        $tz = new \DateTimeZone(date_default_timezone_get());
+
+        $row = $this->connection()->fetchAssociative(
+            'SELECT MIN(submission_time) AS first, MAX(submission_time) AS last
+             FROM scrobbles WHERE user_id = :uid',
+            ['uid' => $userId],
+        );
+
+        if ($row === false || $row['first'] === null) {
+            return ['first' => null, 'last' => null];
+        }
+
+        return [
+            'first' => (new \DateTimeImmutable('@' . (int) $row['first']))->setTimezone($tz),
+            'last' => (new \DateTimeImmutable('@' . (int) $row['last']))->setTimezone($tz),
+        ];
+    }
+
     public function hasScrobblesTable(): bool
     {
         if ($this->hasScrobblesCache !== null) {

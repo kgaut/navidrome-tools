@@ -131,6 +131,79 @@ class ScrobbleRepository extends ServiceEntityRepository
     }
 
     /**
+     * Returns MIN/MAX played_at for the given user (or all users when null).
+     *
+     * @return array{first: ?\DateTimeImmutable, last: ?\DateTimeImmutable}
+     */
+    public function getScrobbleBounds(?string $user): array
+    {
+        $sql = 'SELECT MIN(played_at) AS first, MAX(played_at) AS last FROM scrobbles';
+        $params = [];
+        if ($user !== null && $user !== '') {
+            $sql .= ' WHERE lastfm_user = ?';
+            $params[] = $user;
+        }
+
+        $row = $this->getEntityManager()->getConnection()->fetchAssociative($sql, $params);
+        if ($row === false || $row['first'] === null) {
+            return ['first' => null, 'last' => null];
+        }
+
+        $utc = new \DateTimeZone('UTC');
+        return [
+            'first' => new \DateTimeImmutable((string) $row['first'], $utc),
+            'last' => new \DateTimeImmutable((string) $row['last'], $utc),
+        ];
+    }
+
+    /**
+     * Count distinct (artist, title) pairs flagged as loved.
+     */
+    public function countLoved(?string $user): int
+    {
+        $sql = 'SELECT COUNT(*) FROM (SELECT 1 FROM scrobbles WHERE loved = 1';
+        $params = [];
+        if ($user !== null && $user !== '') {
+            $sql .= ' AND lastfm_user = ?';
+            $params[] = $user;
+        }
+        $sql .= ' GROUP BY artist, title)';
+
+        return (int) $this->getEntityManager()->getConnection()->fetchOne($sql, $params);
+    }
+
+    /**
+     * Count distinct non-empty artist values.
+     */
+    public function countDistinctArtists(?string $user): int
+    {
+        $sql = "SELECT COUNT(DISTINCT artist) FROM scrobbles WHERE artist != ''";
+        $params = [];
+        if ($user !== null && $user !== '') {
+            $sql .= ' AND lastfm_user = ?';
+            $params[] = $user;
+        }
+
+        return (int) $this->getEntityManager()->getConnection()->fetchOne($sql, $params);
+    }
+
+    /**
+     * Count distinct (artist, title) pairs — unique tracks regardless of play count.
+     */
+    public function countDistinctTracks(?string $user): int
+    {
+        $sql = 'SELECT COUNT(*) FROM (SELECT 1 FROM scrobbles WHERE 1=1';
+        $params = [];
+        if ($user !== null && $user !== '') {
+            $sql .= ' AND lastfm_user = ?';
+            $params[] = $user;
+        }
+        $sql .= ' GROUP BY artist, title)';
+
+        return (int) $this->getEntityManager()->getConnection()->fetchOne($sql, $params);
+    }
+
+    /**
      * True if (user, artist, title) has at least one scrobble in the DB,
      * regardless of its current loved state. Lets the loved-sync count
      * « known by Navidrome-tools » as matched even when every existing

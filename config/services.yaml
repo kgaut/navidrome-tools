@@ -179,6 +179,10 @@ services:
         arguments:
             $defaultUser: '%lastfm.user%'
 
+    App\Command\StatsCommand:
+        arguments:
+            $defaultUser: '%lastfm.user%'
+
     App\Controller\DashboardController:
         arguments:
             $defaultUser: '%lastfm.user%'
