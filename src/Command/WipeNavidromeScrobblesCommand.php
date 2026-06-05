@@ -39,7 +39,8 @@ class WipeNavidromeScrobblesCommand extends Command
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Show what would be deleted/reset without writing anything.')
             ->addOption('force', 'f', InputOption::VALUE_NONE, 'Skip the interactive confirmation prompt.')
             ->addOption('auto-stop', null, InputOption::VALUE_NONE, 'Stop Navidrome before the wipe and restart it afterwards (always, even on error).')
-            ->addOption('no-annotation-reset', null, InputOption::VALUE_NONE, 'Skip resetting annotation.play_count / play_date.');
+            ->addOption('no-annotation-reset', null, InputOption::VALUE_NONE, 'Skip resetting annotation.play_count / play_date.')
+            ->addOption('skip-pre-check', null, InputOption::VALUE_NONE, 'Skip the PRAGMA quick_check on navidrome.db before writing (use when quick_check reports a benign index mismatch).');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -50,6 +51,7 @@ class WipeNavidromeScrobblesCommand extends Command
         $force = (bool) $input->getOption('force');
         $autoStop = (bool) $input->getOption('auto-stop');
         $noAnnotationReset = (bool) $input->getOption('no-annotation-reset');
+        $skipPreCheck = (bool) $input->getOption('skip-pre-check');
 
         if (!$dryRun && !$autoStop) {
             try {
@@ -134,7 +136,7 @@ class WipeNavidromeScrobblesCommand extends Command
                 reference: 'navidrome',
                 label: 'Navidrome scrobbles wipe',
                 action: fn () => $autoStop
-                    ? $this->container->runWithNavidromeStopped($doWipe)
+                    ? $this->container->runWithNavidromeStopped($doWipe, $skipPreCheck)
                     : $doWipe(),
                 extractMetrics: static fn (array $r) => $r,
             );
