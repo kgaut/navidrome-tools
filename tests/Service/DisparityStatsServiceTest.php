@@ -113,11 +113,12 @@ class DisparityStatsServiceTest extends TestCase
         $service = $this->makeService('2024-01', $lastfm, $navi);
         $r = $service->compute();
 
-        $byYear = array_column($r['by_year'], null, 'year');
-        $this->assertArrayHasKey('2024', $byYear);
-        $this->assertArrayHasKey('2025', $byYear);
-        $this->assertSame(600, $byYear['2024']['gap']);
-        $this->assertSame(1000, $byYear['2025']['gap']);
+        $gapByYear = [];
+        foreach ($r['by_year'] as $row) {
+            $gapByYear[$row['year']] = $row['gap'];
+        }
+        $this->assertSame(600, $gapByYear['2024'] ?? null);
+        $this->assertSame(1000, $gapByYear['2025'] ?? null);
         // 2025 has bigger gap → first.
         $this->assertSame('2025', $r['by_year'][0]['year']);
     }

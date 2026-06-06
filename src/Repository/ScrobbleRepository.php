@@ -322,7 +322,7 @@ class ScrobbleRepository extends ServiceEntityRepository
     public function countWithFilters(array $filters): int
     {
         [$where, $params] = self::buildFilterClauses($filters);
-        $needsJoin = isset($filters['status']) && $filters['status'] !== null && $filters['status'] !== '' && $filters['status'] !== 'all';
+        $needsJoin = isset($filters['status']) && $filters['status'] !== '' && $filters['status'] !== 'all';
         $sql = 'SELECT COUNT(*) FROM scrobbles s';
         if ($needsJoin) {
             $sql .= " LEFT JOIN scrobble_sync ss ON ss.scrobble_id = s.id AND ss.target = 'navidrome'";
