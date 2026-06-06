@@ -210,7 +210,7 @@ Authentification par utilisateur unique (`APP_AUTH_USER` / `APP_AUTH_PASSWORD`).
 | Route | Page |
 |---|---|
 | `/` | dashboard (état, compteurs, actions rapides) |
-| `/stats`, `/lastfm/stats`, `/navidrome/stats` | statistiques |
+| `/stats`, `/lastfm/stats`, `/navidrome/stats` | statistiques (incluant la **disparité** Last.fm ↔ Navidrome sur `/navidrome/stats` : top mois et années avec le plus d'écoutes Last.fm sans équivalent Navidrome, bornés au premier scrobble Navidrome) |
 | `/lastfm/import` | import d'historique Last.fm |
 | `/navidrome/sync`, `/navidrome/rematch`, `/navidrome/unmatched` | matching/sync Navidrome |
 | `/strawberry/*` | sync Strawberry (upload/download de la base) |

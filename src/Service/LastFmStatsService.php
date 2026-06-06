@@ -213,6 +213,58 @@ class LastFmStatsService
     }
 
     /**
+     * Open-ended monthly play series starting at `$sinceMonth` (`YYYY-MM`,
+     * inclusive) and running up to and including the current month, with
+     * missing months filled at zero so the consumer always gets a contiguous
+     * axis. Counterpart of {@see playsByMonth()} but without the rolling
+     * window — feeds the Last.fm ↔ Navidrome disparity panel which needs to
+     * compare every month since the library exists, not the last 12.
+     *
+     * @return list<array{month: string, plays: int}>
+     */
+    public function playsByMonthSince(string $sinceMonth, ?string $user): array
+    {
+        $from = \DateTimeImmutable::createFromFormat('!Y-m', $sinceMonth);
+        if ($from === false) {
+            return [];
+        }
+        $from = $from->modify('first day of this month')->setTime(0, 0);
+        $today = (new \DateTimeImmutable('today'))->modify('first day of this month');
+        if ($from > $today) {
+            return [];
+        }
+
+        [$where, $params] = $this->buildWhere($user);
+        $clauses = ['played_at >= :from'];
+        if ($where !== '') {
+            $clauses[] = $where;
+        }
+        $params['from'] = $from->format('Y-m-d H:i:s');
+
+        $sql = "SELECT strftime('%Y-%m', played_at) AS month, COUNT(*) AS plays
+                FROM scrobbles
+                WHERE " . implode(' AND ', $clauses)
+            . ' GROUP BY month ORDER BY month ASC';
+
+        /** @var list<array{month: string, plays: int}> $rows */
+        $rows = $this->connection->fetchAllAssociative($sql, $params);
+        $byMonth = [];
+        foreach ($rows as $r) {
+            $byMonth[(string) $r['month']] = (int) $r['plays'];
+        }
+
+        $out = [];
+        $cursor = $from;
+        while ($cursor <= $today) {
+            $key = $cursor->format('Y-m');
+            $out[] = ['month' => $key, 'plays' => $byMonth[$key] ?? 0];
+            $cursor = $cursor->modify('+1 month');
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{month: string, plays: int}>
      */
     private function playsByMonth(int $monthsBack, ?string $user): array

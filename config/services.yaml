@@ -144,6 +144,10 @@ services:
         arguments:
             $defaultUser: '%lastfm.user%'
 
+    App\Service\DisparityStatsService:
+        arguments:
+            $defaultUser: '%lastfm.user%'
+
     App\Controller\StatsController:
         arguments:
             $defaultUser: '%lastfm.user%'

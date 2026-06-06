@@ -133,6 +133,75 @@
     </div>
     {% endif %}
 
+    {# Disparité Last.fm ↔ Navidrome — mois et années où la bibliothèque
+       couvre le moins bien les scrobbles Last.fm. #}
+    {% if data.disparity is defined %}
+    <div class="mb-6">
+        <div class="flex items-baseline justify-between mb-2 flex-wrap gap-2">
+            <h2 class="text-lg font-semibold">Disparité Last.fm ↔ Navidrome</h2>
+            {% if data.disparity.anchor_month %}
+                <p class="text-xs text-slate-500">
+                    Comparaison depuis {{ data.disparity.anchor_month }} (premier scrobble Navidrome). Triés par écart de plays décroissant.
+                </p>
+            {% endif %}
+        </div>
+        {% if data.disparity.anchor_month is null %}
+            <div class="bg-white rounded-sm p-4 text-sm text-slate-500">
+                Aucune écoute Navidrome encore — la disparité apparaîtra après le premier sync.
+            </div>
+        {% elseif data.disparity.by_month is empty and data.disparity.by_year is empty %}
+            <div class="bg-white rounded-sm p-4 text-sm text-slate-500">
+                Aucune disparité significative depuis {{ data.disparity.anchor_month }} 🎉
+            </div>
+        {% else %}
+            {% set cov_class = {
+                'high':   'text-emerald-700 bg-emerald-50',
+                'medium': 'text-amber-700 bg-amber-50',
+                'low':    'text-rose-700 bg-rose-50',
+            } %}
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {% for panel in [
+                    { title: 'Top mois', rows: data.disparity.by_month, label_key: 'month' },
+                    { title: 'Top années', rows: data.disparity.by_year, label_key: 'year' },
+                ] %}
+                    <div class="bg-white shadow-sm rounded-sm overflow-hidden">
+                        <div class="px-3 py-2 bg-slate-100 text-xs uppercase text-slate-500 font-medium">{{ panel.title }}</div>
+                        {% if panel.rows is empty %}
+                            <div class="px-3 py-4 text-sm text-slate-500">—</div>
+                        {% else %}
+                            <table class="w-full text-sm">
+                                <thead class="text-xs uppercase text-slate-500">
+                                    <tr>
+                                        <th class="px-3 py-1.5 text-left">Période</th>
+                                        <th class="px-3 py-1.5 text-right">Last.fm</th>
+                                        <th class="px-3 py-1.5 text-right">Navidrome</th>
+                                        <th class="px-3 py-1.5 text-right">Écart</th>
+                                        <th class="px-3 py-1.5 text-right">Couverture</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y">
+                                {% for row in panel.rows %}
+                                    {% set tone = row.coverage_pct >= 80 ? 'high' : (row.coverage_pct >= 40 ? 'medium' : 'low') %}
+                                    <tr class="hover:bg-slate-50">
+                                        <td class="px-3 py-1.5 font-medium">{{ attribute(row, panel.label_key) }}</td>
+                                        <td class="px-3 py-1.5 text-right font-mono text-slate-700">{{ row.lastfm|number_format(0, '.', ' ') }}</td>
+                                        <td class="px-3 py-1.5 text-right font-mono text-slate-700">{{ row.navidrome|number_format(0, '.', ' ') }}</td>
+                                        <td class="px-3 py-1.5 text-right font-mono font-semibold">{{ row.gap|number_format(0, '.', ' ') }}</td>
+                                        <td class="px-3 py-1.5 text-right">
+                                            <span class="inline-block rounded-sm px-2 py-0.5 text-xs {{ cov_class[tone] }}">{{ row.coverage_pct }}%</span>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
     {# Lectures par mois / semaine / jour #}
     {% set unit = 'lectures' %}
     {% set charts = [

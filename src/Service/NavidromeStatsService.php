@@ -23,6 +23,7 @@ class NavidromeStatsService
         private readonly NavidromeRepository $navidrome,
         private readonly StatsSnapshotRepository $snapshots,
         private readonly EntityManagerInterface $em,
+        private readonly DisparityStatsService $disparity,
     ) {
     }
 
@@ -71,6 +72,7 @@ class NavidromeStatsService
             'plays_by_month' => $this->navidrome->getPlaysByMonth(12),
             'plays_by_week' => $this->navidrome->getPlaysByWeek(15),
             'plays_by_day' => $this->navidrome->getPlaysByDay(15),
+            'disparity' => $this->disparity->compute(),
         ];
 
         $snapshot = $this->snapshots->findOneByPeriod(self::SNAPSHOT_KEY);
