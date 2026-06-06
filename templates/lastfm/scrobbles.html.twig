@@ -1,0 +1,164 @@
+{% extends 'base.html.twig' %}
+{% block title %}Historique des scrobbles — Last.fm{% endblock %}
+{% block body %}
+    <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+        <div>
+            <a href="{{ path('app_lastfm_stats') }}" class="text-sm text-sky-700 hover:underline">← Stats Last.fm</a>
+            <h1 class="text-2xl font-semibold mt-1">Historique des scrobbles</h1>
+            <p class="text-sm text-slate-500">{{ total }} scrobble{{ total != 1 ? 's' : '' }} — page {{ page }} / {{ pages }}</p>
+        </div>
+    </div>
+
+    <form method="get" class="bg-white shadow-sm rounded-sm p-4 mb-4 flex flex-wrap gap-3 items-end">
+        <div>
+            <label class="block text-xs uppercase text-slate-500 mb-1">Année</label>
+            <select name="year" class="border rounded-sm px-2 py-1 text-sm w-24">
+                <option value="">—</option>
+                {% for year in available_years %}
+                    <option value="{{ year }}" {% if filters.year == year %}selected{% endif %}>{{ year }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="block text-xs uppercase text-slate-500 mb-1">Mois</label>
+            <select name="month" class="border rounded-sm px-2 py-1 text-sm w-20">
+                <option value="">—</option>
+                {% for m in 1..12 %}
+                    {% set mm = '%02d'|format(m) %}
+                    <option value="{{ mm }}" {% if filters.month == mm %}selected{% endif %}>{{ mm }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="block text-xs uppercase text-slate-500 mb-1">Jour</label>
+            <select name="day" class="border rounded-sm px-2 py-1 text-sm w-20">
+                <option value="">—</option>
+                {% for d in 1..31 %}
+                    {% set dd = '%02d'|format(d) %}
+                    <option value="{{ dd }}" {% if filters.day == dd %}selected{% endif %}>{{ dd }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="block text-xs uppercase text-slate-500 mb-1">Artiste</label>
+            <input type="text" name="artist" value="{{ filters.artist }}" placeholder="Rechercher…"
+                   class="border rounded-sm px-2 py-1 text-sm w-40">
+        </div>
+        <div>
+            <label class="block text-xs uppercase text-slate-500 mb-1">Titre</label>
+            <input type="text" name="title" value="{{ filters.title }}" placeholder="Rechercher…"
+                   class="border rounded-sm px-2 py-1 text-sm w-40">
+        </div>
+        <div>
+            <label class="block text-xs uppercase text-slate-500 mb-1">Statut</label>
+            <select name="status" class="border rounded-sm px-2 py-1 text-sm w-32">
+                {% for value, label in {
+                    '': 'Tous',
+                    matched: 'Matché',
+                    unmatched: 'Non matché',
+                    pending: 'En attente',
+                    duplicate: 'Doublon',
+                    skipped: 'Ignoré',
+                } %}
+                    <option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="px-3 py-1.5 rounded-sm bg-slate-900 text-white text-sm">Filtrer</button>
+        <a href="{{ path('app_lastfm_scrobbles') }}" class="text-xs text-slate-500 hover:underline self-center">Reset</a>
+    </form>
+
+    {% if rows is empty %}
+        <div class="bg-white rounded-sm p-6 text-center text-slate-500">Aucun scrobble pour ces filtres.</div>
+    {% else %}
+        {% set status_classes = {
+            matched:   'text-emerald-700 bg-emerald-50',
+            unmatched: 'text-rose-700 bg-rose-50',
+            pending:   'text-slate-600 bg-slate-100',
+            duplicate: 'text-sky-700 bg-sky-50',
+            skipped:   'text-amber-700 bg-amber-50',
+        } %}
+        {% set status_labels = {
+            matched: 'matché', unmatched: 'non matché', pending: 'pending',
+            duplicate: 'doublon', skipped: 'ignoré',
+        } %}
+        <div class="bg-white shadow-sm rounded-sm overflow-hidden mb-4">
+            <table class="w-full text-sm">
+                <thead class="bg-slate-100 text-xs uppercase text-slate-500">
+                    <tr>
+                        <th class="px-2 py-2 w-6"></th>
+                        <th class="px-2 py-2 w-12 hidden md:table-cell"></th>
+                        <th class="px-3 py-2 text-left">Date</th>
+                        <th class="px-3 py-2 text-left">Artiste</th>
+                        <th class="px-3 py-2 text-left">Album</th>
+                        <th class="px-3 py-2 text-left">Titre</th>
+                        <th class="px-3 py-2 text-left">Statut</th>
+                        <th class="px-3 py-2 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y">
+                {% for row in rows %}
+                    {% set effective_status = row.sync_status ?? 'unmatched' %}
+                    {% set lastfm_track = lastfm_track_url(row.artist, row.title) %}
+                    {% set mb_artist = musicbrainz_url('artist', row.mbid_artist) %}
+                    {% set mb_album = musicbrainz_url('release', row.mbid_album) %}
+                    {% set mb_track = musicbrainz_url('recording', row.mbid_track) %}
+                    {% set lidarr_link = effective_status != 'matched'
+                        ? (row.album ? lidarr_album_url(row.artist, row.album) : lidarr_artist_url(row.artist))
+                        : null %}
+                    {% set navidrome_link = effective_status == 'matched' ? navidrome_track_url(row.sync_target_id) : null %}
+                    <tr class="hover:bg-slate-50">
+                        <td class="px-2 py-1.5 text-center">
+                            {% if row.loved %}<span class="text-rose-500" title="Loved sur Last.fm">♥</span>{% endif %}
+                        </td>
+                        <td class="px-2 py-1.5 hidden md:table-cell">
+                            {% if row.image_url %}
+                                <img src="{{ row.image_url }}" alt="" width="32" height="32" class="rounded-sm" loading="lazy">
+                            {% else %}
+                                <div class="w-8 h-8 rounded-sm bg-slate-100"></div>
+                            {% endif %}
+                        </td>
+                        <td class="px-3 py-1.5 text-xs text-slate-500 whitespace-nowrap">{{ row.played_at|date('d/m/Y H:i') }}</td>
+                        <td class="px-3 py-1.5">
+                            {{ row.artist }}
+                            {% if mb_artist %}<a href="{{ mb_artist }}" target="_blank" rel="noopener" class="text-xs text-slate-400 hover:text-slate-700" title="MusicBrainz artiste">[MB]</a>{% endif %}
+                        </td>
+                        <td class="px-3 py-1.5 text-slate-500">
+                            {{ row.album ?? '—' }}
+                            {% if row.album and mb_album %}<a href="{{ mb_album }}" target="_blank" rel="noopener" class="text-xs text-slate-400 hover:text-slate-700" title="MusicBrainz album">[MB]</a>{% endif %}
+                        </td>
+                        <td class="px-3 py-1.5">
+                            {{ row.title }}
+                            {% if lastfm_track %}<a href="{{ lastfm_track }}" target="_blank" rel="noopener" class="text-xs text-rose-500 hover:underline" title="Last.fm track">[L]</a>{% endif %}
+                            {% if mb_track %}<a href="{{ mb_track }}" target="_blank" rel="noopener" class="text-xs text-slate-400 hover:text-slate-700" title="MusicBrainz track">[MB]</a>{% endif %}
+                        </td>
+                        <td class="px-3 py-1.5">
+                            <span class="inline-block rounded-sm px-2 py-0.5 text-xs {{ status_classes[effective_status] ?? 'text-slate-600 bg-slate-100' }}"
+                                  {% if row.sync_strategy %}title="stratégie : {{ row.sync_strategy }}"{% endif %}>
+                                {{ status_labels[effective_status] ?? effective_status }}
+                            </span>
+                        </td>
+                        <td class="px-3 py-1.5 text-right whitespace-nowrap">
+                            {% if navidrome_link %}
+                                <a href="{{ navidrome_link }}" target="_blank" rel="noopener" class="text-xs text-emerald-700 hover:underline" title="Ouvrir dans Navidrome">▶ Navidrome</a>
+                            {% elseif lidarr_link %}
+                                <a href="{{ lidarr_link }}" target="_blank" rel="noopener" class="text-xs text-emerald-700 hover:underline" title="Chercher dans Lidarr">⇗ Lidarr</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if pages > 1 %}
+            {% set next_query = filters|merge({ page: page + 1 })|filter(v => v != '') %}
+            {% set prev_query = filters|merge({ page: page - 1 })|filter(v => v != '') %}
+            <div class="flex gap-2 items-center text-sm">
+                {% if page > 1 %}<a href="{{ path('app_lastfm_scrobbles', prev_query) }}" class="px-3 py-1 rounded-sm bg-white border">← Préc.</a>{% endif %}
+                <span class="text-slate-500">Page {{ page }} / {{ pages }}</span>
+                {% if page < pages %}<a href="{{ path('app_lastfm_scrobbles', next_query) }}" class="px-3 py-1 rounded-sm bg-white border">Suiv. →</a>{% endif %}
+            </div>
+        {% endif %}
+    {% endif %}
+{% endblock %}

@@ -231,4 +231,201 @@ class ScrobbleRepository extends ServiceEntityRepository
 
         return $found !== false;
     }
+
+    /**
+     * Distinct years (YYYY, descending) present in the `scrobbles` table —
+     * feeds the year `<select>` of the scrobble history page so the user
+     * can only pick years that actually contain scrobbles.
+     *
+     * @return list<string>
+     */
+    public function availableYears(?string $user): array
+    {
+        $sql = "SELECT DISTINCT strftime('%Y', played_at) AS y FROM scrobbles";
+        $params = [];
+        if ($user !== null && $user !== '') {
+            $sql .= ' WHERE lastfm_user = ?';
+            $params[] = $user;
+        }
+        $sql .= ' ORDER BY y DESC';
+        $rows = $this->getEntityManager()->getConnection()->fetchAllAssociative($sql, $params);
+
+        $out = [];
+        foreach ($rows as $r) {
+            $year = (string) $r['y'];
+            if ($year !== '') {
+                $out[] = $year;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Filtered scrobble listing for the history page. LEFT-joins
+     * `scrobble_sync` (target = navidrome) so each row carries its match
+     * status / strategy / target_id alongside the raw scrobble fields.
+     *
+     * Filters silently degrade on inconsistency: `day` is ignored without
+     * `month`+`year`, `month` without `year`. Empty strings are treated
+     * as absent. Ordered `played_at DESC`.
+     *
+     * @param array{
+     *     lastfm_user?: ?string,
+     *     year?: ?string, month?: ?string, day?: ?string,
+     *     artist?: ?string, title?: ?string,
+     *     status?: ?string
+     * } $filters
+     *
+     * @return list<array{
+     *     id: int, artist: string, album: ?string, title: string,
+     *     mbid_track: ?string, mbid_artist: ?string, mbid_album: ?string,
+     *     image_url: ?string, loved: int, played_at: string,
+     *     sync_status: ?string, sync_strategy: ?string, sync_target_id: ?string
+     * }>
+     */
+    public function findRecentWithSyncStatus(array $filters, int $limit, int $offset): array
+    {
+        [$where, $params] = self::buildFilterClauses($filters);
+        $sql = "SELECT s.id, s.artist, s.album, s.title,
+                       s.mbid_track, s.mbid_artist, s.mbid_album,
+                       s.image_url, s.loved, s.played_at,
+                       ss.status AS sync_status, ss.strategy AS sync_strategy, ss.target_id AS sync_target_id
+                FROM scrobbles s
+                LEFT JOIN scrobble_sync ss ON ss.scrobble_id = s.id AND ss.target = 'navidrome'";
+        if ($where !== '') {
+            $sql .= ' WHERE ' . $where;
+        }
+        $sql .= ' ORDER BY s.played_at DESC, s.id DESC LIMIT ? OFFSET ?';
+        $params[] = max(1, $limit);
+        $params[] = max(0, $offset);
+
+        /** @var list<array{
+         *     id: int, artist: string, album: ?string, title: string,
+         *     mbid_track: ?string, mbid_artist: ?string, mbid_album: ?string,
+         *     image_url: ?string, loved: int, played_at: string,
+         *     sync_status: ?string, sync_strategy: ?string, sync_target_id: ?string
+         * }> $rows */
+        $rows = $this->getEntityManager()->getConnection()->fetchAllAssociative($sql, $params);
+
+        return $rows;
+    }
+
+    /**
+     * Total count of scrobbles matching the same filters as
+     * {@see findRecentWithSyncStatus()}. Joins `scrobble_sync` only when
+     * the `status` filter is non-empty and not `all` — keeps the unfiltered
+     * COUNT fast on the indexed `(played_at)` path.
+     *
+     * @param array<string, ?string> $filters
+     */
+    public function countWithFilters(array $filters): int
+    {
+        [$where, $params] = self::buildFilterClauses($filters);
+        $needsJoin = isset($filters['status']) && $filters['status'] !== null && $filters['status'] !== '' && $filters['status'] !== 'all';
+        $sql = 'SELECT COUNT(*) FROM scrobbles s';
+        if ($needsJoin) {
+            $sql .= " LEFT JOIN scrobble_sync ss ON ss.scrobble_id = s.id AND ss.target = 'navidrome'";
+        }
+        if ($where !== '') {
+            $sql .= ' WHERE ' . $where;
+        }
+
+        return (int) $this->getEntityManager()->getConnection()->fetchOne($sql, $params);
+    }
+
+    /**
+     * Translates a filter array into a WHERE clause + positional params.
+     * Returns `['', []]` when nothing applies. Status filters are emitted
+     * against the LEFT-joined `ss.status`, with the special case
+     * `status=unmatched` also matching scrobbles that have no `scrobble_sync`
+     * row at all yet (NULL after LEFT JOIN) — those *are* unmatched from
+     * the user's point of view.
+     *
+     * Public for unit-testability only — non-API surface, no BC guarantee.
+     *
+     * @param array<string, ?string> $filters
+     *
+     * @return array{0: string, 1: list<mixed>}
+     */
+    public static function buildFilterClauses(array $filters): array
+    {
+        $clauses = [];
+        $params = [];
+
+        $user = $filters['lastfm_user'] ?? null;
+        if ($user !== null && $user !== '') {
+            $clauses[] = 's.lastfm_user = ?';
+            $params[] = $user;
+        }
+
+        $year = self::asYear($filters['year'] ?? null);
+        $month = $year !== null ? self::asMonth($filters['month'] ?? null) : null;
+        $day = $month !== null ? self::asDay($filters['day'] ?? null) : null;
+
+        if ($year !== null) {
+            if ($day !== null) {
+                $clauses[] = "strftime('%Y-%m-%d', s.played_at) = ?";
+                $params[] = sprintf('%04d-%02d-%02d', $year, $month, $day);
+            } elseif ($month !== null) {
+                $clauses[] = "strftime('%Y-%m', s.played_at) = ?";
+                $params[] = sprintf('%04d-%02d', $year, $month);
+            } else {
+                $clauses[] = "strftime('%Y', s.played_at) = ?";
+                $params[] = (string) $year;
+            }
+        }
+
+        $artist = isset($filters['artist']) ? trim((string) $filters['artist']) : '';
+        if ($artist !== '') {
+            $clauses[] = 'LOWER(s.artist) LIKE LOWER(?)';
+            $params[] = '%' . $artist . '%';
+        }
+        $title = isset($filters['title']) ? trim((string) $filters['title']) : '';
+        if ($title !== '') {
+            $clauses[] = 'LOWER(s.title) LIKE LOWER(?)';
+            $params[] = '%' . $title . '%';
+        }
+
+        $status = isset($filters['status']) ? trim((string) $filters['status']) : '';
+        if ($status !== '' && $status !== 'all') {
+            if ($status === 'unmatched') {
+                $clauses[] = "(ss.status = 'unmatched' OR ss.status IS NULL)";
+            } else {
+                $clauses[] = 'ss.status = ?';
+                $params[] = $status;
+            }
+        }
+
+        return [implode(' AND ', $clauses), $params];
+    }
+
+    private static function asYear(mixed $value): ?int
+    {
+        if (!is_string($value) || !preg_match('/^\d{4}$/', $value)) {
+            return null;
+        }
+
+        return (int) $value;
+    }
+
+    private static function asMonth(mixed $value): ?int
+    {
+        if (!is_string($value) || !preg_match('/^\d{1,2}$/', $value)) {
+            return null;
+        }
+        $n = (int) $value;
+
+        return $n >= 1 && $n <= 12 ? $n : null;
+    }
+
+    private static function asDay(mixed $value): ?int
+    {
+        if (!is_string($value) || !preg_match('/^\d{1,2}$/', $value)) {
+            return null;
+        }
+        $n = (int) $value;
+
+        return $n >= 1 && $n <= 31 ? $n : null;
+    }
 }

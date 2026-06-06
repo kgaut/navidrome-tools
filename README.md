@@ -187,6 +187,14 @@ Utilisé par `app:aliases:musicbrainz` (lookup en ligne pour la génération d'a
 | `MUSICBRAINZ_USER_AGENT` | — | UA contact-bearing exigé par le ToS MB (ex. `mon-projet/1.0 (mon@mail.tld)`) |
 | `MUSICBRAINZ_BASE_URL` | `https://musicbrainz.org/ws/2/` | racine de l'API ; à changer pour viser un mirror ou un mbserver local |
 
+### Lidarr
+
+Optionnel. Quand renseigné, la page **`/lastfm/scrobbles`** affiche un lien « ⇗ Lidarr » sur chaque scrobble non matché — il ouvre l'écran *Add new* de votre instance pré-rempli avec le nom de l'artiste (ou artiste + album quand l'album est connu).
+
+| Variable | Défaut | Description |
+|---|---|---|
+| `LIDARR_URL` | — | URL de votre Lidarr (vide = liens masqués) |
+
 ### Strawberry / Backups / Historique / Notifications
 
 | Variable | Défaut | Description |
@@ -212,6 +220,7 @@ Authentification par utilisateur unique (`APP_AUTH_USER` / `APP_AUTH_PASSWORD`).
 | `/` | dashboard (état, compteurs, actions rapides) |
 | `/stats`, `/lastfm/stats`, `/navidrome/stats` | statistiques (incluant la **disparité** Last.fm ↔ Navidrome sur `/navidrome/stats` : top mois et années avec le plus d'écoutes Last.fm sans équivalent Navidrome, bornés au premier scrobble Navidrome) |
 | `/lastfm/import` | import d'historique Last.fm |
+| `/lastfm/scrobbles` | historique paginé des scrobbles avec filtres (année / mois / jour / artiste / titre / statut), statut de matching Navidrome par ligne, pochette + ♥ loved + liens externes (Last.fm, MusicBrainz, Lidarr, Navidrome) |
 | `/navidrome/sync`, `/navidrome/rematch`, `/navidrome/unmatched` | matching/sync Navidrome |
 | `/strawberry/*` | sync Strawberry (upload/download de la base) |
 | `/lastfm/aliases`, `/lastfm/artist-aliases` | gestion des alias (piste / artiste) |

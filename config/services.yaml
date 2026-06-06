@@ -20,6 +20,7 @@ parameters:
     lastfm.match_cache_ttl_days: '%env(int:LASTFM_MATCH_CACHE_TTL_DAYS)%'
     musicbrainz.user_agent: '%env(MUSICBRAINZ_USER_AGENT)%'
     musicbrainz.base_url: '%env(MUSICBRAINZ_BASE_URL)%'
+    lidarr.url: '%env(default::LIDARR_URL)%'
     strawberry.db_path: '%env(resolve:STRAWBERRY_DB_PATH)%'
     notify.drivers: '%env(NOTIFY_DRIVERS)%'
     notify.on: '%env(NOTIFY_ON)%'
@@ -145,6 +146,20 @@ services:
             $defaultUser: '%lastfm.user%'
 
     App\Service\DisparityStatsService:
+        arguments:
+            $defaultUser: '%lastfm.user%'
+
+    App\Twig\LidarrExtension:
+        arguments:
+            $lidarrUrl: '%lidarr.url%'
+        tags: ['twig.extension']
+
+    App\Twig\ScrobbleLinksExtension:
+        arguments:
+            $navidromeUrl: '%navidrome.url%'
+        tags: ['twig.extension']
+
+    App\Controller\LastFmScrobblesController:
         arguments:
             $defaultUser: '%lastfm.user%'
 
