@@ -900,6 +900,78 @@ class NavidromeRepository
     }
 
     /**
+     * Anchor month for cross-source comparisons (e.g. Last.fm ↔ Navidrome
+     * disparity panel): the month of the very first scrobble landed in
+     * Navidrome's `scrobbles` table for the configured user. Returns null
+     * when the table doesn't exist yet or the user has no scrobble — the
+     * caller then renders an empty state.
+     */
+    public function getFirstScrobbleMonth(): ?string
+    {
+        if (!$this->hasScrobblesTable()) {
+            return null;
+        }
+
+        $userId = $this->resolveUserId();
+        $month = $this->connection()->fetchOne(
+            "SELECT strftime('%Y-%m', MIN(submission_time), 'unixepoch')
+             FROM scrobbles WHERE user_id = :uid",
+            ['uid' => $userId],
+        );
+
+        return is_string($month) && $month !== '' ? $month : null;
+    }
+
+    /**
+     * Open-ended monthly play series starting at `$sinceMonth` (`YYYY-MM`,
+     * inclusive) up to the current month, missing months filled at zero.
+     * Counterpart of {@see getPlaysByMonth()} but without the rolling
+     * window — feeds the Last.fm ↔ Navidrome disparity panel.
+     *
+     * @return list<array{month: string, plays: int}>
+     */
+    public function getPlaysByMonthSince(string $sinceMonth): array
+    {
+        if (!$this->hasScrobblesTable()) {
+            return [];
+        }
+        $from = \DateTimeImmutable::createFromFormat('!Y-m', $sinceMonth);
+        if ($from === false) {
+            return [];
+        }
+        $from = $from->modify('first day of this month')->setTime(0, 0);
+        $today = (new \DateTimeImmutable('today'))->modify('first day of this month');
+        if ($from > $today) {
+            return [];
+        }
+
+        $userId = $this->resolveUserId();
+        $rows = $this->connection()->fetchAllAssociative(
+            "SELECT strftime('%Y-%m', s.submission_time, 'unixepoch') AS month, COUNT(*) AS plays
+             FROM scrobbles s
+             WHERE s.user_id = :uid AND s.submission_time >= :from
+             GROUP BY month ORDER BY month ASC",
+            ['uid' => $userId, 'from' => $from->getTimestamp()],
+            ['from' => \Doctrine\DBAL\ParameterType::INTEGER],
+        );
+
+        $byMonth = [];
+        foreach ($rows as $r) {
+            $byMonth[(string) $r['month']] = (int) $r['plays'];
+        }
+
+        $out = [];
+        $cursor = $from;
+        while ($cursor <= $today) {
+            $key = $cursor->format('Y-m');
+            $out[] = ['month' => $key, 'plays' => $byMonth[$key] ?? 0];
+            $cursor = $cursor->modify('+1 month');
+        }
+
+        return $out;
+    }
+
+    /**
      * Plays per month over the last $monthsBack months. Optionally filtered
      * to a single artist. Months without scrobbles are returned with plays=0.
      *
