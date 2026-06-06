@@ -57,13 +57,19 @@
             </thead>
             <tbody class="divide-y">
             {% for row in rows %}
+                {% set lidarr = row.album ? lidarr_album_url(row.artist, row.album) : lidarr_artist_url(row.artist) %}
                 <tr class="hover:bg-slate-50">
                     <td class="px-3 py-1.5">{{ row.artist }}</td>
                     <td class="px-3 py-1.5">{{ row.title }}</td>
                     <td class="px-3 py-1.5 text-slate-400 text-xs">{{ row.album ?? '—' }}</td>
                     <td class="px-3 py-1.5 text-right font-mono">{{ row.count }}</td>
                     <td class="px-3 py-1.5 text-right text-xs text-slate-500">{{ row.last_played_at|date('d/m/Y') }}</td>
-                    <td class="px-3 py-1.5 text-right">
+                    <td class="px-3 py-1.5 text-right whitespace-nowrap">
+                        {% if lidarr %}
+                            <a href="{{ lidarr }}" target="_blank" rel="noopener"
+                               class="text-xs text-emerald-700 hover:underline mr-2"
+                               title="Chercher dans Lidarr">⇗ Lidarr</a>
+                        {% endif %}
                         <a href="{{ path('app_lastfm_alias_new', {artist: row.artist, title: row.title}) }}"
                            class="text-xs text-sky-700 hover:underline">✏️ Alias</a>
                     </td>
