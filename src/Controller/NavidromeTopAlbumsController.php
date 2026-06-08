@@ -2,59 +2,54 @@
 
 namespace App\Controller;
 
-use App\Filter\DateCascadeFilter;
+use App\Controller\TopList\AbstractTopListController;
 use App\Navidrome\NavidromeRepository;
 use App\Service\NavidromeStatsService;
-use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 
-class NavidromeTopAlbumsController extends AbstractController
+class NavidromeTopAlbumsController extends AbstractTopListController
 {
-    private const TOP_N = 100;
+    public function __construct(
+        private readonly NavidromeRepository $navidrome,
+        private readonly NavidromeStatsService $stats,
+    ) {
+    }
 
     #[Route('/navidrome/top-albums', name: 'app_navidrome_top_albums', methods: ['GET'])]
-    public function index(Request $request, NavidromeRepository $navidrome, NavidromeStatsService $stats): Response
+    public function index(Request $request): Response
     {
-        $c = DateCascadeFilter::parse(
-            $request->query->get('year'),
-            $request->query->get('month'),
-            $request->query->get('day'),
-        );
+        return $this->renderTopList($request);
+    }
 
-        $source = 'live';
-        $computedAt = null;
-        if ($c['year'] !== null) {
-            $rows = $navidrome->getTopAlbumsWithDates($c['year'], $c['month'], $c['day'], self::TOP_N);
-        } else {
-            $snapshot = $stats->get();
-            $cached = is_array($snapshot) && isset($snapshot['top_albums_alltime']) && is_array($snapshot['top_albums_alltime'])
-                ? $snapshot['top_albums_alltime']
-                : null;
-            if ($cached !== null) {
-                /** @var list<array{album_id: string, album: string, artist: string, plays: int, track_count: int, first_played_at: string, last_played_at: string}> $rows */
-                $rows = $cached;
-                $source = 'snapshot';
-                $computedAt = is_string($snapshot['computed_at'] ?? null) ? $snapshot['computed_at'] : null;
-            } else {
-                $rows = $navidrome->getTopAlbumsWithDates(null, null, null, self::TOP_N);
-                $source = 'live_fallback';
-            }
-        }
+    protected function fetchLive(?int $year, ?int $month, ?int $day, int $limit): array
+    {
+        return $this->navidrome->getTopAlbumsWithDates($year, $month, $day, $limit);
+    }
 
-        return $this->render('navidrome/top_albums.html.twig', [
-            'rows' => $rows,
-            'top_n' => self::TOP_N,
-            'available_years' => $navidrome->getAvailableScrobbleYears(),
-            'filters' => [
-                'year' => $c['year'] !== null ? (string) $c['year'] : '',
-                'month' => $c['month'] !== null ? sprintf('%02d', $c['month']) : '',
-                'day' => $c['day'] !== null ? sprintf('%02d', $c['day']) : '',
-            ],
-            'source' => $source,
-            'computed_at' => $computedAt,
-            'compute_command' => 'app:navidrome:stats:compute',
-        ]);
+    protected function fetchSnapshot(): ?array
+    {
+        return $this->stats->get();
+    }
+
+    protected function snapshotKey(): string
+    {
+        return 'top_albums_alltime';
+    }
+
+    protected function availableYears(): array
+    {
+        return $this->navidrome->getAvailableScrobbleYears();
+    }
+
+    protected function templateName(): string
+    {
+        return 'navidrome/top_albums.html.twig';
+    }
+
+    protected function computeCommand(): string
+    {
+        return 'app:navidrome:stats:compute';
     }
 }
