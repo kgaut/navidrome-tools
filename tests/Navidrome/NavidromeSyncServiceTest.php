@@ -161,6 +161,52 @@ class NavidromeSyncServiceTest extends TestCase
         $this->assertSame(1, $report->matched);
     }
 
+    public function testSyncReconcilesAnnotationPlayCountInSameTransaction(): void
+    {
+        // Regression: `insertScrobble()` only touches the `scrobbles` table.
+        // Without the reconcile step inside flushBatch, Navidrome's UI keeps
+        // showing 0 plays. Lock in that play_count / play_date are bumped on
+        // `annotation` in the same write transaction as the inserts.
+        $s1 = $this->makeScrobble('Daft Punk', 'Get Lucky', '2024-01-01 12:00:00');
+        $s2 = $this->makeScrobble('Daft Punk', 'Get Lucky', '2024-02-15 09:00:00');
+        $sync1 = new ScrobbleSync($s1, ScrobbleSync::TARGET_NAVIDROME);
+        $sync2 = new ScrobbleSync($s2, ScrobbleSync::TARGET_NAVIDROME);
+
+        $syncRepo = $this->createMock(ScrobbleSyncRepository::class);
+        $syncRepo->method('prepareForTarget')->willReturn(2);
+        $syncRepo->method('streamPending')->willReturnCallback(function () use ($sync1, $sync2): \Generator {
+            yield $sync1;
+            yield $sync2;
+        });
+
+        $ndRepo = new NavidromeRepository($this->ndDbPath, 'admin');
+        $matcher = $this->createMock(ScrobbleMatcher::class);
+        $matcher->method('match')->willReturn(MatchResult::matched('mf-1', 'couple', null));
+
+        $backup = $this->createMock(NavidromeDbBackup::class);
+        $backup->method('backup')->willReturn(null);
+
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->method('contains')->willReturn(false);
+        $em->method('persist');
+        $em->method('flush');
+
+        $service = new NavidromeSyncService($syncRepo, $matcher, $ndRepo, $backup, $em);
+        $report = $service->process();
+
+        $this->assertSame(2, $report->matched);
+
+        $ndConn = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'path' => $this->ndDbPath]);
+        $this->assertSame(2, (int) $ndConn->fetchOne("SELECT COUNT(*) FROM scrobbles"));
+        $row = $ndConn->fetchAssociative(
+            "SELECT play_count, play_date FROM annotation WHERE item_id = 'mf-1'",
+        );
+        $this->assertNotFalse($row, 'annotation row must be created by reconcile');
+        $this->assertSame(2, (int) $row['play_count'], 'play_count reflects both scrobbles');
+        $this->assertSame('2024-02-15 09:00:00', $row['play_date'], 'play_date = MAX(submission_time)');
+        $ndConn->close();
+    }
+
     public function testBatchFlushDetachesBothSyncAndScrobble(): void
     {
         // Regression for the OOM on --limit=50000 : the old code detached
