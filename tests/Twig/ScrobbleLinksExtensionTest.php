@@ -80,8 +80,26 @@ class ScrobbleLinksExtensionTest extends TestCase
         $names = array_map(static fn ($f) => $f->getName(), $ext->getFunctions());
 
         $this->assertSame(
-            ['lastfm_track_url', 'lastfm_artist_url', 'musicbrainz_url', 'navidrome_track_url'],
+            [
+                'lastfm_track_url',
+                'lastfm_artist_url',
+                'musicbrainz_url',
+                'navidrome_track_url',
+                'navidrome_album_url',
+                'navidrome_artist_url',
+            ],
             $names,
         );
+    }
+
+    public function testNavidromeAlbumAndArtistUrls(): void
+    {
+        $ext = new ScrobbleLinksExtension('https://navi.local/');
+
+        $this->assertSame('https://navi.local/app/#/album/alb-1/show', $ext->navidromeAlbumUrl('alb-1'));
+        $this->assertSame('https://navi.local/app/#/artist/art-42/show', $ext->navidromeArtistUrl('art-42'));
+        $this->assertNull($ext->navidromeAlbumUrl(null));
+        $this->assertNull($ext->navidromeArtistUrl('   '));
+        $this->assertNull((new ScrobbleLinksExtension(''))->navidromeAlbumUrl('alb-1'));
     }
 }

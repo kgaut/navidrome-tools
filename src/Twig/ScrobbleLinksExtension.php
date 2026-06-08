@@ -36,6 +36,8 @@ class ScrobbleLinksExtension extends AbstractExtension
             new TwigFunction('lastfm_artist_url', $this->lastFmArtistUrl(...)),
             new TwigFunction('musicbrainz_url', $this->musicbrainzUrl(...)),
             new TwigFunction('navidrome_track_url', $this->navidromeTrackUrl(...)),
+            new TwigFunction('navidrome_album_url', $this->navidromeAlbumUrl(...)),
+            new TwigFunction('navidrome_artist_url', $this->navidromeArtistUrl(...)),
         ];
     }
 
@@ -79,11 +81,26 @@ class ScrobbleLinksExtension extends AbstractExtension
 
     public function navidromeTrackUrl(?string $mediaFileId): ?string
     {
+        return $this->navidromeEntityUrl('song', $mediaFileId);
+    }
+
+    public function navidromeAlbumUrl(?string $albumId): ?string
+    {
+        return $this->navidromeEntityUrl('album', $albumId);
+    }
+
+    public function navidromeArtistUrl(?string $artistId): ?string
+    {
+        return $this->navidromeEntityUrl('artist', $artistId);
+    }
+
+    private function navidromeEntityUrl(string $type, ?string $id): ?string
+    {
         $base = trim($this->navidromeUrl);
-        if ($base === '' || $mediaFileId === null || trim($mediaFileId) === '') {
+        if ($base === '' || $id === null || trim($id) === '') {
             return null;
         }
 
-        return rtrim($base, '/') . '/app/#/song/' . rawurlencode(trim($mediaFileId)) . '/show';
+        return rtrim($base, '/') . '/app/#/' . $type . '/' . rawurlencode(trim($id)) . '/show';
     }
 }

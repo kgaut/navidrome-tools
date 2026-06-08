@@ -457,6 +457,131 @@ class LastFmStatsService
     }
 
     /**
+     * Top albums by scrobble volume on a year / month / day cascade, with
+     * first / last play. Feeds /lastfm/top-albums. Ignore rows with an
+     * empty album (Last.fm sometimes omits the album tag on loose
+     * scrobbles — folding them under "no album" would produce a single
+     * unfocused line at the top).
+     *
+     * @return list<array{artist: string, album: string, plays: int, first_played_at: string, last_played_at: string}>
+     */
+    public function topAlbumsWithDates(
+        ?string $user,
+        ?int $year,
+        ?int $month,
+        ?int $day,
+        int $limit,
+    ): array {
+        [$where, $params] = $this->buildWhere($user);
+        $clauses = ["album IS NOT NULL", "album != ''"];
+        if ($where !== '') {
+            $clauses[] = $where;
+        }
+        self::applyDateCascade($clauses, $params, $year, $month, $day);
+
+        $sql = 'SELECT artist, album,
+                       COUNT(*) AS plays,
+                       MIN(played_at) AS first_played_at,
+                       MAX(played_at) AS last_played_at
+                FROM scrobbles WHERE ' . implode(' AND ', $clauses)
+            . ' GROUP BY artist, album ORDER BY plays DESC, album ASC LIMIT ' . max(1, $limit);
+
+        /** @var list<array{artist: string, album: string, plays: int, first_played_at: ?string, last_played_at: ?string}> $rows */
+        $rows = $this->connection->fetchAllAssociative($sql, $params);
+
+        return array_map(
+            static fn (array $r): array => [
+                'artist' => (string) $r['artist'],
+                'album' => (string) $r['album'],
+                'plays' => (int) $r['plays'],
+                'first_played_at' => (string) ($r['first_played_at'] ?? ''),
+                'last_played_at' => (string) ($r['last_played_at'] ?? ''),
+            ],
+            $rows,
+        );
+    }
+
+    /**
+     * Top tracks by scrobble volume on a year / month / day cascade, with
+     * first / last play and a representative album per (artist, title).
+     * Same `album` resolution as the existing private {@see topTracks()}
+     * — pick the first non-empty album spelling we find for the couple,
+     * so the column isn't blank when Last.fm omitted the tag on some plays.
+     *
+     * @return list<array{artist: string, title: string, album: ?string, plays: int, first_played_at: string, last_played_at: string}>
+     */
+    public function topTracksWithDates(
+        ?string $user,
+        ?int $year,
+        ?int $month,
+        ?int $day,
+        int $limit,
+    ): array {
+        [$where, $params] = $this->buildWhere($user);
+        $clauses = [];
+        if ($where !== '') {
+            $clauses[] = $where;
+        }
+        self::applyDateCascade($clauses, $params, $year, $month, $day);
+
+        $whereSql = $clauses !== [] ? ' WHERE ' . implode(' AND ', $clauses) : '';
+        $subWhere = $where !== '' ? ' AND ' . str_replace('lastfm_user', 's2.lastfm_user', $where) : '';
+
+        $sql = "SELECT s.artist, s.title,
+                       (SELECT s2.album FROM scrobbles s2
+                         WHERE s2.artist = s.artist AND s2.title = s.title$subWhere
+                           AND s2.album IS NOT NULL AND s2.album != ''
+                         LIMIT 1) AS album,
+                       COUNT(*) AS plays,
+                       MIN(s.played_at) AS first_played_at,
+                       MAX(s.played_at) AS last_played_at
+                FROM scrobbles s$whereSql
+                GROUP BY s.artist, s.title
+                ORDER BY plays DESC, s.title ASC LIMIT " . max(1, $limit);
+
+        /** @var list<array{artist: string, title: string, album: ?string, plays: int, first_played_at: ?string, last_played_at: ?string}> $rows */
+        $rows = $this->connection->fetchAllAssociative($sql, $params);
+
+        return array_map(
+            static fn (array $r): array => [
+                'artist' => (string) $r['artist'],
+                'title' => (string) $r['title'],
+                'album' => $r['album'] !== null ? (string) $r['album'] : null,
+                'plays' => (int) $r['plays'],
+                'first_played_at' => (string) ($r['first_played_at'] ?? ''),
+                'last_played_at' => (string) ($r['last_played_at'] ?? ''),
+            ],
+            $rows,
+        );
+    }
+
+    /**
+     * Adds the appropriate `strftime` clause for the cascade (year /
+     * year-month / year-month-day) to the given clauses + params arrays.
+     * Mutates the references in place to mirror the {@see buildWhere()}
+     * pattern callers already use.
+     *
+     * @param list<string> $clauses
+     * @param array<string, mixed> $params
+     */
+    private static function applyDateCascade(array &$clauses, array &$params, ?int $year, ?int $month, ?int $day): void
+    {
+        if ($year === null) {
+            return;
+        }
+        if ($day !== null && $month !== null) {
+            $clauses[] = "strftime('%Y-%m-%d', played_at) = :ymd";
+            $params['ymd'] = sprintf('%04d-%02d-%02d', $year, $month, $day);
+        } elseif ($month !== null) {
+            $clauses[] = "strftime('%Y-%m', played_at) = :ym";
+            $params['ym'] = sprintf('%04d-%02d', $year, $month);
+        } else {
+            $clauses[] = "strftime('%Y', played_at) = :y";
+            $params['y'] = (string) $year;
+        }
+    }
+
+    /**
      * @return list<array{artist: string, title: string, album: ?string, plays: int}>
      */
     private function topTracks(?string $user, int $limit): array

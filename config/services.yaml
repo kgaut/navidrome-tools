@@ -168,6 +168,14 @@ services:
         arguments:
             $defaultUser: '%lastfm.user%'
 
+    App\Controller\LastFmTopAlbumsController:
+        arguments:
+            $defaultUser: '%lastfm.user%'
+
+    App\Controller\LastFmTopTracksController:
+        arguments:
+            $defaultUser: '%lastfm.user%'
+
     App\Controller\HelpController:
         arguments:
             $composeService: '%help.compose_service%'
