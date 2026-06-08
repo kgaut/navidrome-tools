@@ -23,6 +23,7 @@ pour que les compteurs de lecture reflètent l'historique Last.fm.
 - [Interface web](#interface-web)
 - [Commandes console](#commandes-console)
 - [Workflow type](#workflow-type)
+- [Wipe complet + ré-import](#wipe-complet--ré-import)
 - [Le matching en détail](#le-matching-en-détail)
 - [Développement](#développement)
 
@@ -226,6 +227,7 @@ Authentification par utilisateur unique (`APP_AUTH_USER` / `APP_AUTH_PASSWORD`).
 | `/lastfm/aliases`, `/lastfm/artist-aliases` | gestion des alias (piste / artiste) |
 | `/navidrome/container/{start,stop}` | contrôle du conteneur Navidrome |
 | `/history` | historique des runs |
+| `/help` | cheat-sheet : commandes Docker compose, enchaînements, procédure de wipe + ré-import |
 
 ---
 
@@ -435,6 +437,69 @@ Ordre recommandé pour les alias : **`app:aliases:generate` →
 n'écrivent pas dans Navidrome — l'offline d'abord puisqu'il ne coûte rien et
 épuise les cas faciles, l'online ensuite pour ce qui reste ; le rematch
 applique les alias et insère les écoutes nouvellement résolues).
+
+### Note sur le compteur de lecture Navidrome
+
+`app:scrobbles:sync-navidrome` met à jour **deux** tables côté Navidrome :
+
+- `scrobbles` — historique brut, une ligne par écoute importée.
+- `annotation` — `play_count` (incrémenté) et `play_date` (mis à jour), c'est
+  là que l'UI Navidrome lit le **compteur de lecture** affiché sur chaque
+  piste / album / artiste.
+
+Le reconcile annotation est appliqué après chaque batch d'inserts, dans la
+même transaction d'écriture. Conséquence pratique : après un sync, les
+compteurs de lecture affichés par le client Navidrome reflètent bien tout
+l'historique Last.fm importé, pas seulement les écoutes émises depuis
+Navidrome lui-même.
+
+---
+
+## Wipe complet + ré-import
+
+Procédure pour repartir d'une page blanche côté Navidrome (par exemple après
+un gros nettoyage d'alias ou une refonte de bibliothèque) :
+
+```bash
+# 0. Backup explicite — le wrapper scripts/navidrome-sync.sh en fait un
+#    automatiquement, sinon copier navidrome.db + -wal + -shm avant.
+
+# 1. Wiper l'historique Navidrome (scrobbles + annotation.play_count) et
+#    remettre scrobble_sync en pending.  --dry-run pour preview.
+php bin/console app:navidrome:wipe-scrobbles --dry-run
+php bin/console app:navidrome:wipe-scrobbles --auto-stop
+
+# 2. (Optionnel) re-fetcher l'historique Last.fm si la base outils n'est pas
+#    à jour.  Sinon le wipe n'a touché que Navidrome, pas la base locale.
+php bin/console app:lastfm:fetch --max-scrobbles=0
+
+# 3. (Optionnel) re-générer les alias avant le ré-import — typiquement on
+#    aura ajouté des pistes ou retouché des alias.
+php bin/console app:aliases:generate
+php bin/console app:aliases:musicbrainz
+
+# 4. Ré-importer tout l'historique dans Navidrome.  Le sync écrit dans
+#    scrobbles ET dans annotation, donc l'UI Navidrome affichera bien les
+#    bons compteurs en sortie.
+php bin/console app:scrobbles:sync-navidrome --auto-stop
+
+# 5. Recalculer les stats côté outils (le snapshot est stale après un wipe).
+php bin/console app:navidrome:stats:compute
+```
+
+Ce que la commande de wipe fait, dans une seule transaction Navidrome :
+
+- `DELETE FROM scrobbles WHERE user_id = …` (table d'écoutes vidée).
+- `UPDATE annotation SET play_count = 0, play_date = NULL` (compteurs UI
+  remis à zéro). `starred` / `rating` / `starred_at` sont **préservés** —
+  les coups de cœur survivent au wipe.
+- `UPDATE scrobble_sync SET status='pending'` côté outils (le ré-import
+  reprend de zéro).
+
+Garde-fous : pré-flight conteneur (sauf `--skip-pre-check`), backup
+automatique de la DB Navidrome, prompt de confirmation, run_history avec
+métriques. Tout est documenté en plus de détail sur la page **`/help`** de
+l'UI web.
 
 ---
 

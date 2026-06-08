@@ -194,10 +194,20 @@ class NavidromeSyncService
         // 1. Write to Navidrome atomically.
         $this->navidrome->beginWriteTransaction();
         try {
+            $touched = [];
             foreach ($batch as $row) {
                 if ($row['willInsert'] && $row['matchedId'] !== null) {
                     $this->navidrome->insertScrobble($userId, $row['matchedId'], $row['sync']->getScrobble()->getPlayedAt());
+                    $touched[$row['matchedId']] = true;
                 }
+            }
+            // Sync the displayed play_count / play_date in `annotation` from
+            // the freshly populated `scrobbles` rows. Without this, Navidrome's
+            // UI keeps showing 0 plays for the imported tracks — `insertScrobble`
+            // only touches the `scrobbles` table, while the player reads from
+            // `annotation`.
+            if ($touched !== []) {
+                $this->navidrome->reconcileAnnotationForMediaFiles($userId, array_keys($touched));
             }
             $this->navidrome->commitWrite();
         } catch (\Throwable $e) {
