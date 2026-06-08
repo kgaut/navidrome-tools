@@ -1,0 +1,11 @@
+{# Petit bandeau qui précise d'où viennent les rows : snapshot stats
+   préc-calculé, calcul en direct (filtre actif), ou fallback ambre quand
+   le snapshot n'a jamais tourné. Caller passe `source`, `computed_at` et
+   `compute_command`. #}
+{% if source == 'snapshot' and computed_at %}
+    <span class="text-xs text-slate-400">· snapshot du {{ computed_at|date('d/m/Y H:i') }} — recalcul via <code>{{ compute_command }}</code></span>
+{% elseif source == 'live_fallback' %}
+    <span class="text-xs text-amber-600">· snapshot indisponible — calcul en direct ; lancer <code>{{ compute_command }}</code> pour pré-générer</span>
+{% elseif source == 'live' %}
+    <span class="text-xs text-slate-400">· calcul en direct (filtre actif)</span>
+{% endif %}

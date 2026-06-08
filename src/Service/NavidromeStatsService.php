@@ -19,6 +19,8 @@ class NavidromeStatsService
 {
     public const SNAPSHOT_KEY = 'navidrome-stats';
 
+    private const TOP_PAGE_LIMIT = 100;
+
     public function __construct(
         private readonly NavidromeRepository $navidrome,
         private readonly StatsSnapshotRepository $snapshots,
@@ -73,6 +75,11 @@ class NavidromeStatsService
             'plays_by_week' => $this->navidrome->getPlaysByWeek(15),
             'plays_by_day' => $this->navidrome->getPlaysByDay(15),
             'disparity' => $this->disparity->compute(),
+            // Top 100 sans filtre pour /navidrome/top-* (lecture instantanée
+            // depuis le snapshot quand pas de filtre date posé).
+            'top_tracks_alltime' => $this->navidrome->getTopTracksWithDates(null, null, null, self::TOP_PAGE_LIMIT),
+            'top_albums_alltime' => $this->navidrome->getTopAlbumsWithDates(null, null, null, self::TOP_PAGE_LIMIT),
+            'top_artists_alltime' => $this->navidrome->getTopArtistsWithDates(null, null, null, self::TOP_PAGE_LIMIT),
         ];
 
         $snapshot = $this->snapshots->findOneByPeriod(self::SNAPSHOT_KEY);

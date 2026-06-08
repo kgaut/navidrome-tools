@@ -82,6 +82,8 @@ class LastFmStatsService
             // live — le filtre réduit la volumétrie donc la requête est
             // rapide de toute façon.
             'top_tracks_alltime' => $this->topTracksWithDates($user, null, null, null, self::TOP_PAGE_LIMIT),
+            'top_albums_alltime' => $this->topAlbumsWithDates($user, null, null, null, self::TOP_PAGE_LIMIT),
+            'top_artists_alltime' => $this->topArtistsWithDates($user, null, null, null, self::TOP_PAGE_LIMIT),
             'recent_scrobbles' => $this->recentScrobbles($user, self::RECENT_SCROBBLES_LIMIT),
             'recent_loved' => $this->recentLoved($user, self::RECENT_LOVED_LIMIT),
         ];

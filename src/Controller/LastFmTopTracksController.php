@@ -77,6 +77,7 @@ class LastFmTopTracksController extends AbstractController
             ],
             'source' => $source,
             'computed_at' => $computedAt,
+            'compute_command' => 'app:lastfm:stats:compute',
         ]);
     }
 }

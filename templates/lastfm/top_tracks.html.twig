@@ -7,13 +7,7 @@
             <h1 class="text-2xl font-semibold mt-1">Top morceaux — Last.fm</h1>
             <p class="text-sm text-slate-500">
                 Top {{ top_n }} morceaux par scrobbles.
-                {% if source == 'snapshot' and computed_at %}
-                    <span class="text-xs text-slate-400">· snapshot du {{ computed_at|date('d/m/Y H:i') }} — recalcul via <code>app:lastfm:stats:compute</code></span>
-                {% elseif source == 'live_fallback' %}
-                    <span class="text-xs text-amber-600">· snapshot indisponible — calcul en direct ; lancer <code>app:lastfm:stats:compute</code> pour pré-générer</span>
-                {% elseif source == 'live' %}
-                    <span class="text-xs text-slate-400">· calcul en direct (filtre actif)</span>
-                {% endif %}
+                {% include '_top_source_indicator.html.twig' with { source: source, computed_at: computed_at, compute_command: compute_command } only %}
             </p>
         </div>
         <div class="flex gap-2 text-xs">
