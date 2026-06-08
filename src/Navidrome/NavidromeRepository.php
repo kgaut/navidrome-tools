@@ -2702,6 +2702,100 @@ class NavidromeRepository
     }
 
     /**
+     * Bring `annotation.play_count` and `annotation.play_date` back in sync
+     * with the source-of-truth `scrobbles` table for the given media_files.
+     * Required after any batch of {@see insertScrobble()} calls — the raw
+     * insert only writes to `scrobbles`, but Navidrome's own UI still
+     * derives the displayed play count from `annotation.play_count`. Without
+     * this reconcile step, an imported play history shows up correctly in
+     * our own stats pages (which read `scrobbles` when available) but stays
+     * at 0 plays in the Navidrome client.
+     *
+     * Update first (covers media_files that already have an annotation row,
+     * typically because they were starred or had a previous play_count
+     * before the wipe). For media_files with no annotation row yet, insert
+     * a fresh one carrying the new play_count / play_date — one INSERT per
+     * missing row because SQLite has no native UUID generator and the
+     * `ann_id` column expects a v4 (matching what Navidrome itself emits).
+     *
+     * Must be called inside the same write transaction as the inserts.
+     * Returns the total number of annotation rows touched.
+     *
+     * @param list<string> $mediaFileIds
+     */
+    public function reconcileAnnotationForMediaFiles(string $userId, array $mediaFileIds): int
+    {
+        $mediaFileIds = array_values(array_unique($mediaFileIds));
+        if ($mediaFileIds === []) {
+            return 0;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($mediaFileIds), '?'));
+        $conn = $this->connection();
+
+        // 1. Refresh existing annotation rows. Correlated subqueries against
+        //    `scrobbles` keep things atomic and immune to count drift if a
+        //    second writer somehow slips in (shouldn't — we hold BEGIN
+        //    IMMEDIATE — but the cost is negligible).
+        $updated = (int) $conn->executeStatement(
+            "UPDATE annotation
+                SET play_count = (
+                        SELECT COUNT(*) FROM scrobbles
+                         WHERE user_id = annotation.user_id
+                           AND media_file_id = annotation.item_id
+                    ),
+                    play_date = (
+                        SELECT datetime(MAX(submission_time), 'unixepoch') FROM scrobbles
+                         WHERE user_id = annotation.user_id
+                           AND media_file_id = annotation.item_id
+                    )
+              WHERE user_id = ?
+                AND item_type = 'media_file'
+                AND item_id IN ($placeholders)",
+            array_merge([$userId], $mediaFileIds),
+        );
+
+        // 2. Identify media_files that still have no annotation row and need
+        //    one created. We avoid SQLite-side UUID generation (no native
+        //    `uuid()`) by inserting one-by-one.
+        $missing = $conn->fetchFirstColumn(
+            "SELECT s.media_file_id
+               FROM scrobbles s
+              WHERE s.user_id = ?
+                AND s.media_file_id IN ($placeholders)
+                AND NOT EXISTS (
+                    SELECT 1 FROM annotation a
+                     WHERE a.user_id = s.user_id
+                       AND a.item_id = s.media_file_id
+                       AND a.item_type = 'media_file'
+                )
+              GROUP BY s.media_file_id",
+            array_merge([$userId], $mediaFileIds),
+        );
+
+        $inserted = 0;
+        foreach ($missing as $mfid) {
+            /** @var array{pc: int|string, pd: ?string}|false $row */
+            $row = $conn->fetchAssociative(
+                "SELECT COUNT(*) AS pc, datetime(MAX(submission_time), 'unixepoch') AS pd
+                   FROM scrobbles WHERE user_id = ? AND media_file_id = ?",
+                [$userId, (string) $mfid],
+            );
+            if ($row === false || ((int) $row['pc']) === 0) {
+                continue;
+            }
+            $inserted += (int) $conn->executeStatement(
+                "INSERT OR IGNORE INTO annotation
+                    (ann_id, user_id, item_id, item_type, play_count, play_date, rating, starred)
+                 VALUES (?, ?, ?, 'media_file', ?, ?, 0, 0)",
+                [self::uuidV4(), $userId, (string) $mfid, (int) $row['pc'], (string) ($row['pd'] ?? '')],
+            );
+        }
+
+        return $updated + $inserted;
+    }
+
+    /**
      * Open a write transaction with `BEGIN IMMEDIATE` — takes the RESERVED
      * lock right away and fails fast if another writer (Navidrome
      * accidentally restarted by Docker auto-restart, a parallel

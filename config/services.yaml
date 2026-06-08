@@ -21,6 +21,7 @@ parameters:
     musicbrainz.user_agent: '%env(MUSICBRAINZ_USER_AGENT)%'
     musicbrainz.base_url: '%env(MUSICBRAINZ_BASE_URL)%'
     lidarr.url: '%env(default::LIDARR_URL)%'
+    help.compose_service: '%env(default::HELP_COMPOSE_SERVICE)%'
     strawberry.db_path: '%env(resolve:STRAWBERRY_DB_PATH)%'
     notify.drivers: '%env(NOTIFY_DRIVERS)%'
     notify.on: '%env(NOTIFY_ON)%'
@@ -166,6 +167,10 @@ services:
     App\Controller\LastFmTopArtistsController:
         arguments:
             $defaultUser: '%lastfm.user%'
+
+    App\Controller\HelpController:
+        arguments:
+            $composeService: '%help.compose_service%'
 
     App\Controller\StatsController:
         arguments:
