@@ -1,0 +1,35 @@
+{# Filter form shared by /navidrome/top-artists and /lastfm/top-artists.
+   Caller passes `route` (Symfony route name to submit / reset to). #}
+<form method="get" class="bg-white shadow-sm rounded-sm p-4 mb-4 flex flex-wrap gap-3 items-end">
+    <div>
+        <label class="block text-xs uppercase text-slate-500 mb-1">Année</label>
+        <select name="year" class="border rounded-sm px-2 py-1 text-sm w-24">
+            <option value="">—</option>
+            {% for year in available_years %}
+                <option value="{{ year }}" {% if filters.year == year %}selected{% endif %}>{{ year }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <label class="block text-xs uppercase text-slate-500 mb-1">Mois</label>
+        <select name="month" class="border rounded-sm px-2 py-1 text-sm w-20">
+            <option value="">—</option>
+            {% for m in 1..12 %}
+                {% set mm = '%02d'|format(m) %}
+                <option value="{{ mm }}" {% if filters.month == mm %}selected{% endif %}>{{ mm }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <label class="block text-xs uppercase text-slate-500 mb-1">Jour</label>
+        <select name="day" class="border rounded-sm px-2 py-1 text-sm w-20">
+            <option value="">—</option>
+            {% for d in 1..31 %}
+                {% set dd = '%02d'|format(d) %}
+                <option value="{{ dd }}" {% if filters.day == dd %}selected{% endif %}>{{ dd }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <button type="submit" class="px-3 py-1.5 rounded-sm bg-slate-900 text-white text-sm">Filtrer</button>
+    <a href="{{ path(route) }}" class="text-xs text-slate-500 hover:underline self-center">Reset</a>
+</form>
