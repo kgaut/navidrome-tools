@@ -14,6 +14,9 @@ class NavidromeRepository
     /** @var array<string>|null */
     private ?array $scrobbleColumnsCache = null;
 
+    /** @var array<string>|null */
+    private ?array $annotationColumnsCache = null;
+
     public function __construct(
         private readonly string $dbPath,
         private readonly string $userName,
@@ -214,19 +217,68 @@ class NavidromeRepository
 
         // Insert a new annotation row when none exists; ignore on conflict
         // (some other process raced us and now starred=1 — no change needed).
+        // Schema variant: older Navidrome carries an `ann_id` PK column,
+        // recent versions (mid-2025+) dropped it and rely on the UNIQUE
+        // (user_id, item_id, item_type) constraint as the identity. The
+        // INSERT is built dynamically to handle both.
+        [$colList, $valList, $params] = $this->annotationInsertShape([
+            'user_id' => $userId,
+            'item_id' => $mediaFileId,
+            'item_type' => 'media_file',
+            'play_count' => 0,
+            'rating' => 0,
+            'starred' => 1,
+            'starred_at' => $now,
+        ]);
         $inserted = (int) $this->connection()->executeStatement(
-            "INSERT OR IGNORE INTO annotation
-                (ann_id, user_id, item_id, item_type, play_count, rating, starred, starred_at)
-             VALUES (:ann, :uid, :iid, 'media_file', 0, 0, 1, :now)",
-            [
-                'ann' => self::uuidV4(),
-                'uid' => $userId,
-                'iid' => $mediaFileId,
-                'now' => $now,
-            ],
+            "INSERT OR IGNORE INTO annotation ($colList) VALUES ($valList)",
+            $params,
         );
 
         return $inserted > 0;
+    }
+
+    /**
+     * Build the (columns, placeholders, params) tuple for an INSERT into
+     * `annotation`, prepending an `ann_id` UUID v4 only when that column
+     * actually exists in the schema (older Navidrome).
+     *
+     * @param array<string, mixed> $fields  ordered map of column→value
+     *
+     * @return array{0: string, 1: string, 2: list<mixed>}
+     */
+    private function annotationInsertShape(array $fields): array
+    {
+        if ($this->annotationHasColumn('ann_id')) {
+            $fields = ['ann_id' => self::uuidV4()] + $fields;
+        }
+        $cols = array_keys($fields);
+        $vals = array_values($fields);
+        $placeholders = implode(', ', array_fill(0, count($cols), '?'));
+
+        return [implode(', ', $cols), $placeholders, $vals];
+    }
+
+    /**
+     * Cached PRAGMA-driven check: does the live `annotation` table carry
+     * the given column? Used to support both Navidrome schemas (with /
+     * without `ann_id`) without per-call sniffing.
+     */
+    private function annotationHasColumn(string $column): bool
+    {
+        if ($this->annotationColumnsCache === null) {
+            $rows = $this->connection()->fetchAllAssociative('PRAGMA table_info(annotation)');
+            $names = [];
+            foreach ($rows as $r) {
+                $name = is_string($r['name'] ?? null) ? $r['name'] : '';
+                if ($name !== '') {
+                    $names[] = $name;
+                }
+            }
+            $this->annotationColumnsCache = $names;
+        }
+
+        return in_array($column, $this->annotationColumnsCache, true);
     }
 
     private static function uuidV4(): string
@@ -2908,11 +2960,18 @@ class NavidromeRepository
             if ($row === false || ((int) $row['pc']) === 0) {
                 continue;
             }
+            [$colList, $valList, $params] = $this->annotationInsertShape([
+                'user_id' => $userId,
+                'item_id' => (string) $mfid,
+                'item_type' => 'media_file',
+                'play_count' => (int) $row['pc'],
+                'play_date' => (string) ($row['pd'] ?? ''),
+                'rating' => 0,
+                'starred' => 0,
+            ]);
             $inserted += (int) $conn->executeStatement(
-                "INSERT OR IGNORE INTO annotation
-                    (ann_id, user_id, item_id, item_type, play_count, play_date, rating, starred)
-                 VALUES (?, ?, ?, 'media_file', ?, ?, 0, 0)",
-                [self::uuidV4(), $userId, (string) $mfid, (int) $row['pc'], (string) ($row['pd'] ?? '')],
+                "INSERT OR IGNORE INTO annotation ($colList) VALUES ($valList)",
+                $params,
             );
         }
 
