@@ -163,6 +163,10 @@ services:
         arguments:
             $defaultUser: '%lastfm.user%'
 
+    App\Controller\LastFmTopArtistsController:
+        arguments:
+            $defaultUser: '%lastfm.user%'
+
     App\Controller\StatsController:
         arguments:
             $defaultUser: '%lastfm.user%'

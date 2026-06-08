@@ -404,6 +404,59 @@ class LastFmStatsService
     }
 
     /**
+     * Top artists by play volume on a year / month / day cascade, with
+     * the artist's first and last scrobble inside the window (both as
+     * `YYYY-MM-DD HH:MM:SS` strings from `played_at`). Feeds the
+     * `/lastfm/top-artists` page.
+     *
+     * @return list<array{artist: string, plays: int, first_played_at: string, last_played_at: string}>
+     */
+    public function topArtistsWithDates(
+        ?string $user,
+        ?int $year,
+        ?int $month,
+        ?int $day,
+        int $limit,
+    ): array {
+        [$where, $params] = $this->buildWhere($user);
+        $clauses = ["artist != ''"];
+        if ($where !== '') {
+            $clauses[] = $where;
+        }
+        if ($year !== null) {
+            if ($day !== null && $month !== null) {
+                $clauses[] = "strftime('%Y-%m-%d', played_at) = :ymd";
+                $params['ymd'] = sprintf('%04d-%02d-%02d', $year, $month, $day);
+            } elseif ($month !== null) {
+                $clauses[] = "strftime('%Y-%m', played_at) = :ym";
+                $params['ym'] = sprintf('%04d-%02d', $year, $month);
+            } else {
+                $clauses[] = "strftime('%Y', played_at) = :y";
+                $params['y'] = (string) $year;
+            }
+        }
+        $sql = 'SELECT artist,
+                       COUNT(*) AS plays,
+                       MIN(played_at) AS first_played_at,
+                       MAX(played_at) AS last_played_at
+                FROM scrobbles WHERE ' . implode(' AND ', $clauses)
+            . ' GROUP BY artist ORDER BY plays DESC, artist ASC LIMIT ' . max(1, $limit);
+
+        /** @var list<array{artist: string, plays: int, first_played_at: ?string, last_played_at: ?string}> $rows */
+        $rows = $this->connection->fetchAllAssociative($sql, $params);
+
+        return array_map(
+            static fn (array $r): array => [
+                'artist' => (string) $r['artist'],
+                'plays' => (int) $r['plays'],
+                'first_played_at' => (string) ($r['first_played_at'] ?? ''),
+                'last_played_at' => (string) ($r['last_played_at'] ?? ''),
+            ],
+            $rows,
+        );
+    }
+
+    /**
      * @return list<array{artist: string, title: string, album: ?string, plays: int}>
      */
     private function topTracks(?string $user, int $limit): array

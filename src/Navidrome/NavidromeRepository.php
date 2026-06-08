@@ -760,6 +760,98 @@ class NavidromeRepository
     }
 
     /**
+     * Top artists ranked by play volume on a year / month / day cascade.
+     * Returns the artist's first and last play in the chosen window as
+     * `YYYY-MM-DD HH:MM:SS` strings (built from `submission_time` unix
+     * epoch via `datetime(..., 'unixepoch')`) so the consumer can format
+     * them directly.
+     *
+     * Feeds the `/navidrome/top-artists` page. Reads the Navidrome
+     * `scrobbles` table only; falls back to `[]` when it's not available
+     * (Navidrome &lt; 0.55 — the `annotation`-based count has no per-play
+     * timestamps, so the page is meaningless there).
+     *
+     * @return list<array{artist: string, plays: int, first_played_at: string, last_played_at: string}>
+     */
+    public function getTopArtistsWithDates(?int $year, ?int $month, ?int $day, int $limit): array
+    {
+        if (!$this->hasScrobblesTable()) {
+            return [];
+        }
+
+        $userId = $this->resolveUserId();
+        $sql = "SELECT mf.artist AS artist,
+                       COUNT(*) AS plays,
+                       datetime(MIN(s.submission_time), 'unixepoch') AS first_played_at,
+                       datetime(MAX(s.submission_time), 'unixepoch') AS last_played_at
+                FROM scrobbles s
+                JOIN media_file mf ON mf.id = s.media_file_id
+                WHERE s.user_id = :uid AND mf.artist != ''";
+        $params = ['uid' => $userId, 'lim' => $limit];
+        $types = ['lim' => \Doctrine\DBAL\ParameterType::INTEGER];
+
+        if ($year !== null) {
+            if ($day !== null && $month !== null) {
+                $sql .= " AND strftime('%Y-%m-%d', s.submission_time, 'unixepoch') = :ymd";
+                $params['ymd'] = sprintf('%04d-%02d-%02d', $year, $month, $day);
+            } elseif ($month !== null) {
+                $sql .= " AND strftime('%Y-%m', s.submission_time, 'unixepoch') = :ym";
+                $params['ym'] = sprintf('%04d-%02d', $year, $month);
+            } else {
+                $sql .= " AND strftime('%Y', s.submission_time, 'unixepoch') = :y";
+                $params['y'] = (string) $year;
+            }
+        }
+
+        $sql .= ' GROUP BY mf.artist ORDER BY plays DESC, artist ASC LIMIT :lim';
+
+        $rows = $this->connection()->fetchAllAssociative($sql, $params, $types);
+
+        return array_map(
+            static fn (array $r) => [
+                'artist' => (string) $r['artist'],
+                'plays' => (int) $r['plays'],
+                'first_played_at' => (string) ($r['first_played_at'] ?? ''),
+                'last_played_at' => (string) ($r['last_played_at'] ?? ''),
+            ],
+            $rows,
+        );
+    }
+
+    /**
+     * Distinct years (YYYY, descending) actually present in Navidrome's
+     * `scrobbles` table for the resolved user. Feeds the year `<select>`
+     * of the top-artists page. Returns `[]` when scrobbles aren't tracked
+     * yet.
+     *
+     * @return list<string>
+     */
+    public function getAvailableScrobbleYears(): array
+    {
+        if (!$this->hasScrobblesTable()) {
+            return [];
+        }
+
+        $userId = $this->resolveUserId();
+        $rows = $this->connection()->fetchAllAssociative(
+            "SELECT DISTINCT strftime('%Y', submission_time, 'unixepoch') AS y
+             FROM scrobbles WHERE user_id = :uid
+             ORDER BY y DESC",
+            ['uid' => $userId],
+        );
+
+        $out = [];
+        foreach ($rows as $r) {
+            $year = (string) $r['y'];
+            if ($year !== '') {
+                $out[] = $year;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
      * Top tracks (with full metadata) by aggregated plays in [from, to).
      * Pass null/null for all-time.
      *
