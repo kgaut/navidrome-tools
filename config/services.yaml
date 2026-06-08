@@ -40,6 +40,7 @@ services:
         public: false
         bind:
             $projectDir: '%kernel.project_dir%'
+            $defaultUser: '%lastfm.user%'
 
     _instanceof:
         App\Notifier\NotifierDriverInterface:
@@ -111,12 +112,10 @@ services:
     App\Command\FetchLastFmCommand:
         arguments:
             $defaultApiKey: '%lastfm.api_key%'
-            $defaultUser: '%lastfm.user%'
 
     App\Controller\LastFmImportController:
         arguments:
             $defaultApiKey: '%lastfm.api_key%'
-            $defaultUser: '%lastfm.user%'
 
     App\LastFm\ScrobbleMatcher:
         arguments:
@@ -142,14 +141,6 @@ services:
         arguments:
             $varDir: '%kernel.project_dir%/var'
 
-    App\Command\ComputeStatsCommand:
-        arguments:
-            $defaultUser: '%lastfm.user%'
-
-    App\Service\DisparityStatsService:
-        arguments:
-            $defaultUser: '%lastfm.user%'
-
     App\Twig\LidarrExtension:
         arguments:
             $lidarrUrl: '%lidarr.url%'
@@ -160,65 +151,28 @@ services:
             $navidromeUrl: '%navidrome.url%'
         tags: ['twig.extension']
 
-    App\Controller\LastFmScrobblesController:
-        arguments:
-            $defaultUser: '%lastfm.user%'
-
-    App\Controller\LastFmTopArtistsController:
-        arguments:
-            $defaultUser: '%lastfm.user%'
-
-    App\Controller\LastFmTopAlbumsController:
-        arguments:
-            $defaultUser: '%lastfm.user%'
-
-    App\Controller\LastFmTopTracksController:
-        arguments:
-            $defaultUser: '%lastfm.user%'
-
     App\Controller\HelpController:
         arguments:
             $composeService: '%help.compose_service%'
 
-    App\Controller\StatsController:
-        arguments:
-            $defaultUser: '%lastfm.user%'
-
     App\Controller\LastFmStatsController:
         arguments:
-            $defaultUser: '%lastfm.user%'
             $defaultApiKey: '%lastfm.api_key%'
 
     App\Command\SyncLastFmLovedCommand:
         arguments:
             $defaultApiKey: '%lastfm.api_key%'
-            $defaultUser: '%lastfm.user%'
 
     App\Command\LastFmAuthCommand:
         arguments:
             $defaultApiKey: '%lastfm.api_key%'
             $defaultApiSecret: '%lastfm.api_secret%'
-            $defaultUser: '%lastfm.user%'
 
     App\Command\SyncLovesLastFmToNavidromeCommand:
         arguments:
             $defaultApiKey: '%lastfm.api_key%'
-            $defaultUser: '%lastfm.user%'
 
     App\Command\SyncLovesNavidromeToLastFmCommand:
         arguments:
             $defaultApiKey: '%lastfm.api_key%'
             $defaultApiSecret: '%lastfm.api_secret%'
-            $defaultUser: '%lastfm.user%'
-
-    App\Command\ComputeLastFmStatsCommand:
-        arguments:
-            $defaultUser: '%lastfm.user%'
-
-    App\Command\StatsCommand:
-        arguments:
-            $defaultUser: '%lastfm.user%'
-
-    App\Controller\DashboardController:
-        arguments:
-            $defaultUser: '%lastfm.user%'
