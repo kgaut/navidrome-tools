@@ -1,23 +1,23 @@
 {% extends 'base.html.twig' %}
-{% block title %}Top artistes — Last.fm{% endblock %}
+{% block title %}Top morceaux — Navidrome{% endblock %}
 {% block body %}
     <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
         <div>
-            <a href="{{ path('app_lastfm_stats') }}" class="text-sm text-sky-700 hover:underline">← Stats Last.fm</a>
-            <h1 class="text-2xl font-semibold mt-1">Top artistes — Last.fm</h1>
-            <p class="text-sm text-slate-500">Top {{ top_n }} artistes par scrobbles sur la base outils.</p>
+            <a href="{{ path('app_navidrome_stats') }}" class="text-sm text-sky-700 hover:underline">← Stats Navidrome</a>
+            <h1 class="text-2xl font-semibold mt-1">Top morceaux — Navidrome</h1>
+            <p class="text-sm text-slate-500">Top {{ top_n }} morceaux par lectures.</p>
         </div>
         <div class="flex gap-2 text-xs">
-            <a href="{{ path('app_navidrome_top_artists') }}" class="text-sky-700 hover:underline self-center">
-                Voir côté Navidrome →
+            <a href="{{ path('app_lastfm_top_tracks') }}" class="text-sky-700 hover:underline self-center">
+                Voir côté Last.fm →
             </a>
         </div>
     </div>
 
-    {% include '_top_filter_form.html.twig' with { route: 'app_lastfm_top_artists' } only %}
+    {% include '_top_filter_form.html.twig' with { route: 'app_navidrome_top_tracks' } only %}
 
     {% if rows is empty %}
-        <div class="bg-white rounded-sm p-6 text-center text-slate-500">Aucun scrobble pour ces filtres.</div>
+        <div class="bg-white rounded-sm p-6 text-center text-slate-500">Aucune lecture pour ces filtres.</div>
     {% else %}
         <div class="bg-white shadow-sm rounded-sm overflow-hidden mb-4">
             <table class="w-full text-sm">
@@ -25,30 +25,32 @@
                     <tr>
                         <th class="px-3 py-2 text-right w-12">#</th>
                         <th class="px-3 py-2 text-left">Artiste</th>
-                        <th class="px-3 py-2 text-right">Scrobbles</th>
-                        <th class="px-3 py-2 text-left">Premier</th>
-                        <th class="px-3 py-2 text-left">Dernier</th>
+                        <th class="px-3 py-2 text-left">Titre</th>
+                        <th class="px-3 py-2 text-left">Album</th>
+                        <th class="px-3 py-2 text-right">Lectures</th>
+                        <th class="px-3 py-2 text-left">Première</th>
+                        <th class="px-3 py-2 text-left">Dernière</th>
                         <th class="px-3 py-2 text-right">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y">
                 {% for row in rows %}
-                    {% set lidarr = lidarr_artist_url(row.artist) %}
-                    {% set lastfm = lastfm_artist_url(row.artist) %}
+                    {% set navidrome = navidrome_track_url(row.id) %}
+                    {% set lastfm = lastfm_track_url(row.artist, row.title) %}
                     <tr class="hover:bg-slate-50">
                         <td class="px-3 py-1.5 text-right font-mono text-xs text-slate-400">{{ loop.index }}</td>
+                        <td class="px-3 py-1.5">{{ row.artist }}</td>
                         <td class="px-3 py-1.5 font-medium">
-                            {{ row.artist }}
-                            {% if lastfm %}<a href="{{ lastfm }}" target="_blank" rel="noopener" class="text-xs text-rose-500 hover:underline" title="Last.fm artiste">[L]</a>{% endif %}
+                            {{ row.title }}
+                            {% if lastfm %}<a href="{{ lastfm }}" target="_blank" rel="noopener" class="text-xs text-rose-500 hover:underline" title="Last.fm track">[L]</a>{% endif %}
                         </td>
+                        <td class="px-3 py-1.5 text-slate-500">{{ row.album ?? '—' }}</td>
                         <td class="px-3 py-1.5 text-right font-mono">{{ row.plays|number_format(0, '.', ' ') }}</td>
                         <td class="px-3 py-1.5 text-xs text-slate-500 whitespace-nowrap">{{ row.first_played_at ? row.first_played_at|date('d/m/Y H:i') : '—' }}</td>
                         <td class="px-3 py-1.5 text-xs text-slate-500 whitespace-nowrap">{{ row.last_played_at ? row.last_played_at|date('d/m/Y H:i') : '—' }}</td>
                         <td class="px-3 py-1.5 text-right whitespace-nowrap">
-                            {% if lidarr %}
-                                <a href="{{ lidarr }}" target="_blank" rel="noopener"
-                                   class="text-xs text-emerald-700 hover:underline"
-                                   title="Chercher dans Lidarr">⇗ Lidarr</a>
+                            {% if navidrome %}
+                                <a href="{{ navidrome }}" target="_blank" rel="noopener" class="text-xs text-emerald-700 hover:underline" title="Ouvrir dans Navidrome">▶ Navidrome</a>
                             {% endif %}
                         </td>
                     </tr>

@@ -819,6 +819,130 @@ class NavidromeRepository
     }
 
     /**
+     * Top albums ranked by play volume on a year / month / day cascade,
+     * with first / last play. Returns `mf.album_id` so the consumer can
+     * deep-link to Navidrome's album page; falls back to `''` for
+     * pre-0.55 schemas where the column might not be present.
+     *
+     * @return list<array{
+     *     album_id: string, album: string, artist: string,
+     *     plays: int, track_count: int,
+     *     first_played_at: string, last_played_at: string
+     * }>
+     */
+    public function getTopAlbumsWithDates(?int $year, ?int $month, ?int $day, int $limit): array
+    {
+        if (!$this->hasScrobblesTable()) {
+            return [];
+        }
+        $userId = $this->resolveUserId();
+        $sql = "SELECT mf.album AS album,
+                       COALESCE(NULLIF(mf.album_artist, ''), mf.artist) AS album_artist,
+                       mf.album_id AS album_id,
+                       COUNT(*) AS plays,
+                       COUNT(DISTINCT mf.id) AS track_count,
+                       datetime(MIN(s.submission_time), 'unixepoch') AS first_played_at,
+                       datetime(MAX(s.submission_time), 'unixepoch') AS last_played_at
+                FROM scrobbles s
+                JOIN media_file mf ON mf.id = s.media_file_id
+                WHERE s.user_id = :uid AND mf.album != ''";
+        $params = ['uid' => $userId, 'lim' => $limit];
+        $types = ['lim' => \Doctrine\DBAL\ParameterType::INTEGER];
+
+        self::applyNavidromeCascadeClause($sql, $params, $year, $month, $day);
+
+        $sql .= " GROUP BY mf.album_id, mf.album, COALESCE(NULLIF(mf.album_artist, ''), mf.artist)
+                  ORDER BY plays DESC, album ASC LIMIT :lim";
+
+        $rows = $this->connection()->fetchAllAssociative($sql, $params, $types);
+
+        return array_map(
+            static fn (array $r): array => [
+                'album_id' => (string) ($r['album_id'] ?? ''),
+                'album' => (string) $r['album'],
+                'artist' => (string) ($r['album_artist'] ?? ''),
+                'plays' => (int) $r['plays'],
+                'track_count' => (int) $r['track_count'],
+                'first_played_at' => (string) ($r['first_played_at'] ?? ''),
+                'last_played_at' => (string) ($r['last_played_at'] ?? ''),
+            ],
+            $rows,
+        );
+    }
+
+    /**
+     * Top tracks ranked by play volume on a year / month / day cascade,
+     * with the media_file id (for the Navidrome song deep link), and
+     * first / last play.
+     *
+     * @return list<array{
+     *     id: string, title: string, artist: string, album: ?string,
+     *     plays: int, first_played_at: string, last_played_at: string
+     * }>
+     */
+    public function getTopTracksWithDates(?int $year, ?int $month, ?int $day, int $limit): array
+    {
+        if (!$this->hasScrobblesTable()) {
+            return [];
+        }
+        $userId = $this->resolveUserId();
+        $sql = "SELECT mf.id AS id, mf.title AS title, mf.artist AS artist, mf.album AS album,
+                       COUNT(*) AS plays,
+                       datetime(MIN(s.submission_time), 'unixepoch') AS first_played_at,
+                       datetime(MAX(s.submission_time), 'unixepoch') AS last_played_at
+                FROM scrobbles s
+                JOIN media_file mf ON mf.id = s.media_file_id
+                WHERE s.user_id = :uid";
+        $params = ['uid' => $userId, 'lim' => $limit];
+        $types = ['lim' => \Doctrine\DBAL\ParameterType::INTEGER];
+
+        self::applyNavidromeCascadeClause($sql, $params, $year, $month, $day);
+
+        $sql .= ' GROUP BY mf.id, mf.title, mf.artist, mf.album
+                  ORDER BY plays DESC, title ASC LIMIT :lim';
+
+        $rows = $this->connection()->fetchAllAssociative($sql, $params, $types);
+
+        return array_map(
+            static fn (array $r): array => [
+                'id' => (string) $r['id'],
+                'title' => (string) $r['title'],
+                'artist' => (string) $r['artist'],
+                'album' => $r['album'] !== null ? (string) $r['album'] : null,
+                'plays' => (int) $r['plays'],
+                'first_played_at' => (string) ($r['first_played_at'] ?? ''),
+                'last_played_at' => (string) ($r['last_played_at'] ?? ''),
+            ],
+            $rows,
+        );
+    }
+
+    /**
+     * Appends the appropriate `strftime` filter on `s.submission_time`
+     * (unix epoch) for the year / month / day cascade. No-op when year
+     * is null — the page then defaults to all-time. Mutates the SQL and
+     * the params array in place.
+     *
+     * @param array<string, mixed> $params
+     */
+    private static function applyNavidromeCascadeClause(string &$sql, array &$params, ?int $year, ?int $month, ?int $day): void
+    {
+        if ($year === null) {
+            return;
+        }
+        if ($day !== null && $month !== null) {
+            $sql .= " AND strftime('%Y-%m-%d', s.submission_time, 'unixepoch') = :ymd";
+            $params['ymd'] = sprintf('%04d-%02d-%02d', $year, $month, $day);
+        } elseif ($month !== null) {
+            $sql .= " AND strftime('%Y-%m', s.submission_time, 'unixepoch') = :ym";
+            $params['ym'] = sprintf('%04d-%02d', $year, $month);
+        } else {
+            $sql .= " AND strftime('%Y', s.submission_time, 'unixepoch') = :y";
+            $params['y'] = (string) $year;
+        }
+    }
+
+    /**
      * Distinct years (YYYY, descending) actually present in Navidrome's
      * `scrobbles` table for the resolved user. Feeds the year `<select>`
      * of the top-artists page. Returns `[]` when scrobbles aren't tracked

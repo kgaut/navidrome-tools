@@ -1,20 +1,20 @@
 {% extends 'base.html.twig' %}
-{% block title %}Top artistes — Last.fm{% endblock %}
+{% block title %}Top albums — Last.fm{% endblock %}
 {% block body %}
     <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
         <div>
             <a href="{{ path('app_lastfm_stats') }}" class="text-sm text-sky-700 hover:underline">← Stats Last.fm</a>
-            <h1 class="text-2xl font-semibold mt-1">Top artistes — Last.fm</h1>
-            <p class="text-sm text-slate-500">Top {{ top_n }} artistes par scrobbles sur la base outils.</p>
+            <h1 class="text-2xl font-semibold mt-1">Top albums — Last.fm</h1>
+            <p class="text-sm text-slate-500">Top {{ top_n }} albums par scrobbles. Les scrobbles sans album sont ignorés.</p>
         </div>
         <div class="flex gap-2 text-xs">
-            <a href="{{ path('app_navidrome_top_artists') }}" class="text-sky-700 hover:underline self-center">
+            <a href="{{ path('app_navidrome_top_albums') }}" class="text-sky-700 hover:underline self-center">
                 Voir côté Navidrome →
             </a>
         </div>
     </div>
 
-    {% include '_top_filter_form.html.twig' with { route: 'app_lastfm_top_artists' } only %}
+    {% include '_top_filter_form.html.twig' with { route: 'app_lastfm_top_albums' } only %}
 
     {% if rows is empty %}
         <div class="bg-white rounded-sm p-6 text-center text-slate-500">Aucun scrobble pour ces filtres.</div>
@@ -25,6 +25,7 @@
                     <tr>
                         <th class="px-3 py-2 text-right w-12">#</th>
                         <th class="px-3 py-2 text-left">Artiste</th>
+                        <th class="px-3 py-2 text-left">Album</th>
                         <th class="px-3 py-2 text-right">Scrobbles</th>
                         <th class="px-3 py-2 text-left">Premier</th>
                         <th class="px-3 py-2 text-left">Dernier</th>
@@ -33,14 +34,11 @@
                 </thead>
                 <tbody class="divide-y">
                 {% for row in rows %}
-                    {% set lidarr = lidarr_artist_url(row.artist) %}
-                    {% set lastfm = lastfm_artist_url(row.artist) %}
+                    {% set lidarr = lidarr_album_url(row.artist, row.album) %}
                     <tr class="hover:bg-slate-50">
                         <td class="px-3 py-1.5 text-right font-mono text-xs text-slate-400">{{ loop.index }}</td>
-                        <td class="px-3 py-1.5 font-medium">
-                            {{ row.artist }}
-                            {% if lastfm %}<a href="{{ lastfm }}" target="_blank" rel="noopener" class="text-xs text-rose-500 hover:underline" title="Last.fm artiste">[L]</a>{% endif %}
-                        </td>
+                        <td class="px-3 py-1.5">{{ row.artist }}</td>
+                        <td class="px-3 py-1.5 font-medium">{{ row.album }}</td>
                         <td class="px-3 py-1.5 text-right font-mono">{{ row.plays|number_format(0, '.', ' ') }}</td>
                         <td class="px-3 py-1.5 text-xs text-slate-500 whitespace-nowrap">{{ row.first_played_at ? row.first_played_at|date('d/m/Y H:i') : '—' }}</td>
                         <td class="px-3 py-1.5 text-xs text-slate-500 whitespace-nowrap">{{ row.last_played_at ? row.last_played_at|date('d/m/Y H:i') : '—' }}</td>
