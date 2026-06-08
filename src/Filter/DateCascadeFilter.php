@@ -25,6 +25,61 @@ final class DateCascadeFilter
         return ['year' => $y, 'month' => $m, 'day' => $d];
     }
 
+    /**
+     * Produces the SQLite `WHERE` fragment that applies the year / month /
+     * day cascade to a timestamp column. Source of truth shared by
+     * `LastFmStatsService::topXWithDates()` and
+     * `NavidromeRepository::getTopXWithDates()` — both produced the same
+     * three-branch code by hand (year → `strftime('%Y', col)`, +month →
+     * `strftime('%Y-%m', col)`, +day → `strftime('%Y-%m-%d', col)`).
+     *
+     * Two SQLite quirks accommodated :
+     *  - When the column is a unix epoch (Navidrome `submission_time` is
+     *    INTEGER from 0.55+), pass `$unixepoch = true` to interpose the
+     *    `'unixepoch'` modifier expected by `strftime`.
+     *  - Named params with a prefix avoid collisions with surrounding
+     *    `:user` / `:uid` clauses both call sites already carry.
+     *
+     * Returns `null` (no clause to add) when `$year` is null.
+     *
+     * @return array{clause: string, paramName: string, paramValue: string}|null
+     */
+    public static function toSqlClause(
+        ?int $year,
+        ?int $month,
+        ?int $day,
+        string $column,
+        bool $unixepoch = false,
+        string $paramPrefix = 'dc_',
+    ): ?array {
+        if ($year === null) {
+            return null;
+        }
+
+        $strftimeArgs = $unixepoch ? sprintf("%s, 'unixepoch'", $column) : $column;
+
+        if ($day !== null && $month !== null) {
+            return [
+                'clause' => sprintf("strftime('%%Y-%%m-%%d', %s) = :%symd", $strftimeArgs, $paramPrefix),
+                'paramName' => $paramPrefix . 'ymd',
+                'paramValue' => sprintf('%04d-%02d-%02d', $year, $month, $day),
+            ];
+        }
+        if ($month !== null) {
+            return [
+                'clause' => sprintf("strftime('%%Y-%%m', %s) = :%sym", $strftimeArgs, $paramPrefix),
+                'paramName' => $paramPrefix . 'ym',
+                'paramValue' => sprintf('%04d-%02d', $year, $month),
+            ];
+        }
+
+        return [
+            'clause' => sprintf("strftime('%%Y', %s) = :%sy", $strftimeArgs, $paramPrefix),
+            'paramName' => $paramPrefix . 'y',
+            'paramValue' => (string) $year,
+        ];
+    }
+
     private static function asYear(mixed $v): ?int
     {
         if (!is_string($v) || !preg_match('/^\d{4}$/', $v)) {

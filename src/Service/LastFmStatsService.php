@@ -3,6 +3,7 @@
 namespace App\Service;
 
 use App\Entity\StatsSnapshot;
+use App\Filter\DateCascadeFilter;
 use App\Repository\StatsSnapshotRepository;
 use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
@@ -565,29 +566,21 @@ class LastFmStatsService
     }
 
     /**
-     * Adds the appropriate `strftime` clause for the cascade (year /
-     * year-month / year-month-day) to the given clauses + params arrays.
-     * Mutates the references in place to mirror the {@see buildWhere()}
-     * pattern callers already use.
+     * Adds the cascade clause from {@see DateCascadeFilter::toSqlClause()}
+     * to the given clauses + params arrays, mirroring the {@see buildWhere()}
+     * mutate-in-place pattern. No-op when `$year` is null.
      *
      * @param list<string> $clauses
      * @param array<string, mixed> $params
      */
     private static function applyDateCascade(array &$clauses, array &$params, ?int $year, ?int $month, ?int $day): void
     {
-        if ($year === null) {
+        $c = DateCascadeFilter::toSqlClause($year, $month, $day, 'played_at');
+        if ($c === null) {
             return;
         }
-        if ($day !== null && $month !== null) {
-            $clauses[] = "strftime('%Y-%m-%d', played_at) = :ymd";
-            $params['ymd'] = sprintf('%04d-%02d-%02d', $year, $month, $day);
-        } elseif ($month !== null) {
-            $clauses[] = "strftime('%Y-%m', played_at) = :ym";
-            $params['ym'] = sprintf('%04d-%02d', $year, $month);
-        } else {
-            $clauses[] = "strftime('%Y', played_at) = :y";
-            $params['y'] = (string) $year;
-        }
+        $clauses[] = $c['clause'];
+        $params[$c['paramName']] = $c['paramValue'];
     }
 
     /**

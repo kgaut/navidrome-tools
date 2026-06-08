@@ -979,19 +979,18 @@ class NavidromeRepository
      */
     private static function applyNavidromeCascadeClause(string &$sql, array &$params, ?int $year, ?int $month, ?int $day): void
     {
-        if ($year === null) {
+        $c = \App\Filter\DateCascadeFilter::toSqlClause(
+            $year,
+            $month,
+            $day,
+            's.submission_time',
+            unixepoch: true,
+        );
+        if ($c === null) {
             return;
         }
-        if ($day !== null && $month !== null) {
-            $sql .= " AND strftime('%Y-%m-%d', s.submission_time, 'unixepoch') = :ymd";
-            $params['ymd'] = sprintf('%04d-%02d-%02d', $year, $month, $day);
-        } elseif ($month !== null) {
-            $sql .= " AND strftime('%Y-%m', s.submission_time, 'unixepoch') = :ym";
-            $params['ym'] = sprintf('%04d-%02d', $year, $month);
-        } else {
-            $sql .= " AND strftime('%Y', s.submission_time, 'unixepoch') = :y";
-            $params['y'] = (string) $year;
-        }
+        $sql .= ' AND ' . $c['clause'];
+        $params[$c['paramName']] = $c['paramValue'];
     }
 
     /**
