@@ -10,7 +10,14 @@ use Doctrine\DBAL\DriverManager;
  */
 final class NavidromeFixtureFactory
 {
-    public static function createDatabase(string $path, bool $withScrobbles = true): Connection
+    /**
+     * @param bool $withAnnId  when false, builds the `annotation` table WITHOUT
+     *                         the `ann_id` column — mirroring recent Navidrome
+     *                         (mid-2025+) which dropped it and keys on the
+     *                         UNIQUE (user_id, item_id, item_type) constraint.
+     *                         Used to exercise the schema-agnostic INSERT path.
+     */
+    public static function createDatabase(string $path, bool $withScrobbles = true, bool $withAnnId = true): Connection
     {
         if (file_exists($path)) {
             unlink($path);
@@ -53,19 +60,38 @@ final class NavidromeFixtureFactory
                 mbz_album_artist_id VARCHAR(255) DEFAULT NULL
             )
         SQL);
-        $conn->executeStatement(<<<'SQL'
-            CREATE TABLE annotation (
-                ann_id VARCHAR(255) PRIMARY KEY NOT NULL,
-                user_id VARCHAR(255) DEFAULT '' NOT NULL,
-                item_id VARCHAR(255) DEFAULT '' NOT NULL,
-                item_type VARCHAR(255) DEFAULT '' NOT NULL,
-                play_count INTEGER,
-                play_date DATETIME,
-                rating INTEGER,
-                starred BOOL DEFAULT 0 NOT NULL,
-                starred_at DATETIME
-            )
-        SQL);
+        if ($withAnnId) {
+            $conn->executeStatement(<<<'SQL'
+                CREATE TABLE annotation (
+                    ann_id VARCHAR(255) PRIMARY KEY NOT NULL,
+                    user_id VARCHAR(255) DEFAULT '' NOT NULL,
+                    item_id VARCHAR(255) DEFAULT '' NOT NULL,
+                    item_type VARCHAR(255) DEFAULT '' NOT NULL,
+                    play_count INTEGER,
+                    play_date DATETIME,
+                    rating INTEGER,
+                    starred BOOL DEFAULT 0 NOT NULL,
+                    starred_at DATETIME,
+                    UNIQUE (user_id, item_id, item_type)
+                )
+            SQL);
+        } else {
+            // Recent Navidrome schema: no ann_id, identity = composite UNIQUE.
+            $conn->executeStatement(<<<'SQL'
+                CREATE TABLE annotation (
+                    user_id VARCHAR(255) DEFAULT '' NOT NULL,
+                    item_id VARCHAR(255) DEFAULT '' NOT NULL,
+                    item_type VARCHAR(255) DEFAULT '' NOT NULL,
+                    play_count INTEGER DEFAULT 0,
+                    play_date DATETIME,
+                    rating INTEGER DEFAULT 0,
+                    starred BOOL DEFAULT 0 NOT NULL,
+                    starred_at DATETIME,
+                    rated_at DATETIME,
+                    UNIQUE (user_id, item_id, item_type)
+                )
+            SQL);
+        }
 
         if ($withScrobbles) {
             // Mirror the real Navidrome 0.55+ schema where submission_time is
@@ -126,13 +152,43 @@ final class NavidromeFixtureFactory
         );
     }
 
-    public static function insertAnnotation(Connection $conn, string $userId, string $mediaId, int $playCount, string $playDate): void
-    {
+    /**
+     * Insert an annotation row, adapting to whichever schema the DB was
+     * built with (with / without `ann_id`).
+     */
+    public static function insertAnnotation(
+        Connection $conn,
+        string $userId,
+        string $mediaId,
+        int $playCount,
+        string $playDate,
+        int $starred = 0,
+        ?string $starredAt = null,
+    ): void {
+        if (self::annotationHasAnnId($conn)) {
+            $conn->executeStatement(
+                'INSERT INTO annotation (ann_id, user_id, item_id, item_type, play_count, play_date, starred, starred_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                [bin2hex(random_bytes(8)), $userId, $mediaId, 'media_file', $playCount, $playDate, $starred, $starredAt],
+            );
+            return;
+        }
         $conn->executeStatement(
-            'INSERT INTO annotation (ann_id, user_id, item_id, item_type, play_count, play_date)
-             VALUES (?, ?, ?, ?, ?, ?)',
-            [bin2hex(random_bytes(8)), $userId, $mediaId, 'media_file', $playCount, $playDate],
+            'INSERT INTO annotation (user_id, item_id, item_type, play_count, play_date, starred, starred_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [$userId, $mediaId, 'media_file', $playCount, $playDate, $starred, $starredAt],
         );
+    }
+
+    private static function annotationHasAnnId(Connection $conn): bool
+    {
+        foreach ($conn->fetchAllAssociative('PRAGMA table_info(annotation)') as $col) {
+            if (($col['name'] ?? null) === 'ann_id') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public static function insertScrobble(
