@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Filter\DateCascadeFilter;
 use App\Navidrome\NavidromeRepository;
+use App\Service\NavidromeStatsService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -14,7 +15,7 @@ class NavidromeTopTracksController extends AbstractController
     private const TOP_N = 100;
 
     #[Route('/navidrome/top-tracks', name: 'app_navidrome_top_tracks', methods: ['GET'])]
-    public function index(Request $request, NavidromeRepository $navidrome): Response
+    public function index(Request $request, NavidromeRepository $navidrome, NavidromeStatsService $stats): Response
     {
         $c = DateCascadeFilter::parse(
             $request->query->get('year'),
@@ -22,8 +23,28 @@ class NavidromeTopTracksController extends AbstractController
             $request->query->get('day'),
         );
 
+        $source = 'live';
+        $computedAt = null;
+        if ($c['year'] !== null) {
+            $rows = $navidrome->getTopTracksWithDates($c['year'], $c['month'], $c['day'], self::TOP_N);
+        } else {
+            $snapshot = $stats->get();
+            $cached = is_array($snapshot) && isset($snapshot['top_tracks_alltime']) && is_array($snapshot['top_tracks_alltime'])
+                ? $snapshot['top_tracks_alltime']
+                : null;
+            if ($cached !== null) {
+                /** @var list<array{id: string, title: string, artist: string, album: ?string, plays: int, first_played_at: string, last_played_at: string}> $rows */
+                $rows = $cached;
+                $source = 'snapshot';
+                $computedAt = is_string($snapshot['computed_at'] ?? null) ? $snapshot['computed_at'] : null;
+            } else {
+                $rows = $navidrome->getTopTracksWithDates(null, null, null, self::TOP_N);
+                $source = 'live_fallback';
+            }
+        }
+
         return $this->render('navidrome/top_tracks.html.twig', [
-            'rows' => $navidrome->getTopTracksWithDates($c['year'], $c['month'], $c['day'], self::TOP_N),
+            'rows' => $rows,
             'top_n' => self::TOP_N,
             'available_years' => $navidrome->getAvailableScrobbleYears(),
             'filters' => [
@@ -31,6 +52,9 @@ class NavidromeTopTracksController extends AbstractController
                 'month' => $c['month'] !== null ? sprintf('%02d', $c['month']) : '',
                 'day' => $c['day'] !== null ? sprintf('%02d', $c['day']) : '',
             ],
+            'source' => $source,
+            'computed_at' => $computedAt,
+            'compute_command' => 'app:navidrome:stats:compute',
         ]);
     }
 }

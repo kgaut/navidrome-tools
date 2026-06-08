@@ -11,10 +11,10 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 
 /**
- * Top 100 artists by Last.fm scrobble volume, with per-artist first /
- * last play. Filterable on a year / month / day cascade — same UX as
- * `/lastfm/scrobbles` and the Navidrome counterpart. Reads only the
- * tools DB.
+ * Top artistes Last.fm. Sans filtre → lecture instantanée depuis
+ * `top_artists_alltime` du snapshot stats. Avec filtre date → requête
+ * live (la fenêtre réduit la volumétrie). Snapshot manquant → fallback
+ * live + bandeau ambre invitant à lancer `app:lastfm:stats:compute`.
  */
 class LastFmTopArtistsController extends AbstractController
 {
@@ -26,32 +26,50 @@ class LastFmTopArtistsController extends AbstractController
     }
 
     #[Route('/lastfm/top-artists', name: 'app_lastfm_top_artists', methods: ['GET'])]
-    public function index(Request $request, LastFmStatsService $stats, ScrobbleRepository $scrobbles): Response
-    {
+    public function index(
+        Request $request,
+        LastFmStatsService $stats,
+        ScrobbleRepository $scrobbles,
+    ): Response {
         $user = $this->defaultUser !== '' ? $this->defaultUser : null;
-        $cascade = DateCascadeFilter::parse(
+        $c = DateCascadeFilter::parse(
             $request->query->get('year'),
             $request->query->get('month'),
             $request->query->get('day'),
         );
 
-        $rows = $stats->topArtistsWithDates(
-            $user,
-            $cascade['year'],
-            $cascade['month'],
-            $cascade['day'],
-            self::TOP_N,
-        );
+        $source = 'live';
+        $computedAt = null;
+        if ($c['year'] !== null) {
+            $rows = $stats->topArtistsWithDates($user, $c['year'], $c['month'], $c['day'], self::TOP_N);
+        } else {
+            $snapshot = $stats->get($user);
+            $cached = is_array($snapshot) && isset($snapshot['top_artists_alltime']) && is_array($snapshot['top_artists_alltime'])
+                ? $snapshot['top_artists_alltime']
+                : null;
+            if ($cached !== null) {
+                /** @var list<array{artist: string, plays: int, first_played_at: string, last_played_at: string}> $rows */
+                $rows = $cached;
+                $source = 'snapshot';
+                $computedAt = is_string($snapshot['computed_at'] ?? null) ? $snapshot['computed_at'] : null;
+            } else {
+                $rows = $stats->topArtistsWithDates($user, null, null, null, self::TOP_N);
+                $source = 'live_fallback';
+            }
+        }
 
         return $this->render('lastfm/top_artists.html.twig', [
             'rows' => $rows,
             'top_n' => self::TOP_N,
             'available_years' => $scrobbles->availableYears($user),
             'filters' => [
-                'year' => $cascade['year'] !== null ? (string) $cascade['year'] : '',
-                'month' => $cascade['month'] !== null ? sprintf('%02d', $cascade['month']) : '',
-                'day' => $cascade['day'] !== null ? sprintf('%02d', $cascade['day']) : '',
+                'year' => $c['year'] !== null ? (string) $c['year'] : '',
+                'month' => $c['month'] !== null ? sprintf('%02d', $c['month']) : '',
+                'day' => $c['day'] !== null ? sprintf('%02d', $c['day']) : '',
             ],
+            'source' => $source,
+            'computed_at' => $computedAt,
+            'compute_command' => 'app:lastfm:stats:compute',
         ]);
     }
 }

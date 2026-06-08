@@ -5,7 +5,10 @@
         <div>
             <a href="{{ path('app_lastfm_stats') }}" class="text-sm text-sky-700 hover:underline">← Stats Last.fm</a>
             <h1 class="text-2xl font-semibold mt-1">Top albums — Last.fm</h1>
-            <p class="text-sm text-slate-500">Top {{ top_n }} albums par scrobbles. Les scrobbles sans album sont ignorés.</p>
+            <p class="text-sm text-slate-500">
+                Top {{ top_n }} albums par scrobbles. Les scrobbles sans album sont ignorés.
+                {% include '_top_source_indicator.html.twig' with { source: source, computed_at: computed_at, compute_command: compute_command } only %}
+            </p>
         </div>
         <div class="flex gap-2 text-xs">
             <a href="{{ path('app_navidrome_top_albums') }}" class="text-sky-700 hover:underline self-center">
