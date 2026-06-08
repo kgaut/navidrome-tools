@@ -28,6 +28,7 @@ class LastFmStatsService
     private const PLAYS_BY_MONTH_COUNT = 12;
     private const PLAYS_BY_WEEK_COUNT = 15;
     private const PLAYS_BY_DAY_COUNT = 15;
+    private const TOP_PAGE_LIMIT = 100;
 
     public function __construct(
         private readonly Connection $connection,
@@ -75,6 +76,12 @@ class LastFmStatsService
             'top_artists' => $this->topArtists($user, self::TOP_LIMIT),
             'top_tracks' => $this->topTracks($user, self::TOP_LIMIT),
             'top_albums' => $this->topAlbums($user, self::TOP_LIMIT),
+            // Top 100 sans filtre, pré-calculés pour les pages /lastfm/top-*
+            // (lecture instantanée depuis le snapshot quand l'utilisateur
+            // n'a posé aucun filtre date). Les vues filtrées re-tirent en
+            // live — le filtre réduit la volumétrie donc la requête est
+            // rapide de toute façon.
+            'top_tracks_alltime' => $this->topTracksWithDates($user, null, null, null, self::TOP_PAGE_LIMIT),
             'recent_scrobbles' => $this->recentScrobbles($user, self::RECENT_SCROBBLES_LIMIT),
             'recent_loved' => $this->recentLoved($user, self::RECENT_LOVED_LIMIT),
         ];
