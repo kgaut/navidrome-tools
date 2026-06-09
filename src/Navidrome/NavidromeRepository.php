@@ -2646,23 +2646,7 @@ class NavidromeRepository
      */
     private static function titleHasFeaturingMarker(string $title): bool
     {
-        // Closed paren / bracket form.
-        if (preg_match('/\((?:feat\.?|ft\.?|featuring|with)\s+[^)]+\)/iu', $title)) {
-            return true;
-        }
-        if (preg_match('/\[(?:feat\.?|ft\.?|featuring|with)\s+[^\]]+\]/iu', $title)) {
-            return true;
-        }
-
-        // Truncated open paren (no closing paren in the whole title).
-        if (
-            !preg_match('/\([^)]*\)/u', $title)
-            && preg_match('/\((?:feat\.?|ft\.?|featuring|with)\s+/iu', $title)
-        ) {
-            return true;
-        }
-
-        return false;
+        return NavidromeStringNormalizer::titleHasFeaturingMarker($title);
     }
 
     /**
@@ -2693,12 +2677,7 @@ class NavidromeRepository
      */
     private static function stripFeaturedArtists(string $artist): string
     {
-        // 1. Strip parenthesized suffix: "(feat. …)" / "(ft. …)" / "(featuring …)".
-        $stripped = preg_replace('/\s*\((?:feat\.?|ft\.?|featuring)\s+[^)]*\)\s*/iu', '', $artist) ?? $artist;
-        // 2. Strip trailing form: " feat. …" / " ft. …" / " featuring …" until end.
-        $stripped = preg_replace('/\s+(?:feat\.?|ft\.?|featuring)\s+.*$/iu', '', $stripped) ?? $stripped;
-
-        return trim($stripped);
+        return NavidromeStringNormalizer::stripFeaturedArtists($artist);
     }
 
     /**
@@ -2716,34 +2695,7 @@ class NavidromeRepository
      */
     private static function stripVersionMarkers(string $title): string
     {
-        // Order matters: longer alternatives must come first so "remastered 2011"
-        // is captured by the year-aware pattern instead of just "remastered".
-        // Contextual markers (live/acoustic/…) accept an optional trailing
-        // qualifier so "Live at Reading 1992" / "Acoustic Version" / "Deluxe
-        // Edition" all match.
-        $markers = '(?:'
-            . 'remastered \d{4}|remaster \d{4}|\d{4} remastered|\d{4} remaster'
-            . '|radio edit|radio mix|radio version'
-            . '|album version|album mix|album edit'
-            . '|single version|single edit|single mix'
-            . '|extended version|extended mix|extended edit'
-            . '|mono version|stereo version'
-            . '|remastered|remaster'
-            . '|live(?:\s[^)\]]+)?'
-            . '|acoustic(?:\s+(?:version|mix))?'
-            . '|instrumental(?:\s+version)?'
-            . '|demo(?:\s+version)?'
-            . '|deluxe(?:\s+(?:edition|version))?'
-            . ')';
-
-        // Parenthesized form: " (Radio Edit)".
-        $stripped = preg_replace('/\s*\(' . $markers . '\)\s*$/iu', '', $title) ?? $title;
-        // Bracketed form: " [Radio Edit]".
-        $stripped = preg_replace('/\s*\[' . $markers . '\]\s*$/iu', '', $stripped) ?? $stripped;
-        // Dash-separated form: " - Radio Edit" (ASCII -, en dash, em dash).
-        $stripped = preg_replace('/\s+[\-\x{2013}\x{2014}]\s+' . $markers . '\s*$/iu', '', $stripped) ?? $stripped;
-
-        return trim($stripped);
+        return NavidromeStringNormalizer::stripVersionMarkers($title);
     }
 
     /**
@@ -2756,11 +2708,7 @@ class NavidromeRepository
      */
     private static function stripFeaturingFromTitle(string $title): string
     {
-        $pattern = '(?:feat\.?|ft\.?|featuring|with)\s+[^)\]]+';
-        $stripped = preg_replace('/\s*\(' . $pattern . '\)\s*$/iu', '', $title) ?? $title;
-        $stripped = preg_replace('/\s*\[' . $pattern . '\]\s*$/iu', '', $stripped) ?? $stripped;
-
-        return trim($stripped);
+        return NavidromeStringNormalizer::stripFeaturingFromTitle($title);
     }
 
     /**
@@ -2772,7 +2720,7 @@ class NavidromeRepository
      */
     private static function stripTrackNumberPrefix(string $title): string
     {
-        return trim(preg_replace('/^\d{1,3}[_\-.\s]+(?=\S)/u', '', $title) ?? $title);
+        return NavidromeStringNormalizer::stripTrackNumberPrefix($title);
     }
 
     /**
@@ -2785,12 +2733,7 @@ class NavidromeRepository
      */
     private static function stripTruncatedParen(string $title): string
     {
-        if (preg_match('/\([^)]*\)/u', $title)) {
-            return $title;
-        }
-        $markers = '(?:feat\.?|ft\.?|featuring|with|live|acoustic|remastered|remaster|deluxe|extended|radio|album|single|mono|stereo|instrumental|demo)';
-
-        return trim(preg_replace('/\s*\(' . $markers . '[^)]*$/iu', '', $title) ?? $title);
+        return NavidromeStringNormalizer::stripTruncatedParen($title);
     }
 
     /**
@@ -2802,14 +2745,7 @@ class NavidromeRepository
      */
     private static function stripLeadArtist(string $artist): string
     {
-        if (preg_match('/^(.*?)(?:\s*,\s*|\s+-\s+|\s*&\s*|\s+(?:and|et)\s+)/iu', $artist, $m)) {
-            $lead = trim($m[1]);
-            if ($lead !== '' && $lead !== $artist) {
-                return $lead;
-            }
-        }
-
-        return $artist;
+        return NavidromeStringNormalizer::stripLeadArtist($artist);
     }
 
     /**
@@ -3115,17 +3051,7 @@ class NavidromeRepository
      */
     public static function normalize(string $s): string
     {
-        $s = mb_strtolower(trim($s));
-        $decomposed = \Normalizer::normalize($s, \Normalizer::FORM_KD);
-        if ($decomposed === false) {
-            // Input was not valid UTF-8 — fall back to the lowercased form.
-            return $s;
-        }
-        $stripped = (string) preg_replace('/\p{Mn}+/u', '', $decomposed);
-        // Drop punctuation/symbols (keep letters, digits, whitespace).
-        $cleaned = (string) preg_replace('/[^\p{L}\p{N}\s]+/u', '', $stripped);
-
-        return trim((string) preg_replace('/\s+/u', ' ', $cleaned));
+        return NavidromeStringNormalizer::normalize($s);
     }
 
     /**
