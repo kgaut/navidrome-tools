@@ -1,0 +1,82 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Playlists Navidrome{% endblock %}
+
+{% macro duration(seconds) %}
+    {%- set s = seconds|default(0) -%}
+    {%- set h = (s / 3600)|round(0, 'floor') -%}
+    {%- set m = ((s % 3600) / 60)|round(0, 'floor') -%}
+    {%- if h > 0 -%}{{ h }}h{{ '%02d'|format(m) }}{%- else -%}{{ m }} min{%- endif -%}
+{% endmacro %}
+
+{% block body %}
+    {% import _self as fmt %}
+
+    <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+        <div>
+            <h1 class="text-2xl font-semibold">Playlists Navidrome</h1>
+            <p class="text-sm text-slate-500">
+                {{ playlists|length }} playlist{{ playlists|length > 1 ? 's' : '' }}
+                récupérée{{ playlists|length > 1 ? 's' : '' }} via l'API Subsonic,
+                triées par dernière modification.
+            </p>
+        </div>
+    </div>
+
+    {% if error %}
+        <div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-sm p-4 text-sm mb-4">
+            Impossible de joindre Navidrome : {{ error }}
+        </div>
+    {% endif %}
+
+    {% if playlists is empty and not error %}
+        <div class="bg-slate-50 border border-slate-200 text-slate-700 rounded-sm p-6 text-center text-sm">
+            Aucune playlist trouvée côté Navidrome.
+        </div>
+    {% elseif playlists is not empty %}
+        <div class="bg-white shadow-sm rounded-sm overflow-hidden">
+            <table class="w-full text-sm">
+                <thead class="bg-slate-100 text-xs uppercase text-slate-500">
+                    <tr>
+                        <th class="px-3 py-2 text-left">Nom</th>
+                        <th class="px-3 py-2 text-left">Owner</th>
+                        <th class="px-3 py-2 text-right">Morceaux</th>
+                        <th class="px-3 py-2 text-right">Durée</th>
+                        <th class="px-3 py-2 text-left">Créée</th>
+                        <th class="px-3 py-2 text-left">Modifiée</th>
+                        <th class="px-3 py-2 text-left">Visibilité</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in playlists %}
+                        <tr class="border-t hover:bg-slate-50">
+                            <td class="px-3 py-2">
+                                <a href="{{ path('app_playlists_show', { id: p.id }) }}"
+                                   class="text-sky-700 hover:underline font-medium">{{ p.name }}</a>
+                                {% if p.comment %}
+                                    <div class="text-xs text-slate-500 mt-0.5">{{ p.comment }}</div>
+                                {% endif %}
+                            </td>
+                            <td class="px-3 py-2 text-slate-700">{{ p.owner }}</td>
+                            <td class="px-3 py-2 text-right tabular-nums">{{ p.songCount }}</td>
+                            <td class="px-3 py-2 text-right tabular-nums">{{ fmt.duration(p.duration) }}</td>
+                            <td class="px-3 py-2 text-xs text-slate-500">
+                                {{ p.created ? p.created|date('Y-m-d') : '—' }}
+                            </td>
+                            <td class="px-3 py-2 text-xs text-slate-500">
+                                {{ p.changed ? p.changed|date('Y-m-d H:i') : '—' }}
+                            </td>
+                            <td class="px-3 py-2 text-xs">
+                                {% if p.public %}
+                                    <span class="inline-block bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-sm">Public</span>
+                                {% else %}
+                                    <span class="inline-block bg-slate-100 text-slate-600 px-2 py-0.5 rounded-sm">Privé</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
+{% endblock %}

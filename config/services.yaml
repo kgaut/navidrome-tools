@@ -100,6 +100,12 @@ services:
             $dbPath: '%navidrome.db_path%'
             $userName: '%navidrome.user%'
 
+    App\Subsonic\SubsonicClient:
+        arguments:
+            $baseUrl: '%navidrome.url%'
+            $user: '%navidrome.user%'
+            $password: '%navidrome.password%'
+
     App\LastFm\LastFmClient:
         arguments:
             $pageDelaySeconds: '%lastfm.page_delay_seconds%'
