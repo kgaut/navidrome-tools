@@ -1,0 +1,85 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ playlist.name }} — Playlist{% endblock %}
+
+{% macro duration(seconds) %}
+    {%- set s = seconds|default(0) -%}
+    {%- set h = (s / 3600)|round(0, 'floor') -%}
+    {%- set m = ((s % 3600) / 60)|round(0, 'floor') -%}
+    {%- set sec = s % 60 -%}
+    {%- if h > 0 -%}{{ h }}h{{ '%02d'|format(m) }}{%- elseif m > 0 -%}{{ m }}:{{ '%02d'|format(sec) }}{%- else -%}0:{{ '%02d'|format(sec) }}{%- endif -%}
+{% endmacro %}
+
+{% block body %}
+    {% import _self as fmt %}
+
+    <div class="mb-4">
+        <a href="{{ path('app_playlists_index') }}" class="text-sm text-sky-700 hover:underline">← Toutes les playlists</a>
+        <div class="flex items-baseline justify-between mt-1 flex-wrap gap-3">
+            <h1 class="text-2xl font-semibold">{{ playlist.name }}</h1>
+            <div class="text-xs text-slate-500">
+                {% if playlist.public %}
+                    <span class="inline-block bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-sm">Public</span>
+                {% else %}
+                    <span class="inline-block bg-slate-100 text-slate-600 px-2 py-0.5 rounded-sm">Privé</span>
+                {% endif %}
+            </div>
+        </div>
+        {% if playlist.comment %}
+            <p class="text-sm text-slate-600 mt-1">{{ playlist.comment }}</p>
+        {% endif %}
+        <p class="text-xs text-slate-500 mt-2">
+            <span class="font-medium">{{ playlist.songCount }}</span> morceau{{ playlist.songCount > 1 ? 'x' : '' }} ·
+            durée totale <span class="font-medium">{{ fmt.duration(playlist.duration) }}</span> ·
+            owner <span class="font-medium">{{ playlist.owner }}</span>
+            {% if playlist.changed %}
+                · modifiée le {{ playlist.changed|date('Y-m-d H:i') }}
+            {% endif %}
+        </p>
+    </div>
+
+    {% if playlist.tracks is empty %}
+        <div class="bg-slate-50 border border-slate-200 text-slate-700 rounded-sm p-6 text-center text-sm">
+            Cette playlist est vide.
+        </div>
+    {% else %}
+        <div class="bg-white shadow-sm rounded-sm overflow-hidden">
+            <table class="w-full text-sm">
+                <thead class="bg-slate-100 text-xs uppercase text-slate-500">
+                    <tr>
+                        <th class="px-3 py-2 text-right w-12">#</th>
+                        <th class="px-3 py-2 text-left">Titre</th>
+                        <th class="px-3 py-2 text-left">Artiste</th>
+                        <th class="px-3 py-2 text-left">Album</th>
+                        <th class="px-3 py-2 text-right w-16">Année</th>
+                        <th class="px-3 py-2 text-right w-16">Durée</th>
+                        <th class="px-3 py-2 text-right w-16">Plays</th>
+                        <th class="px-3 py-2 text-center w-10" title="Starred">★</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for t in playlist.tracks %}
+                        <tr class="border-t hover:bg-slate-50">
+                            <td class="px-3 py-2 text-right text-xs text-slate-400 tabular-nums">{{ loop.index }}</td>
+                            <td class="px-3 py-2 font-medium">{{ t.title }}</td>
+                            <td class="px-3 py-2 text-slate-700">{{ t.artist }}</td>
+                            <td class="px-3 py-2 text-slate-700">{{ t.album }}</td>
+                            <td class="px-3 py-2 text-right text-xs text-slate-500 tabular-nums">
+                                {{ t.year ?: '—' }}
+                            </td>
+                            <td class="px-3 py-2 text-right text-xs text-slate-600 tabular-nums">
+                                {{ fmt.duration(t.duration) }}
+                            </td>
+                            <td class="px-3 py-2 text-right text-xs text-slate-600 tabular-nums">
+                                {{ t.playCount }}
+                            </td>
+                            <td class="px-3 py-2 text-center text-amber-500">
+                                {{ t.starred ? '★' : '' }}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
+{% endblock %}
