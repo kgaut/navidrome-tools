@@ -2387,7 +2387,9 @@ class NavidromeRepository
      * similar tagging quirk) confuses the cascade.
      *
      * Used by {@see \App\Service\UnmatchedDiagnoser} to surface the
-     * `MATCHER_GAP` category : « track présente, cascade KO ».
+     * `MATCHER_GAP` category, AND by the couple cascade itself (see
+     * {@see findMediaFileByArtistTitle()}) which now folds the
+     * album_artist column into its primary exact lookup.
      */
     public function findMediaFileByArtistOrAlbumArtistAndTitle(string $artist, string $title): ?string
     {
@@ -2397,16 +2399,7 @@ class NavidromeRepository
             return null;
         }
 
-        $id = $this->connection()->fetchOne(
-            'SELECT id FROM media_file
-             WHERE np_normalize(title) = :t
-               AND (np_normalize(artist) = :a OR np_normalize(album_artist) = :a)
-             ORDER BY (np_normalize(artist) = :a) DESC, id ASC
-             LIMIT 1',
-            ['a' => $artistN, 't' => $titleN],
-        );
-
-        return is_string($id) && $id !== '' ? $id : null;
+        return $this->lookupExactArtistOrAlbumArtistTitle($artistN, $titleN);
     }
 
     /**
@@ -2692,7 +2685,10 @@ class NavidromeRepository
             return null;
         }
 
-        $id = $this->lookupExactArtistTitle($artistN, $titleN);
+        // Primary exact step folds the album_artist column in (collabs /
+        // compilations where Last.fm scrobbles the lead artist but the
+        // track row credits a feat. variant). Title stays strict.
+        $id = $this->lookupExactArtistOrAlbumArtistTitle($artistN, $titleN);
         if ($id !== null) {
             return $id;
         }
@@ -2760,6 +2756,36 @@ class NavidromeRepository
                 WHERE np_normalize(artist) = :a
                   AND np_normalize(title) = :t
                 ORDER BY (np_normalize(album_artist) = :a) DESC, id ASC
+                LIMIT 1';
+        $id = $this->connection()->fetchOne($sql, ['a' => $artistNormalized, 't' => $titleNormalized]);
+
+        return is_string($id) && $id !== '' ? $id : null;
+    }
+
+    /**
+     * Like {@see lookupExactArtistTitle()} but the artist may live in
+     * either the `artist` column OR the `album_artist` column. Catches
+     * collabs and compilations where Last.fm scrobbles the lead /
+     * album artist ("Orelsan") while the track row credits a feat.
+     * variant ("Orelsan feat. Skread") but the album is credited to the
+     * lead artist. Title stays strict, so precision is still anchored on
+     * an exact (normalized) title match. Results prefer a hit on the
+     * primary `artist` column when both exist.
+     *
+     * Only used as the PRIMARY exact step — the stripped-form retries
+     * deliberately keep the narrower `artist`-only lookup to avoid
+     * compounding two fuzzy widenings at once.
+     */
+    private function lookupExactArtistOrAlbumArtistTitle(string $artistNormalized, string $titleNormalized): ?string
+    {
+        if ($artistNormalized === '' || $titleNormalized === '') {
+            return null;
+        }
+
+        $sql = 'SELECT id FROM media_file
+                WHERE np_normalize(title) = :t
+                  AND (np_normalize(artist) = :a OR np_normalize(album_artist) = :a)
+                ORDER BY (np_normalize(artist) = :a) DESC, id ASC
                 LIMIT 1';
         $id = $this->connection()->fetchOne($sql, ['a' => $artistNormalized, 't' => $titleNormalized]);
 
