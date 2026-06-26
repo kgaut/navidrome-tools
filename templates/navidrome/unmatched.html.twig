@@ -7,16 +7,27 @@
             <h1 class="text-2xl font-semibold mt-1">Scrobbles non matchés — Navidrome</h1>
             <p class="text-sm text-slate-500">{{ total }} groupe{{ total != 1 ? 's' : '' }} (artiste, titre, album)</p>
         </div>
-        <form method="post" action="{{ path('app_navidrome_rematch') }}" class="flex gap-2 items-center">
-            <input type="hidden" name="_token" value="{{ csrf_token('navidrome_rematch') }}">
-            <label class="flex items-center gap-1 text-xs text-slate-500">
-                <input type="checkbox" name="auto_stop" value="1"> auto-stop
-            </label>
-            <button type="submit"
-                    class="bg-amber-600 hover:bg-amber-700 text-white px-4 py-1.5 rounded-sm text-sm font-medium">
-                ↺ Rematcher tous
-            </button>
-        </form>
+        <div class="flex gap-2 items-center flex-wrap">
+            <form method="post" action="{{ path('app_navidrome_suggest_aliases') }}" class="flex gap-2 items-center"
+                  onsubmit="return confirm('Interroger MusicBrainz pour les artistes ayant ≥3 scrobbles non matchés ? Throttle ~1 req/s, les alias uniques sont appliqués automatiquement.');">
+                <input type="hidden" name="_token" value="{{ csrf_token('navidrome_suggest_aliases') }}">
+                <button type="submit"
+                        class="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-1.5 rounded-sm text-sm font-medium"
+                        title="Interroge MusicBrainz et crée les alias artiste uniques haute-confiance (≥3 scrobbles)">
+                    🎯 Suggérer des alias
+                </button>
+            </form>
+            <form method="post" action="{{ path('app_navidrome_rematch') }}" class="flex gap-2 items-center">
+                <input type="hidden" name="_token" value="{{ csrf_token('navidrome_rematch') }}">
+                <label class="flex items-center gap-1 text-xs text-slate-500">
+                    <input type="checkbox" name="auto_stop" value="1"> auto-stop
+                </label>
+                <button type="submit"
+                        class="bg-amber-600 hover:bg-amber-700 text-white px-4 py-1.5 rounded-sm text-sm font-medium">
+                    ↺ Rematcher tous
+                </button>
+            </form>
+        </div>
     </div>
 
     <form method="get" class="bg-white shadow-sm rounded-sm p-4 mb-4 flex flex-wrap gap-3 items-end">

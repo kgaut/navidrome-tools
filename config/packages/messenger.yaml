@@ -16,3 +16,4 @@ framework:
             'App\Message\SyncNavidromeMessage': async
             'App\Message\SyncStrawberryMessage': async
             'App\Message\RematchMessage': async
+            'App\Message\SuggestAliasesMusicBrainzMessage': async

@@ -204,6 +204,29 @@ class MusicBrainzAliasSuggesterTest extends TestCase
         $this->assertSame(1, $report->noMatch);
     }
 
+    public function testMinPlaysStopsScanningBelowTheFloor(): void
+    {
+        // Rows are ordered by descending plays. With minPlays=3 the second
+        // artist (1 play) is below the floor → the loop breaks and never
+        // queries MB for it, so it's never even counted as considered.
+        $suggester = $this->makeSuggester(
+            mbResponse: [
+                new MusicBrainzArtistCandidate('mbid-beatles', 'The Beatles', 100, ['Beatles, The']),
+            ],
+            unmatched: [
+                ['artist' => 'Beatles, The', 'plays' => 9],
+                ['artist' => 'Long Tail Act', 'plays' => 1],
+            ],
+            libArtists: ['The Beatles'],
+        );
+
+        $report = $suggester->suggest('navidrome', dryRun: false, limit: 0, minPlays: 3);
+
+        // Only the high-volume artist is considered + aliased.
+        $this->assertSame(1, $report->artistsConsidered);
+        $this->assertSame(1, $report->aliasesCreated);
+    }
+
     public function testSourceAlreadyAliasedIsSkipped(): void
     {
         $suggester = $this->makeSuggester(

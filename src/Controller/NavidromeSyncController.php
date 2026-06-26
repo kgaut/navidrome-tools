@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\ScrobbleSync;
 use App\Message\RematchMessage;
+use App\Message\SuggestAliasesMusicBrainzMessage;
 use App\Message\SyncNavidromeMessage;
 use App\Repository\ScrobbleSyncRepository;
 use App\Service\UnmatchedDiagnoser;
@@ -72,6 +73,31 @@ class NavidromeSyncController extends AbstractController
         ));
 
         $this->addFlash('success', 'Rematch Navidrome lancé en arrière-plan.');
+        return $this->redirectToRoute('app_history');
+    }
+
+    #[Route('/navidrome/suggest-aliases', name: 'app_navidrome_suggest_aliases', methods: ['POST'])]
+    public function suggestAliases(Request $request, MessageBusInterface $bus): Response
+    {
+        if (!$this->isCsrfTokenValid('navidrome_suggest_aliases', (string) $request->request->get('_token'))) {
+            throw $this->createAccessDeniedException();
+        }
+
+        // Default floor of 3 unmatched scrobbles per artist: only spend
+        // (rate-limited) MusicBrainz calls on artists that actually move
+        // the unmatched needle, per the issue's ≥3 threshold.
+        $bus->dispatch(new SuggestAliasesMusicBrainzMessage(
+            target: ScrobbleSync::TARGET_NAVIDROME,
+            dryRun: (bool) $request->request->get('dry_run'),
+            limit: max(0, (int) $request->request->get('limit', 0)),
+            minPlays: max(1, (int) $request->request->get('min_plays', 3)),
+        ));
+
+        $this->addFlash(
+            'success',
+            'Suggestion d’alias MusicBrainz lancée en arrière-plan (throttle ~1 req/s). '
+            . 'Les alias uniques haute-confiance sont appliqués automatiquement ; relancez un rematch ensuite.',
+        );
         return $this->redirectToRoute('app_history');
     }
 
