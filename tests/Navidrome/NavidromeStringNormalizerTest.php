@@ -124,6 +124,17 @@ class NavidromeStringNormalizerTest extends TestCase
         $this->assertSame('Lone Artist', NavidromeStringNormalizer::stripLeadArtist('Lone Artist'));
     }
 
+    public function testStripLeadArtistCoversVsAndXSeparators(): void
+    {
+        $this->assertSame('Diplo', NavidromeStringNormalizer::stripLeadArtist('Diplo x M.I.A.'));
+        $this->assertSame('Eminem', NavidromeStringNormalizer::stripLeadArtist('Eminem vs. D12'));
+        $this->assertSame('Blur', NavidromeStringNormalizer::stripLeadArtist('Blur vs Oasis'));
+        // The single-letter `x` separator must not eat names where x is
+        // part of the word, not a delimiter surrounded by spaces.
+        $this->assertSame('Malcolm X', NavidromeStringNormalizer::stripLeadArtist('Malcolm X'));
+        $this->assertSame('Charli XCX', NavidromeStringNormalizer::stripLeadArtist('Charli XCX'));
+    }
+
     public function testTitleHasFeaturingMarkerCoversClosedAndTruncatedForms(): void
     {
         $this->assertTrue(NavidromeStringNormalizer::titleHasFeaturingMarker('Crazy in Love (feat. Jay-Z)'));
