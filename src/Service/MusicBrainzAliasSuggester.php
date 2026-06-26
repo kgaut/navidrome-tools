@@ -71,6 +71,7 @@ class MusicBrainzAliasSuggester
         int $limit,
         ?callable $beforeQuery = null,
         ?callable $confirm = null,
+        int $minPlays = 0,
     ): MusicBrainzAliasReport {
         $report = new MusicBrainzAliasReport();
         $report->dryRun = $dryRun;
@@ -92,6 +93,14 @@ class MusicBrainzAliasSuggester
 
             $source = (string) $row['artist'];
             $plays = (int) $row['plays'];
+
+            // `unmatchedArtistsWithPlays` is ordered by descending plays, so
+            // once we drop below the floor every remaining artist is too —
+            // stop scanning rather than spending MB calls on the long tail.
+            if ($minPlays > 0 && $plays < $minPlays) {
+                break;
+            }
+
             $sourceNorm = NavidromeRepository::normalize($source);
 
             $report->artistsConsidered++;
