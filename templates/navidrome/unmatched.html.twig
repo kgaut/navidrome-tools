@@ -67,6 +67,11 @@
                         {% set d = row.diagnosis %}
                         {% if d.reason == 'artist_unknown' %}
                             <span class="inline-block px-2 py-0.5 rounded-sm bg-rose-100 text-rose-800" title="Aucun artiste comparable dans la bibliothèque Navidrome.">Artiste inconnu</span>
+                        {% elseif d.reason == 'matcher_gap' %}
+                            <span class="inline-block px-2 py-0.5 rounded-sm bg-violet-100 text-violet-800"
+                                  title="Track présente en bibliothèque mais la cascade matcher l'a ratée. Un rematch (cache négatif purgé) devrait la résoudre.">
+                                Présente — cascade KO
+                            </span>
                         {% elseif d.reason == 'artist_near_match' %}
                             <span class="inline-block px-2 py-0.5 rounded-sm bg-amber-100 text-amber-800"
                                   title="Suggestions : {{ d.artist_suggestions|map(s => s.name ~ ' (' ~ s.distance ~ ')')|join(', ') }}">

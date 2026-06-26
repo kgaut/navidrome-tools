@@ -2378,6 +2378,38 @@ class NavidromeRepository
     }
 
     /**
+     * Find one media_file matching `(artist, title)` strictly on `title`
+     * but tolerating the artist living in either the `artist` column or
+     * the `album_artist` column. This is what the matching cascade's
+     * couple step deliberately does NOT do — it sticks to the `artist`
+     * column to keep false-positives down — so a hit here typically
+     * means the user owns the track but a feat-artist asymmetry (or
+     * similar tagging quirk) confuses the cascade.
+     *
+     * Used by {@see \App\Service\UnmatchedDiagnoser} to surface the
+     * `MATCHER_GAP` category : « track présente, cascade KO ».
+     */
+    public function findMediaFileByArtistOrAlbumArtistAndTitle(string $artist, string $title): ?string
+    {
+        $artistN = self::normalize($artist);
+        $titleN = self::normalize($title);
+        if ($artistN === '' || $titleN === '') {
+            return null;
+        }
+
+        $id = $this->connection()->fetchOne(
+            'SELECT id FROM media_file
+             WHERE np_normalize(title) = :t
+               AND (np_normalize(artist) = :a OR np_normalize(album_artist) = :a)
+             ORDER BY (np_normalize(artist) = :a) DESC, id ASC
+             LIMIT 1',
+            ['a' => $artistN, 't' => $titleN],
+        );
+
+        return is_string($id) && $id !== '' ? $id : null;
+    }
+
+    /**
      * Returns up to `$limit` library artist names within Levenshtein
      * distance `$maxDistance` of `$artist` (normalized comparison), ordered
      * by ascending distance. The candidate pool is restricted to artists

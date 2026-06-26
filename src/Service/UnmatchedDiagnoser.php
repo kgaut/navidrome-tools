@@ -23,6 +23,7 @@ class UnmatchedDiagnoser
 {
     public const REASON_ARTIST_UNKNOWN = 'artist_unknown';
     public const REASON_ARTIST_NEAR_MATCH = 'artist_near_match';
+    public const REASON_MATCHER_GAP = 'matcher_gap';
     public const REASON_TITLE_NEAR_MATCH = 'title_near_match';
     public const REASON_TRACK_MISSING = 'track_missing';
     public const REASON_UNKNOWN = 'unknown';
@@ -39,6 +40,7 @@ class UnmatchedDiagnoser
      *     reason: string,
      *     artist_suggestions?: list<array{name: string, distance: int}>,
      *     title_suggestions?: list<array{title: string, distance: int}>,
+     *     target_media_file_id?: string,
      * }
      */
     public function diagnose(string $artist, string $title): array
@@ -60,6 +62,20 @@ class UnmatchedDiagnoser
             }
 
             return ['reason' => self::REASON_ARTIST_UNKNOWN];
+        }
+
+        // Exact title for this artist (artist OR album_artist) BEFORE the
+        // fuzzy-title step. A hit here means the track is actually owned
+        // — the cascade just missed it (typically a stale negative cache
+        // entry, or a tagging asymmetry the cascade is too strict to
+        // bridge). Most actionable category : the user just needs to
+        // rematch (cache now busted) or, worst case, create a direct alias.
+        $mfid = $this->navidrome->findMediaFileByArtistOrAlbumArtistAndTitle($artist, $title);
+        if ($mfid !== null) {
+            return [
+                'reason' => self::REASON_MATCHER_GAP,
+                'target_media_file_id' => $mfid,
+            ];
         }
 
         $titleSuggestions = $this->navidrome->findNearestTitlesForArtist(
