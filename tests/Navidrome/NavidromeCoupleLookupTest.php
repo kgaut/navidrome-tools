@@ -145,6 +145,40 @@ class NavidromeCoupleLookupTest extends TestCase
         );
     }
 
+    public function testInverseFeaturingCleanScrobbleMatchesFeatVariant(): void
+    {
+        // Last.fm scrobbles a clean couple; the library credits a feat.
+        // variant in the artist column. No featuring marker on either
+        // Last.fm field — the inverse asymmetric step must catch it.
+        $repo = $this->seed([
+            ['id' => 'mf-1', 'title' => 'Crazy in Love', 'artist' => 'Beyoncé feat. Jay-Z'],
+        ]);
+
+        $this->assertSame('mf-1', $repo->findMediaFileByArtistTitle('Beyoncé', 'Crazy in Love'));
+    }
+
+    public function testInverseFeaturingDoesNotMatchDifferentTitle(): void
+    {
+        // Title stays strict — a feat. artist prefix is not enough on its own.
+        $repo = $this->seed([
+            ['id' => 'mf-1', 'title' => 'Crazy in Love', 'artist' => 'Beyoncé feat. Jay-Z'],
+        ]);
+
+        $this->assertNull($repo->findMediaFileByArtistTitle('Beyoncé', 'Halo'));
+    }
+
+    public function testLeadArtistSplitOnXSeparatorRequiresAlbumArtist(): void
+    {
+        // "Diplo x M.I.A." scrobble; library track credited to "Diplo"
+        // with album_artist "Diplo" → the conservative lead-split path
+        // (requires album_artist) resolves it.
+        $repo = $this->seed([
+            ['id' => 'mf-1', 'title' => 'Paper Planes', 'artist' => 'Diplo', 'album_artist' => 'Diplo'],
+        ]);
+
+        $this->assertSame('mf-1', $repo->findMediaFileByArtistTitle('Diplo x M.I.A.', 'Paper Planes'));
+    }
+
     /**
      * @param list<array{id: string, title: string, artist: string, album_artist?: string, album?: string}> $tracks
      */

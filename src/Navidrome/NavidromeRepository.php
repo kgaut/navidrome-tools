@@ -2774,10 +2774,24 @@ class NavidromeRepository
             }
         }
 
+        // Inverse asymmetric featuring : Last.fm scrobbles a CLEAN couple
+        // ("Jay-Z" / "Crazy in Love") with NO featuring marker on either
+        // field, but the library credits a feat. variant in the artist
+        // column ("Jay-Z feat. Beyoncé"). The forward case above is gated
+        // on a featuring marker in the Last.fm *title*; this is the mirror
+        // when neither field carries one. Title stays strict (exact), so a
+        // hit is the same song under a longer artist credit.
+        if (!$titleHadFeaturing) {
+            $id = $this->lookupArtistPrefixFeaturingTitle($artistN, $titleN);
+            if ($id !== null) {
+                return $id;
+            }
+        }
+
         // Last-resort: split lead artist on multi-artist separators
-        // ("&", " - ", " and ", " et ", ","). Conservative: only on the
-        // strict (artist, title) couple AND require album_artist to match
-        // the stripped artist for confidence.
+        // ("&", " - ", " and ", " et ", ",", " vs ", " vs. ", " x ").
+        // Conservative: only on the strict (artist, title) couple AND
+        // require album_artist to match the stripped artist for confidence.
         $leadOnlyN = self::normalize(self::stripLeadArtist($artist));
         if ($leadOnlyN !== '' && $leadOnlyN !== $artistN && $leadOnlyN !== $leadArtistN) {
             return $this->lookupExactArtistTitleRequiringAlbumArtist($leadOnlyN, $titleN);

@@ -169,13 +169,17 @@ final class NavidromeStringNormalizer
     }
 
     /**
-     * Drop trailing co-artists separated by `,`, ` - `, `&`, ` and `, ` et `
-     * to keep only the lead artist (« Médine & Rounhaa » → « Médine »).
-     * Last-resort fallback when the regular cascade fails.
+     * Drop trailing co-artists separated by `,`, ` - `, `&`, ` and `, ` et `,
+     * ` vs `, ` vs. `, ` x ` to keep only the lead artist
+     * (« Médine & Rounhaa » → « Médine », « Diplo x M.I.A. » → « Diplo »).
+     * The ` vs `/` x ` separators cover EDM / hip-hop collab credits.
+     * Surrounding whitespace is required on the word separators so a name
+     * like « Malcolm X » or « Charli XCX » is never split. Last-resort
+     * fallback when the regular cascade fails.
      */
     public static function stripLeadArtist(string $artist): string
     {
-        if (preg_match('/^(.*?)(?:\s*,\s*|\s+-\s+|\s*&\s*|\s+(?:and|et)\s+)/iu', $artist, $m)) {
+        if (preg_match('/^(.*?)(?:\s*,\s*|\s+-\s+|\s*&\s*|\s+(?:and|et|vs\.?|x)\s+)/iu', $artist, $m)) {
             $lead = trim($m[1]);
             if ($lead !== '' && $lead !== $artist) {
                 return $lead;
