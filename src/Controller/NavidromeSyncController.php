@@ -6,6 +6,7 @@ use App\Entity\ScrobbleSync;
 use App\Message\RematchMessage;
 use App\Message\SyncNavidromeMessage;
 use App\Repository\ScrobbleSyncRepository;
+use App\Service\UnmatchedDiagnoser;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -75,8 +76,11 @@ class NavidromeSyncController extends AbstractController
     }
 
     #[Route('/navidrome/unmatched', name: 'app_navidrome_unmatched', methods: ['GET'])]
-    public function unmatched(Request $request, ScrobbleSyncRepository $syncRepo): Response
-    {
+    public function unmatched(
+        Request $request,
+        ScrobbleSyncRepository $syncRepo,
+        UnmatchedDiagnoser $diagnoser,
+    ): Response {
         $page = max(1, (int) $request->query->get('page', 1));
         $perPage = 50;
         $filterArtist = trim((string) $request->query->get('artist', ''));
@@ -89,6 +93,17 @@ class NavidromeSyncController extends AbstractController
             filterArtist: $filterArtist !== '' ? $filterArtist : null,
             filterTitle: $filterTitle !== '' ? $filterTitle : null,
         );
+        // Per-row diagnosis is scoped to the current page (worst case 50
+        // groups → a handful of cheap SQLite probes each). Cached in
+        // {@see UnmatchedDiagnoser} would be premature: a user paginating
+        // hits each row at most once per visit.
+        foreach ($rows as &$row) {
+            $row['diagnosis'] = $diagnoser->diagnose(
+                (string) ($row['artist'] ?? ''),
+                (string) ($row['title'] ?? ''),
+            );
+        }
+        unset($row);
         $total = $syncRepo->countUnmatchedForTarget(ScrobbleSync::TARGET_NAVIDROME);
 
         return $this->render('navidrome/unmatched.html.twig', [

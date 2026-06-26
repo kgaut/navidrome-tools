@@ -50,6 +50,7 @@
                     <th class="px-3 py-2 text-left">Artiste</th>
                     <th class="px-3 py-2 text-left">Titre</th>
                     <th class="px-3 py-2 text-left">Album</th>
+                    <th class="px-3 py-2 text-left">Diagnostic</th>
                     <th class="px-3 py-2 text-right">Scrobbles</th>
                     <th class="px-3 py-2 text-right">Dernier joué</th>
                     <th class="px-3 py-2 text-right">Actions</th>
@@ -62,6 +63,26 @@
                     <td class="px-3 py-1.5">{{ row.artist }}</td>
                     <td class="px-3 py-1.5">{{ row.title }}</td>
                     <td class="px-3 py-1.5 text-slate-400 text-xs">{{ row.album ?? '—' }}</td>
+                    <td class="px-3 py-1.5 text-xs">
+                        {% set d = row.diagnosis %}
+                        {% if d.reason == 'artist_unknown' %}
+                            <span class="inline-block px-2 py-0.5 rounded-sm bg-rose-100 text-rose-800" title="Aucun artiste comparable dans la bibliothèque Navidrome.">Artiste inconnu</span>
+                        {% elseif d.reason == 'artist_near_match' %}
+                            <span class="inline-block px-2 py-0.5 rounded-sm bg-amber-100 text-amber-800"
+                                  title="Suggestions : {{ d.artist_suggestions|map(s => s.name ~ ' (' ~ s.distance ~ ')')|join(', ') }}">
+                                Artiste ≈ {{ d.artist_suggestions[0].name }}
+                            </span>
+                        {% elseif d.reason == 'title_near_match' %}
+                            <span class="inline-block px-2 py-0.5 rounded-sm bg-sky-100 text-sky-800"
+                                  title="Suggestions : {{ d.title_suggestions|map(s => s.title ~ ' (' ~ s.distance ~ ')')|join(', ') }}">
+                                Titre ≈ {{ d.title_suggestions[0].title }}
+                            </span>
+                        {% elseif d.reason == 'track_missing' %}
+                            <span class="inline-block px-2 py-0.5 rounded-sm bg-slate-100 text-slate-700" title="L'artiste existe mais ce titre est introuvable dans la bibliothèque.">Track absente</span>
+                        {% else %}
+                            <span class="inline-block px-2 py-0.5 rounded-sm bg-slate-100 text-slate-500">—</span>
+                        {% endif %}
+                    </td>
                     <td class="px-3 py-1.5 text-right font-mono">{{ row.count }}</td>
                     <td class="px-3 py-1.5 text-right text-xs text-slate-500">{{ row.last_played_at|date('d/m/Y') }}</td>
                     <td class="px-3 py-1.5 text-right whitespace-nowrap">

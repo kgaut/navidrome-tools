@@ -2352,6 +2352,143 @@ class NavidromeRepository
     }
 
     /**
+     * True when at least one media_file row has the given artist (matched
+     * on either `artist` or `album_artist`, normalized). Cheaper than
+     * {@see findArtistIdByName()} when the caller only needs a boolean —
+     * skips the `artist` table probe and stops at the first row found.
+     *
+     * Used by the unmatched diagnoser to distinguish "artist absent from
+     * library" from "artist present but track/album missing".
+     */
+    public function hasArtistInLibrary(string $artist): bool
+    {
+        $artistN = self::normalize($artist);
+        if ($artistN === '') {
+            return false;
+        }
+
+        $row = $this->connection()->fetchOne(
+            'SELECT 1 FROM media_file
+             WHERE np_normalize(artist) = :a OR np_normalize(album_artist) = :a
+             LIMIT 1',
+            ['a' => $artistN],
+        );
+
+        return $row !== false;
+    }
+
+    /**
+     * Returns up to `$limit` library artist names within Levenshtein
+     * distance `$maxDistance` of `$artist` (normalized comparison), ordered
+     * by ascending distance. The candidate pool is restricted to artists
+     * sharing the first character of the normalized query — same pruning
+     * trick as {@see findMediaFileFuzzy()} to keep the scan bounded.
+     *
+     * Used by the unmatched diagnoser to suggest probable artist aliases.
+     *
+     * @return list<array{name: string, distance: int}>
+     */
+    public function findNearestArtistNames(string $artist, int $maxDistance, int $limit = 3): array
+    {
+        if ($maxDistance <= 0 || $limit <= 0) {
+            return [];
+        }
+
+        $artistN = self::normalize($artist);
+        if ($artistN === '' || strlen($artistN) > 255) {
+            return [];
+        }
+
+        $prefix = mb_substr($artistN, 0, 1);
+        if ($prefix === '') {
+            return [];
+        }
+
+        $rows = $this->connection()->fetchAllAssociative(
+            "SELECT DISTINCT artist FROM media_file
+             WHERE artist != '' AND substr(np_normalize(artist), 1, 1) = :p",
+            ['p' => $prefix],
+        );
+
+        $seen = [];
+        $matches = [];
+        foreach ($rows as $row) {
+            $name = (string) ($row['artist'] ?? '');
+            if ($name === '' || isset($seen[$name])) {
+                continue;
+            }
+            $seen[$name] = true;
+
+            $candN = self::normalize($name);
+            if ($candN === '' || $candN === $artistN || strlen($candN) > 255) {
+                continue;
+            }
+
+            $score = levenshtein($candN, $artistN);
+            if ($score > $maxDistance) {
+                continue;
+            }
+            $matches[] = ['name' => $name, 'distance' => $score];
+        }
+
+        usort($matches, static fn (array $a, array $b) => $a['distance'] <=> $b['distance']);
+
+        return array_slice($matches, 0, $limit);
+    }
+
+    /**
+     * Returns up to `$limit` titles for `$artist` whose normalized form
+     * is within Levenshtein distance `$maxDistance` of `$title`, ordered
+     * by ascending distance. Distinct on the raw title (multiple albums
+     * share the same track title — we only want one suggestion per name).
+     *
+     * Used by the unmatched diagnoser to flag scrobbles whose title likely
+     * differs by a typo / re-release marker from a track the user owns.
+     *
+     * @return list<array{title: string, distance: int}>
+     */
+    public function findNearestTitlesForArtist(string $artist, string $title, int $maxDistance, int $limit = 3): array
+    {
+        if ($maxDistance <= 0 || $limit <= 0) {
+            return [];
+        }
+
+        $artistN = self::normalize($artist);
+        $titleN = self::normalize($title);
+        if ($artistN === '' || $titleN === '' || strlen($titleN) > 255) {
+            return [];
+        }
+
+        $rows = $this->connection()->fetchAllAssociative(
+            "SELECT DISTINCT title FROM media_file
+             WHERE title != ''
+               AND (np_normalize(artist) = :a OR np_normalize(album_artist) = :a)",
+            ['a' => $artistN],
+        );
+
+        $matches = [];
+        foreach ($rows as $row) {
+            $name = (string) ($row['title'] ?? '');
+            if ($name === '') {
+                continue;
+            }
+            $candN = self::normalize($name);
+            if ($candN === '' || $candN === $titleN || strlen($candN) > 255) {
+                continue;
+            }
+            $score = levenshtein($candN, $titleN);
+            if ($score > $maxDistance) {
+                continue;
+            }
+            $matches[] = ['title' => $name, 'distance' => $score];
+        }
+
+        usort($matches, static fn (array $a, array $b) => $a['distance'] <=> $b['distance']);
+
+        return array_slice($matches, 0, $limit);
+    }
+
+    /**
      * Bulk map: normalized artist name → that artist's media_files as
      * `['id' => …, 'title_norm' => …]`. One full table scan with the
      * `np_normalize` UDF applied server-side, grouped in PHP. Lets a caller
