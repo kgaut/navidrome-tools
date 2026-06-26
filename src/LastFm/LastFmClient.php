@@ -207,6 +207,23 @@ class LastFmClient
         return $this->lookup('track.getInfo', $apiKey, $artist, $title, 'track');
     }
 
+    /**
+     * Lighter sibling of {@see trackGetInfo()} : `track.getCorrection`
+     * returns only Last.fm's autocorrected spelling of the (artist,
+     * title) pair — no listener stats, no wiki, no tags — so it's the
+     * cheaper first probe when all the matcher needs is the canonical
+     * spelling. The MBID is usually absent from this endpoint, so callers
+     * that need it must still fall back to {@see trackGetInfo()}.
+     *
+     * Response shape: `corrections.correction.track.{name, artist.name,
+     * mbid?}`. The `lookup()` helper walks a dotted body key, so we point
+     * it at that nested node.
+     */
+    public function trackGetCorrection(string $apiKey, string $artist, string $title): LastFmTrackInfo
+    {
+        return $this->lookup('track.getCorrection', $apiKey, $artist, $title, 'corrections.correction.track');
+    }
+
     /** @return list<array{name: string, mbid: ?string, match: float, url: string}> */
     public function artistGetSimilar(string $apiKey, string $artist, int $limit = 10): array
     {

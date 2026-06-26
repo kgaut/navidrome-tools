@@ -24,9 +24,11 @@ use App\Repository\LastFmMatchCacheRepository;
  *   4. MBID                     → STATUS_MATCHED
  *   5. Triplet (artist, title, album) when album is non-empty → STATUS_MATCHED
  *   6. Couple (artist, title) with strip-feat / strip-version-markers / etc.
- *   7. Last.fm `track.getInfo`  → recovers a missing MBID or applies the
- *                                 « autocorrect » spelling (re-runs steps
- *                                 4-6 against the corrected names)
+ *   7. Last.fm correction      → `track.getCorrection` first (light:
+ *                                 autocorrect spelling only), then
+ *                                 `track.getInfo` as a fallback for the
+ *                                 MBID path. Re-runs steps 4-6 against the
+ *                                 corrected names.
  *   8. Fuzzy Levenshtein (opt-in via fuzzyMaxDistance > 0)
  *   → STATUS_UNMATCHED if everything fails. Both successes and failures are
  *   memoized in the cache so subsequent runs short-circuit at step 3.
@@ -130,21 +132,40 @@ class ScrobbleMatcher
             return $result;
         }
 
-        // Last.fm `track.getInfo` step : recovers scrobbles with no MBID
-        // (or a wrong text spelling) by asking Last.fm for the canonical
-        // form. Wrapped in an opt-in guard so test harnesses that don't
-        // configure the client don't make HTTP calls. Negative results
-        // get cached (in the caller) so we don't re-query on every
+        // Last.fm correction step : recovers scrobbles with a wrong text
+        // spelling (or a missing/wrong MBID) by asking Last.fm for the
+        // canonical form. Wrapped in an opt-in guard so test harnesses
+        // that don't configure the client don't make HTTP calls. Negative
+        // results get cached (in the caller) so we don't re-query on every
         // rematch run — that's what makes #17 scale beyond the rate limit.
         if ($this->lastFmClient !== null && $this->lastFmApiKey !== null && $this->lastFmApiKey !== '') {
+            // (1) Light first probe : `track.getCorrection` returns ONLY
+            //     the autocorrected spelling — a much smaller payload than
+            //     `track.getInfo`. Most step-7 recoveries are spelling
+            //     corrections, so this resolves the common case without
+            //     ever paying for the heavy call.
+            $correction = $this->lastFmClient->trackGetCorrection(
+                $this->lastFmApiKey,
+                $scrobble->artist,
+                $scrobble->title,
+            );
+            if ($correction->hasCorrection()) {
+                $result = $this->runCorrectedDbCascade($scrobble, $correction);
+                if ($result[0] !== null) {
+                    return $result;
+                }
+            }
+
+            // (2) Fallback : `track.getInfo` for the MBID path that
+            //     getCorrection cannot provide (Last.fm sometimes maps the
+            //     scrobble's recording-MBID to the canonical track-MBID),
+            //     plus its own correction in the rarer case getInfo's
+            //     autocorrect succeeds where getCorrection returned nothing.
             $info = $this->lastFmClient->trackGetInfo(
                 $this->lastFmApiKey,
                 $scrobble->artist,
                 $scrobble->title,
             );
-            // (a) Try the official MBID Last.fm gave us, even when the
-            //     scrobble already had one — Last.fm sometimes maps the
-            //     scrobble's recording-MBID to the canonical track-MBID.
             if ($info->hasMbid()) {
                 /** @var string $mbid (hasMbid() guards against null/empty) */
                 $mbid = $info->mbid;
@@ -153,22 +174,10 @@ class ScrobbleMatcher
                     return [$mfid, LastFmMatchCacheEntry::STRATEGY_LASTFM_CORRECTION];
                 }
             }
-            // (b) Try the autocorrected spelling. We re-run the local
-            //     DB cascade — but NOT the getInfo step itself, which
-            //     would loop. The artist alias was already applied
-            //     upstream, so the corrected names go straight to MBID
-            //     / triplet / couple lookups.
             if ($info->hasCorrection()) {
-                $corrected = new LastFmScrobble(
-                    artist: $info->correctedArtist ?? $scrobble->artist,
-                    title: $info->correctedTitle ?? $scrobble->title,
-                    album: $scrobble->album,
-                    mbid: $info->mbid ?? $scrobble->mbid,
-                    playedAt: $scrobble->playedAt,
-                );
-                $result = $this->runDbCascade($corrected);
+                $result = $this->runCorrectedDbCascade($scrobble, $info);
                 if ($result[0] !== null) {
-                    return [$result[0], LastFmMatchCacheEntry::STRATEGY_LASTFM_CORRECTION];
+                    return $result;
                 }
             }
         }
@@ -189,8 +198,36 @@ class ScrobbleMatcher
     }
 
     /**
+     * Re-run the local DB cascade against a scrobble rewritten with
+     * Last.fm's corrected spelling (and MBID when present). We re-run the
+     * DB-only sub-cascade — never the correction step itself, which would
+     * loop. The artist alias was already applied upstream, so the
+     * corrected names go straight to MBID / triplet / couple lookups. On a
+     * hit the strategy is tagged as a Last.fm correction regardless of
+     * which sub-step matched.
+     *
+     * @return array{0: ?string, 1: ?string}
+     */
+    private function runCorrectedDbCascade(LastFmScrobble $scrobble, LastFmTrackInfo $info): array
+    {
+        $corrected = new LastFmScrobble(
+            artist: $info->correctedArtist ?? $scrobble->artist,
+            title: $info->correctedTitle ?? $scrobble->title,
+            album: $scrobble->album,
+            mbid: $info->mbid ?? $scrobble->mbid,
+            playedAt: $scrobble->playedAt,
+        );
+        $result = $this->runDbCascade($corrected);
+        if ($result[0] !== null) {
+            return [$result[0], LastFmMatchCacheEntry::STRATEGY_LASTFM_CORRECTION];
+        }
+
+        return [null, null];
+    }
+
+    /**
      * Local-only sub-cascade : MBID → triplet → couple. Used both by the
-     * primary cascade and by the `track.getInfo` step (re-running on the
+     * primary cascade and by the correction step (re-running on the
      * autocorrected scrobble).
      *
      * @return array{0: ?string, 1: ?string}
