@@ -58,6 +58,10 @@ services:
             $username: '%app.auth_user%'
             $plainPassword: '%app.auth_password%'
 
+    App\Doctrine\SqliteBusyTimeoutMiddleware:
+        tags:
+            - { name: doctrine.middleware }
+
     App\Service\BackupService:
         arguments:
             $backupDir: '%app.backup_dir%'
