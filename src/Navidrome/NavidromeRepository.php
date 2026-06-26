@@ -2670,11 +2670,47 @@ class NavidromeRepository
             ['a' => $artistN, 't' => $titleN, 'al' => $albumN],
         );
 
-        if (count($rows) !== 1) {
+        if (count($rows) === 1) {
+            return (string) $rows[0]['id'];
+        }
+        if (count($rows) > 1) {
+            // Exact album is ambiguous (same track title on two rows with
+            // the identical normalized album) — bail rather than guess.
             return null;
         }
 
-        return (string) $rows[0]['id'];
+        // No exact album hit. Edition/reissue decorations diverge between
+        // Last.fm and the library more often than not ("Random Access
+        // Memories" vs "Random Access Memories (Deluxe Edition)"). Retry
+        // on the (artist, title) rows, comparing albums with the
+        // decoration suffix stripped on BOTH sides. Disambiguation is
+        // kept strict: only return when exactly one row survives.
+        $strippedAlbumN = self::normalize(self::stripAlbumDecorations($album));
+        if ($strippedAlbumN === '') {
+            return null;
+        }
+
+        $candidates = $this->connection()->fetchAllAssociative(
+            'SELECT id, album FROM media_file
+             WHERE np_normalize(artist) = :a AND np_normalize(title) = :t',
+            ['a' => $artistN, 't' => $titleN],
+        );
+
+        $matchId = null;
+        foreach ($candidates as $row) {
+            $candAlbumN = self::normalize(self::stripAlbumDecorations((string) ($row['album'] ?? '')));
+            if ($candAlbumN !== $strippedAlbumN) {
+                continue;
+            }
+            if ($matchId !== null) {
+                // More than one album collapses to the same stripped form
+                // — ambiguous, don't guess.
+                return null;
+            }
+            $matchId = (string) $row['id'];
+        }
+
+        return $matchId;
     }
 
     public function findMediaFileByArtistTitle(string $artist, string $title): ?string
@@ -2891,6 +2927,11 @@ class NavidromeRepository
     private static function stripVersionMarkers(string $title): string
     {
         return NavidromeStringNormalizer::stripVersionMarkers($title);
+    }
+
+    private static function stripAlbumDecorations(string $album): string
+    {
+        return NavidromeStringNormalizer::stripAlbumDecorations($album);
     }
 
     /**

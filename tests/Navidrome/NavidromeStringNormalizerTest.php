@@ -66,6 +66,25 @@ class NavidromeStringNormalizerTest extends TestCase
         $this->assertSame('Around the World (Daft Punk Remix)', NavidromeStringNormalizer::stripVersionMarkers('Around the World (Daft Punk Remix)'));
     }
 
+    public function testStripAlbumDecorationsRemovesEditionSuffixes(): void
+    {
+        $this->assertSame('Random Access Memories', NavidromeStringNormalizer::stripAlbumDecorations('Random Access Memories (Deluxe Edition)'));
+        $this->assertSame('Discovery', NavidromeStringNormalizer::stripAlbumDecorations('Discovery [Remastered]'));
+        $this->assertSame('Nevermind', NavidromeStringNormalizer::stripAlbumDecorations('Nevermind (Bonus Track Edition)'));
+        $this->assertSame('OK Computer', NavidromeStringNormalizer::stripAlbumDecorations('OK Computer - Anniversary Edition'));
+        $this->assertSame('The Eminem Show', NavidromeStringNormalizer::stripAlbumDecorations('The Eminem Show (Explicit)'));
+        $this->assertSame('Thriller', NavidromeStringNormalizer::stripAlbumDecorations('Thriller (2001 Remaster)'));
+    }
+
+    public function testStripAlbumDecorationsLeavesBareNamesIntact(): void
+    {
+        // No delimited suffix → unchanged. A legit album literally named
+        // "Deluxe" must survive.
+        $this->assertSame('Deluxe', NavidromeStringNormalizer::stripAlbumDecorations('Deluxe'));
+        $this->assertSame('Special', NavidromeStringNormalizer::stripAlbumDecorations('Special'));
+        $this->assertSame('Remastered Hits', NavidromeStringNormalizer::stripAlbumDecorations('Remastered Hits'));
+    }
+
     public function testStripFeaturingFromTitleOnlyDelimited(): void
     {
         $this->assertSame('Crazy in Love', NavidromeStringNormalizer::stripFeaturingFromTitle('Crazy in Love (feat. Jay-Z)'));
