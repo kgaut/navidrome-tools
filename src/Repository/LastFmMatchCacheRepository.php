@@ -172,6 +172,76 @@ class LastFmMatchCacheRepository extends ServiceEntityRepository
     }
 
     /**
+     * Drop every NEGATIVE cache row whose `(source_artist_norm,
+     * source_title_norm)` couple is referenced by at least one
+     * `scrobble_sync` row currently in `unmatched` status for `$target`.
+     *
+     * Called by {@see \App\MessageHandler\RematchMessageHandler} before
+     * resetting the sync rows to `pending`: without this, the matcher's
+     * cache lookup short-circuits on the same negative entry that
+     * produced the unmatched in the first place, and the rematch is a
+     * no-op for every couple whose negative cache is still within
+     * `$cacheTtlDays`. Positives are kept — those are still valid
+     * resolutions; the user can wipe them via {@see purgeAll()} if
+     * they really mean it.
+     *
+     * Returns the number of rows deleted.
+     */
+    public function purgeUnmatchedNegatives(string $target): int
+    {
+        // Two-step rather than a JOINed DELETE: the `np_normalize` UDF
+        // is registered on the Navidrome connection, not the app ORM
+        // connection that hosts both tables. We fetch raw couples,
+        // normalize in PHP (same canonical form as the cache columns),
+        // then delete in a single statement.
+        $couples = $this->connection()->fetchAllAssociative(
+            'SELECT DISTINCT s.artist, s.title
+             FROM scrobble_sync ss
+             INNER JOIN scrobbles s ON s.id = ss.scrobble_id
+             WHERE ss.target = :target AND ss.status = :status',
+            ['target' => $target, 'status' => 'unmatched'],
+        );
+
+        $tuples = [];
+        $params = [];
+        $i = 0;
+        foreach ($couples as $row) {
+            $a = NavidromeRepository::normalize((string) ($row['artist'] ?? ''));
+            $t = NavidromeRepository::normalize((string) ($row['title'] ?? ''));
+            if ($a === '' || $t === '') {
+                continue;
+            }
+            $tuples[] = sprintf('(:a%d, :t%d)', $i, $i);
+            $params['a' . $i] = $a;
+            $params['t' . $i] = $t;
+            $i++;
+        }
+        if ($tuples === []) {
+            return 0;
+        }
+
+        // SQLite caps prepared-statement params at 999. Chunk the IN list
+        // so we never trip that limit on libraries with thousands of
+        // distinct unmatched couples.
+        $deleted = 0;
+        foreach (array_chunk($tuples, 400, preserve_keys: true) as $chunk) {
+            $chunkParams = [];
+            foreach (array_keys($chunk) as $idx) {
+                $chunkParams['a' . $idx] = $params['a' . $idx];
+                $chunkParams['t' . $idx] = $params['t' . $idx];
+            }
+            $deleted += (int) $this->connection()->executeStatement(
+                'DELETE FROM lastfm_match_cache
+                 WHERE target_media_file_id IS NULL
+                   AND (source_artist_norm, source_title_norm) IN (' . implode(',', $chunk) . ')',
+                $chunkParams,
+            );
+        }
+
+        return $deleted;
+    }
+
+    /**
      * Drop every negative cache row older than `$ttlDays`. Called once at
      * the start of each import / rematch run. `$ttlDays <= 0` means
      * « never expire », so it's a no-op.
