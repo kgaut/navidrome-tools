@@ -81,8 +81,72 @@ class NavidromeCoupleLookupTest extends TestCase
         $this->assertNull($repo->findMediaFileByArtistTitle('Orelsan', 'Totally Other Title'));
     }
 
+    public function testTripletExactAlbumMatches(): void
+    {
+        $repo = $this->seed([
+            ['id' => 'mf-1', 'title' => 'Get Lucky', 'artist' => 'Daft Punk', 'album' => 'Random Access Memories'],
+        ]);
+
+        $this->assertSame(
+            'mf-1',
+            $repo->findMediaFileByArtistTitleAlbum('Daft Punk', 'Get Lucky', 'Random Access Memories'),
+        );
+    }
+
+    public function testTripletFallsBackOnStrippedAlbumDecoration(): void
+    {
+        // Library album carries "(Deluxe Edition)"; Last.fm scrobble has
+        // the plain name. Exact triplet misses, stripped retry catches it.
+        $repo = $this->seed([
+            ['id' => 'mf-1', 'title' => 'Get Lucky', 'artist' => 'Daft Punk', 'album' => 'Random Access Memories (Deluxe Edition)'],
+        ]);
+
+        $this->assertSame(
+            'mf-1',
+            $repo->findMediaFileByArtistTitleAlbum('Daft Punk', 'Get Lucky', 'Random Access Memories'),
+        );
+    }
+
+    public function testTripletStrippedFallbackIsSymmetric(): void
+    {
+        // Reverse: library plain, scrobble decorated.
+        $repo = $this->seed([
+            ['id' => 'mf-1', 'title' => 'Get Lucky', 'artist' => 'Daft Punk', 'album' => 'Random Access Memories'],
+        ]);
+
+        $this->assertSame(
+            'mf-1',
+            $repo->findMediaFileByArtistTitleAlbum('Daft Punk', 'Get Lucky', 'Random Access Memories [Remastered]'),
+        );
+    }
+
+    public function testTripletStrippedFallbackBailsWhenAmbiguous(): void
+    {
+        // Two different albums collapse to the same stripped form — don't
+        // guess which pressing the user played.
+        $repo = $this->seed([
+            ['id' => 'mf-a', 'title' => 'Get Lucky', 'artist' => 'Daft Punk', 'album' => 'Random Access Memories (Deluxe Edition)'],
+            ['id' => 'mf-b', 'title' => 'Get Lucky', 'artist' => 'Daft Punk', 'album' => 'Random Access Memories [Remastered]'],
+        ]);
+
+        $this->assertNull(
+            $repo->findMediaFileByArtistTitleAlbum('Daft Punk', 'Get Lucky', 'Random Access Memories'),
+        );
+    }
+
+    public function testTripletNoMatchWhenAlbumGenuinelyDiffers(): void
+    {
+        $repo = $this->seed([
+            ['id' => 'mf-1', 'title' => 'Get Lucky', 'artist' => 'Daft Punk', 'album' => 'Random Access Memories'],
+        ]);
+
+        $this->assertNull(
+            $repo->findMediaFileByArtistTitleAlbum('Daft Punk', 'Get Lucky', 'Discovery'),
+        );
+    }
+
     /**
-     * @param list<array{id: string, title: string, artist: string, album_artist?: string}> $tracks
+     * @param list<array{id: string, title: string, artist: string, album_artist?: string, album?: string}> $tracks
      */
     private function seed(array $tracks): NavidromeRepository
     {
@@ -95,6 +159,7 @@ class NavidromeCoupleLookupTest extends TestCase
                 $t['id'],
                 $t['title'],
                 $t['artist'],
+                album: $t['album'] ?? 'Album',
                 albumArtist: $t['album_artist'] ?? null,
             );
         }

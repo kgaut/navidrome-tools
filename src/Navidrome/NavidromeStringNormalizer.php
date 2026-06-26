@@ -95,6 +95,40 @@ final class NavidromeStringNormalizer
     }
 
     /**
+     * Drop a trailing edition / reissue decoration from a raw album title
+     * — « (Deluxe Edition) », « [Remastered] », « (Bonus Track Edition) »,
+     * « (2011 Remaster) », « - Anniversary Edition », « (Explicit) »…
+     * Symmetric to {@see stripVersionMarkers()} but tuned for album-level
+     * suffixes, so a scrobble album « Random Access Memories » still
+     * matches a library album « Random Access Memories (Deluxe Edition) »
+     * after both are stripped. Only the *delimited* trailing form is
+     * touched — a bare « Deluxe » album name is left intact.
+     */
+    public static function stripAlbumDecorations(string $album): string
+    {
+        $markers = '(?:'
+            . 'deluxe(?:\s+(?:edition|version))?'
+            . '|expanded(?:\s+edition)?'
+            . '|special(?:\s+edition)?'
+            . '|anniversary(?:\s+edition)?'
+            . '|collector\'?s?(?:\s+edition)?'
+            . '|limited(?:\s+edition)?'
+            . '|bonus(?:\s+track)?s?(?:\s+(?:edition|version))?'
+            . '|remastered \d{4}|remaster \d{4}|\d{4} remastered|\d{4} remaster'
+            . '|remastered|remaster'
+            . '|reissue'
+            . '|explicit(?:\s+(?:version|content))?'
+            . '|clean(?:\s+version)?'
+            . ')';
+
+        $stripped = preg_replace('/\s*\(' . $markers . '\)\s*$/iu', '', $album) ?? $album;
+        $stripped = preg_replace('/\s*\[' . $markers . '\]\s*$/iu', '', $stripped) ?? $stripped;
+        $stripped = preg_replace('/\s+[\-\x{2013}\x{2014}]\s+' . $markers . '\s*$/iu', '', $stripped) ?? $stripped;
+
+        return trim($stripped);
+    }
+
+    /**
      * Drop a parenthesized/bracketed featuring-with suffix from a title.
      * Only the delimited form — never « X feat. Y » without parens, too
      * risky on real titles.
