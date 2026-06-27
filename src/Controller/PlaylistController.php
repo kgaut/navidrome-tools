@@ -2,9 +2,13 @@
 
 namespace App\Controller;
 
+use App\Message\GeneratePlaylistsMessage;
+use App\Playlist\PlaylistGenerator;
 use App\Subsonic\SubsonicClient;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Attribute\Route;
 
 /**
@@ -21,7 +25,7 @@ use Symfony\Component\Routing\Attribute\Route;
 class PlaylistController extends AbstractController
 {
     #[Route('/playlists', name: 'app_playlists_index', methods: ['GET'])]
-    public function index(SubsonicClient $subsonic): Response
+    public function index(SubsonicClient $subsonic, PlaylistGenerator $generator): Response
     {
         try {
             $playlists = $subsonic->getPlaylists();
@@ -42,7 +46,34 @@ class PlaylistController extends AbstractController
         return $this->render('playlist_management/index.html.twig', [
             'playlists' => $playlists,
             'error' => $error,
+            'definitions' => $generator->listDefinitions(),
         ]);
+    }
+
+    #[Route('/playlists/generate', name: 'app_playlists_generate', methods: ['POST'])]
+    public function generateAll(Request $request, MessageBusInterface $bus): Response
+    {
+        if (!$this->isCsrfTokenValid('playlists_generate', (string) $request->request->get('_token'))) {
+            throw $this->createAccessDeniedException();
+        }
+
+        $bus->dispatch(new GeneratePlaylistsMessage(null));
+        $this->addFlash('success', 'Génération de toutes les playlists activées lancée en arrière-plan.');
+
+        return $this->redirectToRoute('app_history');
+    }
+
+    #[Route('/playlists/generate/{slug}', name: 'app_playlists_generate_one', methods: ['POST'])]
+    public function generateOne(string $slug, Request $request, MessageBusInterface $bus): Response
+    {
+        if (!$this->isCsrfTokenValid('playlists_generate_one', (string) $request->request->get('_token'))) {
+            throw $this->createAccessDeniedException();
+        }
+
+        $bus->dispatch(new GeneratePlaylistsMessage($slug));
+        $this->addFlash('success', sprintf('Génération de la playlist « %s » lancée en arrière-plan.', $slug));
+
+        return $this->redirectToRoute('app_history');
     }
 
     #[Route('/playlists/{id}', name: 'app_playlists_show', methods: ['GET'])]

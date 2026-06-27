@@ -23,6 +23,11 @@ parameters:
     lidarr.url: '%env(default::LIDARR_URL)%'
     help.compose_service: '%env(default::HELP_COMPOSE_SERVICE)%'
     strawberry.db_path: '%env(resolve:STRAWBERRY_DB_PATH)%'
+    playlists.enabled: '%env(PLAYLISTS_ENABLED)%'
+    playlists.default_limit: '%env(int:PLAYLIST_DEFAULT_LIMIT)%'
+    playlist.retour.max_years: '%env(int:PLAYLIST_RETOUR_MAX_YEARS)%'
+    playlist.retour.window_days: '%env(int:PLAYLIST_RETOUR_WINDOW_DAYS)%'
+    playlist.retour.per_year: '%env(int:PLAYLIST_RETOUR_PER_YEAR)%'
     notify.drivers: '%env(NOTIFY_DRIVERS)%'
     notify.on: '%env(NOTIFY_ON)%'
     notify.gotify.url: '%env(NOTIFY_GOTIFY_URL)%'
@@ -45,6 +50,8 @@ services:
     _instanceof:
         App\Notifier\NotifierDriverInterface:
             tags: ['app.notifier_driver']
+        App\Playlist\PlaylistDefinitionInterface:
+            tags: ['app.playlist_definition']
 
     App\:
         resource: '../src/'
@@ -61,6 +68,18 @@ services:
     App\Doctrine\SqliteBusyTimeoutMiddleware:
         tags:
             - { name: doctrine.middleware }
+
+    App\Playlist\PlaylistGenerator:
+        arguments:
+            $definitions: !tagged_iterator app.playlist_definition
+            $enabledCsv: '%playlists.enabled%'
+            $defaultLimit: '%playlists.default_limit%'
+
+    App\Playlist\Definition\RetourEnArriereDefinition:
+        arguments:
+            $maxYears: '%playlist.retour.max_years%'
+            $windowDays: '%playlist.retour.window_days%'
+            $perYear: '%playlist.retour.per_year%'
 
     App\Service\BackupService:
         arguments:
