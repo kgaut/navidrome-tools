@@ -197,6 +197,103 @@ class SubsonicClientTest extends TestCase
         $this->assertStringNotContainsString('//rest/', $captured);
     }
 
+    public function testCreatePlaylistSendsRepeatedSongIdParamsAndReturnsId(): void
+    {
+        $captured = null;
+        $http = new MockHttpClient(function (string $method, string $url) use (&$captured): MockResponse {
+            $captured = $url;
+
+            return new MockResponse($this->envelope([
+                'status' => 'ok',
+                'playlist' => ['id' => 'pl-new', 'name' => 'Retour en arrière'],
+            ]));
+        });
+        $client = new SubsonicClient($http, 'http://nd:4533', 'admin', 'pwd');
+
+        $id = $client->createPlaylist('Retour en arrière', ['mf-1', 'mf-2', 'mf-3']);
+
+        $this->assertSame('pl-new', $id);
+        $this->assertIsString($captured);
+        // Repeated key form — NOT songId[0]=… which Subsonic rejects.
+        $this->assertStringContainsString('songId=mf-1', $captured);
+        $this->assertStringContainsString('songId=mf-2', $captured);
+        $this->assertStringContainsString('songId=mf-3', $captured);
+        $this->assertStringNotContainsString('songId%5B', $captured); // no songId[0]
+        $this->assertStringContainsString('createPlaylist.view?', $captured);
+    }
+
+    public function testCreatePlaylistRejectsEmptyName(): void
+    {
+        $http = new MockHttpClient([]);
+        $client = new SubsonicClient($http, 'http://nd:4533', 'admin', 'pwd');
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('non-empty name');
+        $client->createPlaylist('', ['mf-1']);
+    }
+
+    public function testReplacePlaylistSendsPlaylistIdAndSongs(): void
+    {
+        $captured = null;
+        $http = new MockHttpClient(function (string $method, string $url) use (&$captured): MockResponse {
+            $captured = $url;
+
+            return new MockResponse($this->envelope(['status' => 'ok']));
+        });
+        $client = new SubsonicClient($http, 'http://nd:4533', 'admin', 'pwd');
+
+        $client->replacePlaylist('pl-1', 'Retour en arrière', ['mf-9', 'mf-8']);
+
+        $this->assertIsString($captured);
+        $this->assertStringContainsString('playlistId=pl-1', $captured);
+        $this->assertStringContainsString('songId=mf-9', $captured);
+        $this->assertStringContainsString('songId=mf-8', $captured);
+    }
+
+    public function testReplacePlaylistRejectsEmptyId(): void
+    {
+        $http = new MockHttpClient([]);
+        $client = new SubsonicClient($http, 'http://nd:4533', 'admin', 'pwd');
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('non-empty playlistId');
+        $client->replacePlaylist('', 'X', ['mf-1']);
+    }
+
+    public function testFindPlaylistByNameMatchesNameAndOwner(): void
+    {
+        $payload = $this->envelope([
+            'status' => 'ok',
+            'playlists' => [
+                'playlist' => [
+                    ['id' => 'pl-1', 'name' => 'Retour en arrière', 'owner' => 'someone-else'],
+                    ['id' => 'pl-2', 'name' => 'Retour en arrière', 'owner' => 'admin'],
+                    ['id' => 'pl-3', 'name' => 'Autre', 'owner' => 'admin'],
+                ],
+            ],
+        ]);
+        $http = new MockHttpClient([new MockResponse($payload)]);
+        $client = new SubsonicClient($http, 'http://nd:4533', 'admin', 'pwd');
+
+        $found = $client->findPlaylistByName('Retour en arrière');
+
+        $this->assertNotNull($found);
+        // Must pick the one owned by the configured user, not the homonym.
+        $this->assertSame('pl-2', $found['id']);
+    }
+
+    public function testFindPlaylistByNameReturnsNullWhenAbsent(): void
+    {
+        $payload = $this->envelope([
+            'status' => 'ok',
+            'playlists' => ['playlist' => [['id' => 'pl-1', 'name' => 'Autre', 'owner' => 'admin']]],
+        ]);
+        $http = new MockHttpClient([new MockResponse($payload)]);
+        $client = new SubsonicClient($http, 'http://nd:4533', 'admin', 'pwd');
+
+        $this->assertNull($client->findPlaylistByName('Inexistante'));
+    }
+
     /**
      * @param array<string, mixed> $response
      */
