@@ -10,12 +10,13 @@ use App\Playlist\PlaylistDefinitionInterface;
  * « Retour en arrière » — a nostalgia playlist. For each of the past N
  * years (bounded by the first scrobble), it takes the top `perYear`
  * tracks from the `windowDays`-day window leading up to today's
- * anniversary that year, unions them (dedup, first-seen order) and
- * shuffles the result.
+ * anniversary that year, and unions them in chronological order from the
+ * most recent year to the oldest (dedup, first-seen order — no shuffle).
  *
- * E.g. on 27 June with the defaults: top 10 of [12–27 June 2025], top 10
- * of [12–27 June 2024], … — « what was I listening to around now, in
- * years past ».
+ * E.g. on 27 June with the defaults: top 10 of [28 May–27 June 2025],
+ * then top 10 of [28 May–27 June 2024], … — « what was I listening to
+ * around now, walking back through the years ». Within a year's window
+ * the order stays « top of that period » (play count desc).
  *
  * Pure read against {@see NavidromeRepository::topTracksInWindow()} (which
  * already returns media_file ids) — no Subsonic dependency here.
@@ -25,7 +26,7 @@ final class RetourEnArriereDefinition implements PlaylistDefinitionInterface
     public function __construct(
         private readonly NavidromeRepository $navidrome,
         private readonly int $maxYears = 10,
-        private readonly int $windowDays = 15,
+        private readonly int $windowDays = 30,
         private readonly int $perYear = 10,
     ) {
     }
@@ -43,7 +44,7 @@ final class RetourEnArriereDefinition implements PlaylistDefinitionInterface
     public function getDescription(): string
     {
         return sprintf(
-            'Top %d des %d derniers jours, pour chaque année écoulée depuis le premier scrobble, en aléatoire.',
+            'Top %d des %d derniers jours, pour chaque année écoulée depuis le premier scrobble, du plus récent au plus ancien.',
             $this->perYear,
             $this->windowDays,
         );
@@ -78,8 +79,8 @@ final class RetourEnArriereDefinition implements PlaylistDefinitionInterface
             }
         }
 
-        shuffle($ids);
-
+        // No shuffle: the loop already walks years most-recent → oldest, so
+        // the list flows « du plus récent au plus ancien » as-is.
         return $ids;
     }
 }
