@@ -17,3 +17,4 @@ framework:
             'App\Message\SyncStrawberryMessage': async
             'App\Message\RematchMessage': async
             'App\Message\SuggestAliasesMusicBrainzMessage': async
+            'App\Message\GeneratePlaylistsMessage': async

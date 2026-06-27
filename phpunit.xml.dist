@@ -42,6 +42,11 @@
         <env name="NOTIFY_DISCORD_WEBHOOK_URL" value=""/>
         <env name="NOTIFY_PUSHOVER_TOKEN" value=""/>
         <env name="NOTIFY_PUSHOVER_USER" value=""/>
+        <env name="PLAYLISTS_ENABLED" value=""/>
+        <env name="PLAYLIST_DEFAULT_LIMIT" value="50"/>
+        <env name="PLAYLIST_RETOUR_MAX_YEARS" value="10"/>
+        <env name="PLAYLIST_RETOUR_WINDOW_DAYS" value="15"/>
+        <env name="PLAYLIST_RETOUR_PER_YEAR" value="10"/>
     </php>
 
     <testsuites>
