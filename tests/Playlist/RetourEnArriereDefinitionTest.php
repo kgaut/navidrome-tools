@@ -64,23 +64,24 @@ class RetourEnArriereDefinitionTest extends TestCase
         $this->assertSame(['2024-06-12', '2024-06-27', 10], $captured[1]);
     }
 
-    public function testUnionDedupesAcrossYearsPreservingFirstSeen(): void
+    public function testUnionDedupesAcrossYearsMostRecentFirst(): void
     {
         $navidrome = $this->createMock(NavidromeRepository::class);
         $navidrome->method('getScrobbleBounds')->willReturn([
             'first' => new \DateTimeImmutable('2010-01-01'),
             'last' => new \DateTimeImmutable('2026-06-27'),
         ]);
-        // Year 1 → [a, b]; Year 2 → [b, c]. Union must be {a, b, c}.
+        // Year 1 (most recent) → [a, b]; Year 2 (older) → [b, c].
         $navidrome->method('topTracksInWindow')->willReturnOnConsecutiveCalls(
             ['a', 'b'],
             ['b', 'c'],
         );
 
-        $def = new RetourEnArriereDefinition($navidrome, maxYears: 2, windowDays: 15, perYear: 10);
+        $def = new RetourEnArriereDefinition($navidrome, maxYears: 2, windowDays: 30, perYear: 10);
         $ids = $def->build($this->ctx('2026-06-27'));
 
-        sort($ids); // build() shuffles — assert the set, not the order.
+        // No shuffle: deterministic, most-recent year first, dedup keeps the
+        // earliest (most recent) occurrence of a repeated track.
         $this->assertSame(['a', 'b', 'c'], $ids);
     }
 
