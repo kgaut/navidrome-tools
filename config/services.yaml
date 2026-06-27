@@ -28,6 +28,8 @@ parameters:
     playlist.retour.max_years: '%env(int:PLAYLIST_RETOUR_MAX_YEARS)%'
     playlist.retour.window_days: '%env(int:PLAYLIST_RETOUR_WINDOW_DAYS)%'
     playlist.retour.per_year: '%env(int:PLAYLIST_RETOUR_PER_YEAR)%'
+    playlist.pepites.min_plays: '%env(int:PLAYLIST_PEPITES_MIN_PLAYS)%'
+    playlist.pepites.silence_months: '%env(int:PLAYLIST_PEPITES_SILENCE_MONTHS)%'
     notify.drivers: '%env(NOTIFY_DRIVERS)%'
     notify.on: '%env(NOTIFY_ON)%'
     notify.gotify.url: '%env(NOTIFY_GOTIFY_URL)%'
@@ -80,6 +82,24 @@ services:
             $maxYears: '%playlist.retour.max_years%'
             $windowDays: '%playlist.retour.window_days%'
             $perYear: '%playlist.retour.per_year%'
+
+    App\Playlist\Definition\TopDuMoisDefinition:
+        arguments:
+            $limit: '%playlists.default_limit%'
+
+    App\Playlist\Definition\TopAllTimeDefinition:
+        arguments:
+            $limit: '%playlists.default_limit%'
+
+    App\Playlist\Definition\CoupsDeCoeurDefinition:
+        arguments:
+            $limit: '%playlists.default_limit%'
+
+    App\Playlist\Definition\PepitesOublieesDefinition:
+        arguments:
+            $minPlays: '%playlist.pepites.min_plays%'
+            $silenceMonths: '%playlist.pepites.silence_months%'
+            $limit: '%playlists.default_limit%'
 
     App\Service\BackupService:
         arguments:
