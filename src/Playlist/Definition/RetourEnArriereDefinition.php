@@ -25,7 +25,7 @@ final class RetourEnArriereDefinition implements PlaylistDefinitionInterface
 {
     public function __construct(
         private readonly NavidromeRepository $navidrome,
-        private readonly int $maxYears = 10,
+        private readonly int $maxYears = 25,
         private readonly int $windowDays = 30,
         private readonly int $perYear = 10,
     ) {
