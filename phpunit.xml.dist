@@ -51,6 +51,8 @@
         <env name="PLAYLIST_PEPITES_SILENCE_MONTHS" value="12"/>
         <env name="PLAYLIST_BIRTHDAY_MONTH" value="5"/>
         <env name="PLAYLIST_BIRTHDAY_DAY" value="22"/>
+        <env name="PLAYLIST_HITPARADE_WEEKS" value="52"/>
+        <env name="PLAYLIST_HITPARADE_PER_WEEK" value="3"/>
     </php>
 
     <testsuites>

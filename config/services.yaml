@@ -13,6 +13,8 @@ parameters:
     env(PLAYLIST_PEPITES_SILENCE_MONTHS): '12'
     env(PLAYLIST_BIRTHDAY_MONTH): '5'
     env(PLAYLIST_BIRTHDAY_DAY): '22'
+    env(PLAYLIST_HITPARADE_WEEKS): '52'
+    env(PLAYLIST_HITPARADE_PER_WEEK): '3'
 
     app.auth_user: '%env(APP_AUTH_USER)%'
     app.auth_password: '%env(APP_AUTH_PASSWORD)%'
@@ -47,6 +49,8 @@ parameters:
     playlist.pepites.silence_months: '%env(int:PLAYLIST_PEPITES_SILENCE_MONTHS)%'
     playlist.birthday.month: '%env(int:PLAYLIST_BIRTHDAY_MONTH)%'
     playlist.birthday.day: '%env(int:PLAYLIST_BIRTHDAY_DAY)%'
+    playlist.hitparade.weeks: '%env(int:PLAYLIST_HITPARADE_WEEKS)%'
+    playlist.hitparade.per_week: '%env(int:PLAYLIST_HITPARADE_PER_WEEK)%'
     notify.drivers: '%env(NOTIFY_DRIVERS)%'
     notify.on: '%env(NOTIFY_ON)%'
     notify.gotify.url: '%env(NOTIFY_GOTIFY_URL)%'
@@ -121,6 +125,11 @@ services:
             $month: '%playlist.birthday.month%'
             $day: '%playlist.birthday.day%'
             $limit: '%playlists.default_limit%'
+
+    App\Playlist\Definition\HitParadeDefinition:
+        arguments:
+            $weeks: '%playlist.hitparade.weeks%'
+            $perWeek: '%playlist.hitparade.per_week%'
 
     App\Playlist\Definition\PepitesOublieesDefinition:
         arguments:
