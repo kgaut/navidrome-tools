@@ -41,21 +41,6 @@ services:
       # - /path/to/strawberry/data:/data/strawberry
       # Optionnel : socket Docker pour start/stop Navidrome depuis l'UI
       # - /var/run/docker.sock:/var/run/docker.sock
-    # Planification (cron) de la (re)génération des playlists via Ofelia.
-    # Le service navidrome-tools-scheduler (plus bas) lit ces labels et
-    # exécute la commande DANS ce conteneur. Cadence au format cron Ofelia :
-    # 6 champs « sec min heure jour mois jour-semaine ».
-    # Rappel : --all ne régénère que les slugs listés dans PLAYLISTS_ENABLED
-    # (sinon no-op). Pour cibler une playlist, utilisez --slug=<slug>.
-    labels:
-      ofelia.enabled: "true"
-      # Toutes les playlists activées, chaque jour à 4h00.
-      ofelia.job-exec.playlists-all.schedule: "0 0 4 * * *"
-      ofelia.job-exec.playlists-all.command: "php bin/console app:playlists:generate --all"
-      # Exemple d'un job dédié à une playlist avec sa propre cadence
-      # (décommentez/adaptez si vous ne voulez pas tout régénérer en bloc) :
-      # ofelia.job-exec.top-du-mois.schedule: "0 0 5 1 * *"   # le 1er du mois à 5h00
-      # ofelia.job-exec.top-du-mois.command: "php bin/console app:playlists:generate --slug=top-du-mois"
 
   # Worker Symfony Messenger — consomme la file des jobs lancés depuis l'UI
   # (fetch Last.fm, sync Navidrome, sync Strawberry, rematch…).
@@ -92,23 +77,6 @@ services:
       - /path/to/navidrome/data/navidrome.db:/data/navidrome.db  # RW pour le sync
       # - /path/to/strawberry/data:/data/strawberry
       # - /var/run/docker.sock:/var/run/docker.sock
-
-  # Planificateur Ofelia — déclenche les jobs définis par les labels
-  # ofelia.* du conteneur navidrome-tools-web (ici : régénération des
-  # playlists). Léger, configuré entièrement par labels, aucune image
-  # maison à maintenir.
-  #
-  # Sécurité : le socket Docker donne un accès équivalent root sur l'hôte.
-  # Il est monté en lecture seule (:ro) ; pour durcir, intercalez un proxy
-  # type tecnativa/docker-socket-proxy plutôt que de l'exposer directement.
-  navidrome-tools-scheduler:
-    image: mcuadros/ofelia:latest
-    restart: unless-stopped
-    depends_on:
-      - navidrome-tools-web
-    command: daemon --docker
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
 
 volumes:
   navidrome-tools-data:
