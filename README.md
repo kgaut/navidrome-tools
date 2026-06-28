@@ -138,26 +138,6 @@ Points d'attention (prod) :
 - `scripts/navidrome-sync.sh.example` : wrapper bash pour orchestrer un cycle
   complet en crontab.
 
-### Planification de la (re)génération des playlists
-
-`docker-compose.example.yml` embarque un service **Ofelia** (`navidrome-tools-scheduler`)
-qui planifie la régénération des playlists sans crontab hôte. Les jobs sont
-déclarés en **labels** sur le conteneur `navidrome-tools-web` :
-
-```yaml
-labels:
-  ofelia.enabled: "true"
-  ofelia.job-exec.playlists-all.schedule: "0 0 4 * * *"   # cron 6 champs : tous les jours à 4h
-  ofelia.job-exec.playlists-all.command: "php bin/console app:playlists:generate --all"
-```
-
-- `--all` ne régénère que les slugs listés dans `PLAYLISTS_ENABLED` ; pour une
-  seule playlist, un job avec `--slug=<slug>` (et sa propre cadence).
-- Le scheduler lit le **socket Docker** (monté en `:ro`) — accès large à l'hôte ;
-  pour durcir, passer par un proxy type `tecnativa/docker-socket-proxy`.
-- Sans planificateur, la commande reste lançable à la main ou via un crontab
-  hôte : `docker compose exec -T navidrome-tools-web php bin/console app:playlists:generate --all`.
-
 ---
 
 ## Configuration
