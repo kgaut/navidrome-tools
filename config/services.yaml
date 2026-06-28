@@ -22,6 +22,10 @@ parameters:
     env(LIDARR_METADATA_PROFILE_ID): '0'
     env(LIDARR_MONITOR): 'all'
     env(LIDARR_SEARCH_ON_ADD): 'true'
+    # Artist recommendations (optional; inactive until LASTFM_API_KEY etc. set).
+    env(RECO_SEED_LIMIT): '25'
+    env(RECO_PER_SEED): '20'
+    env(RECO_LIMIT): '50'
 
     app.auth_user: '%env(APP_AUTH_USER)%'
     app.auth_password: '%env(APP_AUTH_PASSWORD)%'
@@ -64,6 +68,9 @@ parameters:
     playlist.hitparade.weeks: '%env(int:PLAYLIST_HITPARADE_WEEKS)%'
     playlist.hitparade.per_week: '%env(int:PLAYLIST_HITPARADE_PER_WEEK)%'
     playlist.discoveries.days: '%env(int:PLAYLIST_DISCOVERIES_DAYS)%'
+    reco.seed_limit: '%env(int:RECO_SEED_LIMIT)%'
+    reco.per_seed: '%env(int:RECO_PER_SEED)%'
+    reco.limit: '%env(int:RECO_LIMIT)%'
     notify.drivers: '%env(NOTIFY_DRIVERS)%'
     notify.on: '%env(NOTIFY_ON)%'
     notify.gotify.url: '%env(NOTIFY_GOTIFY_URL)%'
@@ -88,6 +95,8 @@ services:
             tags: ['app.notifier_driver']
         App\Playlist\PlaylistDefinitionInterface:
             tags: ['app.playlist_definition']
+        App\Recommendation\RecommendationSourceInterface:
+            tags: ['app.recommendation_source']
 
     App\:
         resource: '../src/'
@@ -265,6 +274,17 @@ services:
             $metadataProfileId: '%lidarr.metadata_profile_id%'
             $monitor: '%lidarr.monitor%'
             $searchOnAdd: '%lidarr.search_on_add%'
+
+    App\Recommendation\LastFmRecommendationSource:
+        arguments:
+            $apiKey: '%lastfm.api_key%'
+            $perSeedLimit: '%reco.per_seed%'
+
+    App\Recommendation\RecommendationEngine:
+        arguments:
+            $sources: !tagged_iterator app.recommendation_source
+            $seedLimit: '%reco.seed_limit%'
+            $defaultLimit: '%reco.limit%'
 
     App\Twig\ScrobbleLinksExtension:
         arguments:

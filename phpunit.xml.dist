@@ -59,6 +59,9 @@
         <env name="PLAYLIST_HITPARADE_WEEKS" value="52"/>
         <env name="PLAYLIST_HITPARADE_PER_WEEK" value="3"/>
         <env name="PLAYLIST_DISCOVERIES_DAYS" value="30"/>
+        <env name="RECO_SEED_LIMIT" value="25"/>
+        <env name="RECO_PER_SEED" value="20"/>
+        <env name="RECO_LIMIT" value="50"/>
     </php>
 
     <testsuites>
