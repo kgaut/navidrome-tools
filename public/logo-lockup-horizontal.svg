@@ -1,0 +1,11 @@
+<svg width="600" height="160" viewBox="0 0 600 160" xmlns="http://www.w3.org/2000/svg" role="img">
+  <title>navidrome-tools — logo horizontal</title>
+  <g transform="translate(20,20) scale(0.46875)">
+    <circle cx="128" cy="128" r="104" fill="#15243A"/>
+    <rect x="73" y="110" width="20" height="58" rx="10" fill="#35C9D6"/>
+    <rect x="103" y="76" width="20" height="92" rx="10" fill="#54D6B0"/>
+    <rect x="133" y="100" width="20" height="68" rx="10" fill="#35C9D6"/>
+    <rect x="163" y="68" width="20" height="100" rx="10" fill="#54D6B0"/>
+  </g>
+  <text x="165" y="97" font-family="system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="46" font-weight="500"><tspan fill="#15243A">navidrome</tspan><tspan fill="#F2A93C">-tools</tspan></text>
+</svg>

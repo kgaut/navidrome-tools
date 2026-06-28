@@ -3,16 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+    <link rel="icon" href="/favicon-16.png" sizes="16x16" type="image/png">
+    <link rel="alternate icon" href="/favicon.ico" sizes="any">
+    <link rel="apple-touch-icon" href="/apple-touch-icon-180.png">
+    <meta name="theme-color" content="#15243A">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}{% endblock %} — Navidrome Tools{% if app_version is defined and app_version != 'dev' %} {{ app_version }}{% endif %}</title>
+    <title>{% block title %}{% endblock %} — navidrome-tools{% if app_version is defined and app_version != 'dev' %} {{ app_version }}{% endif %}</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 </head>
 <body class="bg-slate-100 text-slate-900 min-h-screen flex flex-col">
 
 {% if app.user %}
-<header class="bg-slate-800 text-slate-100">
+<header class="bg-[#15243A] text-slate-100">
     <div class="max-w-6xl mx-auto px-4 py-2 flex items-center gap-4">
-        <a href="{{ path('app_dashboard') }}" class="font-semibold hover:text-white whitespace-nowrap">Navidrome Tools</a>
+        <a href="{{ path('app_dashboard') }}" class="flex items-center gap-2 font-semibold whitespace-nowrap">
+            <img src="/logo-mark.svg" alt="" width="28" height="28" class="w-7 h-7 shrink-0">
+            <span class="text-white">navidrome<span class="text-[#F2A93C]">-tools</span></span>
+        </a>
 
         {% include '_navbar.html.twig' with { variant: 'desktop' } only %}
 

@@ -1,0 +1,8 @@
+<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" role="img">
+  <title>navidrome-tools</title>
+  <circle cx="128" cy="128" r="104" fill="#15243A"/>
+  <rect x="73" y="110" width="20" height="58" rx="10" fill="#35C9D6"/>
+  <rect x="103" y="76" width="20" height="92" rx="10" fill="#54D6B0"/>
+  <rect x="133" y="100" width="20" height="68" rx="10" fill="#35C9D6"/>
+  <rect x="163" y="68" width="20" height="100" rx="10" fill="#54D6B0"/>
+</svg>

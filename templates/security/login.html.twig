@@ -2,7 +2,10 @@
 {% block title %}Connexion{% endblock %}
 {% block body %}
 <div class="max-w-sm mx-auto mt-16">
-    <h1 class="text-2xl font-semibold mb-6 text-center">Navidrome Tools</h1>
+    <div class="flex flex-col items-center mb-6">
+        <img src="/logo-mark.svg" alt="" width="64" height="64" class="w-16 h-16 mb-3">
+        <h1 class="text-2xl font-semibold text-[#15243A]">navidrome<span class="text-[#F2A93C]">-tools</span></h1>
+    </div>
     {% if error %}
         <div class="mb-4 p-3 rounded-sm bg-rose-50 border border-rose-300 text-rose-800 text-sm">
             {{ error.messageKey|trans(error.messageData, 'security') }}
@@ -20,7 +23,7 @@
         </div>
         <input type="hidden" name="_csrf_token" value="{{ csrf_token('authenticate') }}">
         <button type="submit"
-                class="w-full bg-slate-800 hover:bg-slate-900 text-white py-2 rounded-sm text-sm font-medium">
+                class="w-full bg-[#15243A] hover:bg-[#1e3354] text-white py-2 rounded-sm text-sm font-medium">
             Se connecter
         </button>
     </form>
