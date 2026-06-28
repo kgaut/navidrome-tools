@@ -21,13 +21,14 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  *   app:playlists:generate --slug=retour-en-arriere [--dry-run]
  *   app:playlists:generate --all [--dry-run]
  *
- * `--slug` generates exactly one definition; `--all` generates every
- * defined playlist. `--dry-run` resolves and prints the track list without
+ * `--slug` generates exactly one definition (regardless of its flag);
+ * `--all` generates every ENABLED playlist (per-slug flag toggled from the
+ * /playlists page). `--dry-run` resolves and prints the track list without
  * writing anything to Navidrome.
  */
 #[AsCommand(
     name: 'app:playlists:generate',
-    description: 'Generate algorithmic playlists in Navidrome (one via --slug, or all via --all).',
+    description: 'Generate algorithmic playlists in Navidrome (one via --slug, or all enabled via --all).',
 )]
 class GeneratePlaylistsCommand extends Command
 {
@@ -43,7 +44,7 @@ class GeneratePlaylistsCommand extends Command
     {
         $this
             ->addOption('slug', null, InputOption::VALUE_REQUIRED, 'Generate only this playlist definition.')
-            ->addOption('all', null, InputOption::VALUE_NONE, 'Generate every defined playlist.')
+            ->addOption('all', null, InputOption::VALUE_NONE, 'Generate every enabled playlist.')
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Resolve and print tracks without writing to Navidrome.')
             ->addOption('list', null, InputOption::VALUE_NONE, 'List available playlist definitions and exit.');
     }
@@ -95,9 +96,9 @@ class GeneratePlaylistsCommand extends Command
     {
         $rows = [];
         foreach ($this->generator->listDefinitions() as $d) {
-            $rows[] = [$d['slug'], $d['name'], $d['description']];
+            $rows[] = [$d['slug'], $d['name'], $d['enabled'] ? '✓' : '—', $d['description']];
         }
-        $io->table(['slug', 'nom', 'description'], $rows);
+        $io->table(['slug', 'nom', 'activé', 'description'], $rows);
 
         return Command::SUCCESS;
     }
@@ -108,7 +109,7 @@ class GeneratePlaylistsCommand extends Command
     private function printResults(SymfonyStyle $io, array $results, bool $dryRun): void
     {
         if ($results === []) {
-            $io->warning('Aucune playlist définie.');
+            $io->warning('Aucune playlist activée (cochez-en sur la page /playlists).');
             return;
         }
 

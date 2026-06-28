@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use App\Message\GeneratePlaylistsMessage;
+use App\Playlist\PlaylistEnablement;
 use App\Playlist\PlaylistGenerator;
 use App\Subsonic\SubsonicClient;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -74,6 +75,27 @@ class PlaylistController extends AbstractController
         $this->addFlash('success', sprintf('Génération de la playlist « %s » lancée en arrière-plan.', $slug));
 
         return $this->redirectToRoute('app_history');
+    }
+
+    #[Route('/playlists/{slug}/toggle', name: 'app_playlists_toggle', methods: ['POST'])]
+    public function toggle(
+        string $slug,
+        Request $request,
+        PlaylistGenerator $generator,
+        PlaylistEnablement $enablement,
+    ): Response {
+        if (!$this->isCsrfTokenValid('playlists_toggle', (string) $request->request->get('_token'))) {
+            throw $this->createAccessDeniedException();
+        }
+        $known = array_column($generator->listDefinitions(), 'slug');
+        if (!in_array($slug, $known, true)) {
+            throw $this->createNotFoundException(sprintf('Unknown playlist "%s".', $slug));
+        }
+
+        $enablement->setEnabled($slug, $request->request->getBoolean('enabled'));
+
+        // 204: the checkbox toggles via fetch() and stays put — no reload.
+        return new Response(status: Response::HTTP_NO_CONTENT);
     }
 
     #[Route('/playlists/{id}', name: 'app_playlists_show', methods: ['GET'])]

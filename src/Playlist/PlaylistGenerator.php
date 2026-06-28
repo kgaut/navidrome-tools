@@ -12,9 +12,9 @@ use Psr\Log\NullLogger;
  * them to Navidrome via Subsonic. Mirrors {@see \App\Notifier\Notifier}
  * (tagged iterator + best-effort per-item isolation).
  *
- * `generate(null)` regenerates EVERY defined playlist; `generate($slug)`
- * just that one. (There is no enable/disable list — « generate all » means
- * all.)
+ * `generate(null)` regenerates every ENABLED playlist (per-slug flag in
+ * the DB, see {@see PlaylistEnablement}); `generate($slug)` regenerates
+ * that one regardless of its flag (explicit intent).
  *
  * Idempotent write: a playlist of the same name owned by the configured
  * user is overwritten in place; otherwise a new one is created.
@@ -30,6 +30,7 @@ class PlaylistGenerator
     public function __construct(
         iterable $definitions,
         private readonly SubsonicClient $subsonic,
+        private readonly PlaylistEnablement $enablement,
         private readonly int $defaultLimit = 50,
         private readonly LoggerInterface $logger = new NullLogger(),
     ) {
@@ -37,7 +38,7 @@ class PlaylistGenerator
     }
 
     /**
-     * @return list<array{slug: string, name: string, description: string}>
+     * @return list<array{slug: string, name: string, description: string, enabled: bool}>
      */
     public function listDefinitions(): array
     {
@@ -47,6 +48,7 @@ class PlaylistGenerator
                 'slug' => $def->getSlug(),
                 'name' => $def->getName(),
                 'description' => $def->getDescription(),
+                'enabled' => $this->enablement->isEnabled($def->getSlug()),
             ];
         }
 
@@ -56,8 +58,8 @@ class PlaylistGenerator
     /**
      * Generate playlists and (unless dry-run) write them to Navidrome.
      *
-     * @param ?string $slug   null → every defined playlist ; a slug → that
-     *                        one definition.
+     * @param ?string $slug   null → every ENABLED playlist ; a slug → that
+     *                        one definition (regardless of its flag).
      *
      * @return list<PlaylistRunResult>
      *
@@ -144,7 +146,10 @@ class PlaylistGenerator
     private function resolveTargets(?string $slug): array
     {
         if ($slug === null) {
-            return $this->definitions;
+            return array_values(array_filter(
+                $this->definitions,
+                fn (PlaylistDefinitionInterface $d): bool => $this->enablement->isEnabled($d->getSlug()),
+            ));
         }
 
         foreach ($this->definitions as $def) {
