@@ -40,7 +40,7 @@
                       onsubmit="return confirm('(Re)générer toutes les playlists ?');">
                     <input type="hidden" name="_token" value="{{ csrf_token('playlists_generate') }}">
                     <button type="submit"
-                            class="bg-sky-700 hover:bg-sky-800 text-white px-4 py-1.5 rounded-sm text-sm font-medium">
+                            class="bg-[#F2A93C] hover:bg-[#e6982f] text-[#15243A] px-4 py-1.5 rounded-sm text-sm font-medium">
                         ↻ Tout (re)générer
                     </button>
                 </form>
@@ -58,7 +58,7 @@
                                 <form method="post" action="{{ path('app_playlists_generate_one', { slug: d.slug }) }}">
                                     <input type="hidden" name="_token" value="{{ csrf_token('playlists_generate_one') }}">
                                     <button type="submit"
-                                            class="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1 rounded-sm text-xs font-medium">
+                                            class="bg-[#F2A93C] hover:bg-[#e6982f] text-[#15243A] px-3 py-1 rounded-sm text-xs font-medium">
                                         ↻ Régénérer
                                     </button>
                                 </form>
