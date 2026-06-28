@@ -11,6 +11,8 @@ parameters:
     env(PLAYLIST_RETOUR_PER_YEAR): '10'
     env(PLAYLIST_PEPITES_MIN_PLAYS): '5'
     env(PLAYLIST_PEPITES_SILENCE_MONTHS): '12'
+    env(PLAYLIST_BIRTHDAY_MONTH): '5'
+    env(PLAYLIST_BIRTHDAY_DAY): '22'
 
     app.auth_user: '%env(APP_AUTH_USER)%'
     app.auth_password: '%env(APP_AUTH_PASSWORD)%'
@@ -43,6 +45,8 @@ parameters:
     playlist.retour.per_year: '%env(int:PLAYLIST_RETOUR_PER_YEAR)%'
     playlist.pepites.min_plays: '%env(int:PLAYLIST_PEPITES_MIN_PLAYS)%'
     playlist.pepites.silence_months: '%env(int:PLAYLIST_PEPITES_SILENCE_MONTHS)%'
+    playlist.birthday.month: '%env(int:PLAYLIST_BIRTHDAY_MONTH)%'
+    playlist.birthday.day: '%env(int:PLAYLIST_BIRTHDAY_DAY)%'
     notify.drivers: '%env(NOTIFY_DRIVERS)%'
     notify.on: '%env(NOTIFY_ON)%'
     notify.gotify.url: '%env(NOTIFY_GOTIFY_URL)%'
@@ -110,6 +114,12 @@ services:
 
     App\Playlist\Definition\KickstartDefinition:
         arguments:
+            $limit: '%playlists.default_limit%'
+
+    App\Playlist\Definition\HappyBirthdayDefinition:
+        arguments:
+            $month: '%playlist.birthday.month%'
+            $day: '%playlist.birthday.day%'
             $limit: '%playlists.default_limit%'
 
     App\Playlist\Definition\PepitesOublieesDefinition:

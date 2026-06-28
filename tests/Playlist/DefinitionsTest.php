@@ -4,6 +4,7 @@ namespace App\Tests\Playlist;
 
 use App\Navidrome\NavidromeRepository;
 use App\Playlist\Definition\CoupsDeCoeurDefinition;
+use App\Playlist\Definition\HappyBirthdayDefinition;
 use App\Playlist\Definition\KickstartDefinition;
 use App\Playlist\Definition\PepitesOublieesDefinition;
 use App\Playlist\Definition\TopAllTimeDefinition;
@@ -91,6 +92,20 @@ class DefinitionsTest extends TestCase
         $this->assertSame(['mf-a', 'mf-b', 'mf-c'], $ids);
     }
 
+    public function testHappyBirthdayQueriesConfiguredDayAndShuffles(): void
+    {
+        $navidrome = $this->createMock(NavidromeRepository::class);
+        $navidrome->expects($this->once())
+            ->method('getTopTracksOnDayOfYear')
+            ->with(5, 22, 50)
+            ->willReturn(['mf-a', 'mf-b', 'mf-c']);
+
+        $ids = (new HappyBirthdayDefinition($navidrome, month: 5, day: 22, limit: 50))->build($this->ctx('2026-06-27'));
+
+        sort($ids); // shuffled → assert the set.
+        $this->assertSame(['mf-a', 'mf-b', 'mf-c'], $ids);
+    }
+
     public function testSlugsAndNamesAreStable(): void
     {
         $navidrome = $this->createMock(NavidromeRepository::class);
@@ -99,6 +114,7 @@ class DefinitionsTest extends TestCase
         $this->assertSame('pepites-oubliees', (new PepitesOublieesDefinition($navidrome))->getSlug());
         $this->assertSame('coups-de-coeur', (new CoupsDeCoeurDefinition($navidrome))->getSlug());
         $this->assertSame('kickstart', (new KickstartDefinition($navidrome))->getSlug());
+        $this->assertSame('happy-birthday', (new HappyBirthdayDefinition($navidrome))->getSlug());
     }
 
     private function ctx(string $now): PlaylistContext
