@@ -15,6 +15,13 @@ parameters:
     env(PLAYLIST_HITPARADE_WEEKS): '52'
     env(PLAYLIST_HITPARADE_PER_WEEK): '3'
     env(PLAYLIST_DISCOVERIES_DAYS): '30'
+    # Lidarr API (optional; the deep-link extension works with just LIDARR_URL).
+    env(LIDARR_API_KEY): ''
+    env(LIDARR_ROOT_FOLDER): ''
+    env(LIDARR_QUALITY_PROFILE_ID): '0'
+    env(LIDARR_METADATA_PROFILE_ID): '0'
+    env(LIDARR_MONITOR): 'all'
+    env(LIDARR_SEARCH_ON_ADD): 'true'
 
     app.auth_user: '%env(APP_AUTH_USER)%'
     app.auth_password: '%env(APP_AUTH_PASSWORD)%'
@@ -38,6 +45,12 @@ parameters:
     musicbrainz.user_agent: '%env(MUSICBRAINZ_USER_AGENT)%'
     musicbrainz.base_url: '%env(MUSICBRAINZ_BASE_URL)%'
     lidarr.url: '%env(default::LIDARR_URL)%'
+    lidarr.api_key: '%env(LIDARR_API_KEY)%'
+    lidarr.root_folder: '%env(LIDARR_ROOT_FOLDER)%'
+    lidarr.quality_profile_id: '%env(int:LIDARR_QUALITY_PROFILE_ID)%'
+    lidarr.metadata_profile_id: '%env(int:LIDARR_METADATA_PROFILE_ID)%'
+    lidarr.monitor: '%env(LIDARR_MONITOR)%'
+    lidarr.search_on_add: '%env(bool:LIDARR_SEARCH_ON_ADD)%'
     help.compose_service: '%env(default::HELP_COMPOSE_SERVICE)%'
     strawberry.db_path: '%env(resolve:STRAWBERRY_DB_PATH)%'
     playlists.default_limit: '%env(int:PLAYLIST_DEFAULT_LIMIT)%'
@@ -242,6 +255,16 @@ services:
         arguments:
             $lidarrUrl: '%lidarr.url%'
         tags: ['twig.extension']
+
+    App\Lidarr\LidarrClient:
+        arguments:
+            $baseUrl: '%lidarr.url%'
+            $apiKey: '%lidarr.api_key%'
+            $rootFolder: '%lidarr.root_folder%'
+            $qualityProfileId: '%lidarr.quality_profile_id%'
+            $metadataProfileId: '%lidarr.metadata_profile_id%'
+            $monitor: '%lidarr.monitor%'
+            $searchOnAdd: '%lidarr.search_on_add%'
 
     App\Twig\ScrobbleLinksExtension:
         arguments:
