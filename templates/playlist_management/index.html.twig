@@ -37,7 +37,7 @@
                     <p class="text-xs text-slate-500">Algorithmes de génération — création / rafraîchissement dans Navidrome.</p>
                 </div>
                 <form method="post" action="{{ path('app_playlists_generate') }}"
-                      onsubmit="return confirm('(Re)générer toutes les playlists ?');">
+                      onsubmit="return confirm('(Re)générer toutes les playlists activées ?');">
                     <input type="hidden" name="_token" value="{{ csrf_token('playlists_generate') }}">
                     <button type="submit"
                             class="bg-[#F2A93C] hover:bg-[#e6982f] text-[#15243A] px-4 py-1.5 rounded-sm text-sm font-medium">
@@ -45,11 +45,17 @@
                     </button>
                 </form>
             </div>
-            <table class="w-full text-sm">
+            <table class="w-full text-sm" data-toggle-token="{{ csrf_token('playlists_toggle') }}">
                 <tbody class="divide-y">
                     {% for d in definitions %}
                         <tr class="hover:bg-slate-50">
-                            <td class="px-4 py-2">
+                            <td class="pl-4 pr-2 py-2 w-px">
+                                <label class="inline-flex items-center cursor-pointer" title="Inclure dans « Tout (re)générer »">
+                                    <input type="checkbox" class="js-playlist-toggle w-4 h-4 accent-[#F2A93C]"
+                                           data-slug="{{ d.slug }}" {{ d.enabled ? 'checked' : '' }}>
+                                </label>
+                            </td>
+                            <td class="px-2 py-2">
                                 <div class="font-medium">{{ d.name }}</div>
                                 <div class="text-xs text-slate-500">{{ d.description }}</div>
                                 <div class="text-xs text-slate-400 mt-0.5 font-mono">{{ d.slug }}</div>
@@ -67,7 +73,32 @@
                     {% endfor %}
                 </tbody>
             </table>
+            <p class="px-4 py-2 text-xs text-slate-400 border-t">
+                La case inclut (ou non) la playlist dans « Tout (re)générer » et la planification.
+                « Régénérer » fonctionne toujours, même décochée.
+            </p>
         </div>
+        <script>
+            document.querySelectorAll('.js-playlist-toggle').forEach(function (cb) {
+                cb.addEventListener('change', function () {
+                    var table = cb.closest('table');
+                    var token = table ? table.getAttribute('data-toggle-token') : '';
+                    var body = new URLSearchParams();
+                    body.set('_token', token);
+                    body.set('enabled', cb.checked ? '1' : '0');
+                    cb.disabled = true;
+                    fetch('{{ path('app_playlists_index') }}/' + encodeURIComponent(cb.dataset.slug) + '/toggle', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: body.toString(),
+                    }).then(function (r) {
+                        if (!r.ok) { cb.checked = !cb.checked; }
+                    }).catch(function () {
+                        cb.checked = !cb.checked;
+                    }).finally(function () { cb.disabled = false; });
+                });
+            });
+        </script>
     {% endif %}
 
     {% if playlists is empty and not error %}

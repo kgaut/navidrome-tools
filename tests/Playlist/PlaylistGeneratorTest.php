@@ -4,31 +4,33 @@ namespace App\Tests\Playlist;
 
 use App\Playlist\PlaylistContext;
 use App\Playlist\PlaylistDefinitionInterface;
+use App\Playlist\PlaylistEnablement;
 use App\Playlist\PlaylistGenerator;
 use App\Playlist\PlaylistRunResult;
+use App\Repository\SettingRepository;
 use App\Subsonic\SubsonicClient;
 use PHPUnit\Framework\TestCase;
 
 class PlaylistGeneratorTest extends TestCase
 {
-    public function testGenerateAllRunsEveryDefinition(): void
+    public function testGenerateAllRunsOnlyEnabledDefinitions(): void
     {
         $a = $this->def('a', 'A', ['mf-1', 'mf-2']);
         $b = $this->def('b', 'B', ['mf-3']);
 
         $subsonic = $this->createMock(SubsonicClient::class);
         $subsonic->method('findPlaylistByName')->willReturn(null);
-        $subsonic->expects($this->exactly(2))->method('createPlaylist')->willReturn('pl-new');
+        // Only 'a' is enabled → only one createPlaylist call.
+        $subsonic->expects($this->once())->method('createPlaylist')->with('A', ['mf-1', 'mf-2'])->willReturn('pl-a');
 
-        $gen = new PlaylistGenerator([$a, $b], $subsonic);
+        $gen = new PlaylistGenerator([$a, $b], $subsonic, $this->enablement(disabled: ['b']));
         $results = $gen->generate(null, dryRun: false);
 
-        // Both playlists generated — no enable list to filter on.
-        $this->assertCount(2, $results);
-        $this->assertSame(['a', 'b'], array_map(fn ($r) => $r->slug, $results));
+        $this->assertCount(1, $results);
+        $this->assertSame('a', $results[0]->slug);
     }
 
-    public function testGenerateBySlugRunsThatOneOnly(): void
+    public function testGenerateBySlugRunsThatOneEvenIfDisabled(): void
     {
         $a = $this->def('a', 'A', ['mf-1']);
         $b = $this->def('b', 'B', ['mf-3']);
@@ -36,7 +38,8 @@ class PlaylistGeneratorTest extends TestCase
         $subsonic->method('findPlaylistByName')->willReturn(null);
         $subsonic->expects($this->once())->method('createPlaylist')->with('B', ['mf-3'])->willReturn('pl-b');
 
-        $gen = new PlaylistGenerator([$a, $b], $subsonic);
+        // 'b' is disabled, yet an explicit slug still runs.
+        $gen = new PlaylistGenerator([$a, $b], $subsonic, $this->enablement(disabled: ['b']));
         $results = $gen->generate('b', dryRun: false);
 
         $this->assertCount(1, $results);
@@ -46,7 +49,7 @@ class PlaylistGeneratorTest extends TestCase
 
     public function testUnknownSlugThrows(): void
     {
-        $gen = new PlaylistGenerator([$this->def('a', 'A', ['mf-1'])], $this->createMock(SubsonicClient::class));
+        $gen = new PlaylistGenerator([$this->def('a', 'A', ['mf-1'])], $this->createMock(SubsonicClient::class), $this->enablement());
 
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Unknown playlist definition "nope"');
@@ -67,7 +70,7 @@ class PlaylistGeneratorTest extends TestCase
         // Comment refreshed on the existing playlist too.
         $subsonic->expects($this->once())->method('updatePlaylist')->with('pl-existing', null, 'desc a');
 
-        $results = (new PlaylistGenerator([$def], $subsonic))->generate('a', dryRun: false);
+        $results = (new PlaylistGenerator([$def], $subsonic, $this->enablement()))->generate('a', dryRun: false);
 
         $this->assertSame(PlaylistRunResult::ACTION_REPLACED, $results[0]->action);
         $this->assertSame('pl-existing', $results[0]->playlistId);
@@ -82,7 +85,7 @@ class PlaylistGeneratorTest extends TestCase
         $subsonic->expects($this->never())->method('findPlaylistByName');
         $subsonic->expects($this->never())->method('updatePlaylist');
 
-        $results = (new PlaylistGenerator([$def], $subsonic))->generate('a', dryRun: true);
+        $results = (new PlaylistGenerator([$def], $subsonic, $this->enablement()))->generate('a', dryRun: true);
 
         $this->assertSame(PlaylistRunResult::ACTION_DRY_RUN, $results[0]->action);
         $this->assertSame(['mf-1', 'mf-2'], $results[0]->trackIds);
@@ -96,7 +99,7 @@ class PlaylistGeneratorTest extends TestCase
         $subsonic->expects($this->never())->method('replacePlaylist');
         $subsonic->expects($this->never())->method('updatePlaylist');
 
-        $results = (new PlaylistGenerator([$def], $subsonic))->generate('a', dryRun: false);
+        $results = (new PlaylistGenerator([$def], $subsonic, $this->enablement()))->generate('a', dryRun: false);
 
         $this->assertSame(PlaylistRunResult::ACTION_EMPTY, $results[0]->action);
     }
@@ -114,7 +117,7 @@ class PlaylistGeneratorTest extends TestCase
         $subsonic->method('findPlaylistByName')->willReturn(null);
         $subsonic->method('createPlaylist')->willReturn('pl-ok');
 
-        $results = (new PlaylistGenerator([$broken, $ok], $subsonic))->generate(null, dryRun: false);
+        $results = (new PlaylistGenerator([$broken, $ok], $subsonic, $this->enablement()))->generate(null, dryRun: false);
 
         $this->assertCount(2, $results);
         $this->assertSame(PlaylistRunResult::ACTION_ERROR, $results[0]->action);
@@ -122,18 +125,43 @@ class PlaylistGeneratorTest extends TestCase
         $this->assertSame(PlaylistRunResult::ACTION_CREATED, $results[1]->action);
     }
 
-    public function testListDefinitionsReturnsSlugNameDescription(): void
+    public function testListDefinitionsReportsEnabledState(): void
     {
         $gen = new PlaylistGenerator(
             [$this->def('a', 'A', []), $this->def('b', 'B', [])],
             $this->createMock(SubsonicClient::class),
+            $this->enablement(disabled: ['b']),
         );
 
         $list = $gen->listDefinitions();
 
         $this->assertSame(['a', 'b'], array_map(fn ($d) => $d['slug'], $list));
-        $this->assertSame('A', $list[0]['name']);
         $this->assertSame('desc a', $list[0]['description']);
+        $this->assertTrue($list[0]['enabled']);
+        $this->assertFalse($list[1]['enabled']);
+    }
+
+    /**
+     * @param list<string> $disabled slugs reported as disabled (others enabled)
+     */
+    private function enablement(array $disabled = []): PlaylistEnablement
+    {
+        // PlaylistEnablement is final → wrap a mocked SettingRepository
+        // that reports '0' for disabled slugs and the default ('1') otherwise.
+        $settings = $this->createMock(SettingRepository::class);
+        $settings->method('get')->willReturnCallback(
+            function (string $key, string $default = '') use ($disabled): string {
+                foreach ($disabled as $slug) {
+                    if ($key === 'playlist.enabled.' . $slug) {
+                        return '0';
+                    }
+                }
+
+                return $default;
+            },
+        );
+
+        return new PlaylistEnablement($settings);
     }
 
     /**
