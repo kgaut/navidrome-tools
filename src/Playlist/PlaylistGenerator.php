@@ -117,6 +117,7 @@ class PlaylistGenerator
         $existing = $this->subsonic->findPlaylistByName($def->getName());
         if ($existing !== null) {
             $this->subsonic->replacePlaylist($existing['id'], $def->getName(), $ids);
+            $this->stampDescription($existing['id'], $def);
 
             return new PlaylistRunResult(
                 $def->getSlug(),
@@ -128,8 +129,22 @@ class PlaylistGenerator
         }
 
         $newId = $this->subsonic->createPlaylist($def->getName(), $ids);
+        $this->stampDescription($newId, $def);
 
         return new PlaylistRunResult($def->getSlug(), $def->getName(), PlaylistRunResult::ACTION_CREATED, $ids, $newId);
+    }
+
+    /**
+     * Write the definition's description onto the Navidrome playlist as its
+     * comment, so a listener can see how the playlist is computed. Subsonic
+     * `createPlaylist` can't carry a comment, hence this follow-up call.
+     */
+    private function stampDescription(string $playlistId, PlaylistDefinitionInterface $def): void
+    {
+        $description = $def->getDescription();
+        if ($description !== '') {
+            $this->subsonic->updatePlaylist($playlistId, comment: $description);
+        }
     }
 
     /**

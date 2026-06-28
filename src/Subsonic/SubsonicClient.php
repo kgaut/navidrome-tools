@@ -177,6 +177,30 @@ class SubsonicClient
     }
 
     /**
+     * Update a playlist's metadata (name / comment) in place. Subsonic
+     * `createPlaylist` can't carry a comment, so the generator calls this
+     * after writing the songs to stamp the « how this playlist is computed »
+     * description onto the Navidrome `comment` field. Only the non-null
+     * params are sent.
+     */
+    public function updatePlaylist(string $playlistId, ?string $name = null, ?string $comment = null): void
+    {
+        if ($playlistId === '') {
+            throw new \RuntimeException('updatePlaylist requires a non-empty playlistId.');
+        }
+
+        $params = ['playlistId' => $playlistId];
+        if ($name !== null) {
+            $params['name'] = $name;
+        }
+        if ($comment !== null) {
+            $params['comment'] = $comment;
+        }
+
+        $this->call('updatePlaylist', $params);
+    }
+
+    /**
      * Find one playlist owned by the configured user whose name matches
      * exactly (case-sensitive, as Navidrome stores it). Returns the
      * normalized {@see getPlaylists()} row or null. Used by the generator

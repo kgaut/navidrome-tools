@@ -22,6 +22,10 @@ class PlaylistGeneratorTest extends TestCase
             ->method('createPlaylist')
             ->with('Enabled One', ['mf-1', 'mf-2'])
             ->willReturn('pl-new');
+        // Description stamped as the playlist comment after creation.
+        $subsonic->expects($this->once())
+            ->method('updatePlaylist')
+            ->with('pl-new', null, 'desc enabled-one');
 
         $gen = new PlaylistGenerator([$enabled, $disabled], 'enabled-one', $subsonic);
         $results = $gen->generate(null, dryRun: false);
@@ -66,6 +70,8 @@ class PlaylistGeneratorTest extends TestCase
         ]);
         $subsonic->expects($this->once())->method('replacePlaylist')->with('pl-existing', 'A', ['mf-1', 'mf-2']);
         $subsonic->expects($this->never())->method('createPlaylist');
+        // Comment refreshed on the existing playlist too.
+        $subsonic->expects($this->once())->method('updatePlaylist')->with('pl-existing', null, 'desc a');
 
         $results = (new PlaylistGenerator([$def], 'a', $subsonic))->generate('a', dryRun: false);
 
@@ -80,6 +86,7 @@ class PlaylistGeneratorTest extends TestCase
         $subsonic->expects($this->never())->method('createPlaylist');
         $subsonic->expects($this->never())->method('replacePlaylist');
         $subsonic->expects($this->never())->method('findPlaylistByName');
+        $subsonic->expects($this->never())->method('updatePlaylist');
 
         $results = (new PlaylistGenerator([$def], 'a', $subsonic))->generate('a', dryRun: true);
 
@@ -93,6 +100,7 @@ class PlaylistGeneratorTest extends TestCase
         $subsonic = $this->createMock(SubsonicClient::class);
         $subsonic->expects($this->never())->method('createPlaylist');
         $subsonic->expects($this->never())->method('replacePlaylist');
+        $subsonic->expects($this->never())->method('updatePlaylist');
 
         $results = (new PlaylistGenerator([$def], 'a', $subsonic))->generate('a', dryRun: false);
 
