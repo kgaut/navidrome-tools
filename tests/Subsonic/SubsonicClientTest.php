@@ -260,6 +260,37 @@ class SubsonicClientTest extends TestCase
         $client->replacePlaylist('', 'X', ['mf-1']);
     }
 
+    public function testUpdatePlaylistSendsCommentAndPlaylistId(): void
+    {
+        $captured = null;
+        $http = new MockHttpClient(function (string $method, string $url) use (&$captured): MockResponse {
+            $captured = $url;
+
+            return new MockResponse($this->envelope(['status' => 'ok']));
+        });
+        $client = new SubsonicClient($http, 'http://nd:4533', 'admin', 'pwd');
+
+        $client->updatePlaylist('pl-1', comment: 'Top 3 de chaque semaine');
+
+        $this->assertIsString($captured);
+        $this->assertStringContainsString('updatePlaylist.view?', $captured);
+        $this->assertStringContainsString('playlistId=pl-1', $captured);
+        parse_str(parse_url($captured, \PHP_URL_QUERY) ?: '', $q);
+        $this->assertSame('Top 3 de chaque semaine', $q['comment'] ?? null);
+        // name omitted → not sent.
+        $this->assertArrayNotHasKey('name', $q);
+    }
+
+    public function testUpdatePlaylistRejectsEmptyId(): void
+    {
+        $http = new MockHttpClient([]);
+        $client = new SubsonicClient($http, 'http://nd:4533', 'admin', 'pwd');
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('non-empty playlistId');
+        $client->updatePlaylist('', comment: 'x');
+    }
+
     public function testFindPlaylistByNameMatchesNameAndOwner(): void
     {
         $payload = $this->envelope([
