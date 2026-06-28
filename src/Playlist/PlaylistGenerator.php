@@ -8,16 +8,13 @@ use Psr\Log\NullLogger;
 
 /**
  * Orchestrates the playlist-definition plugins: discovers every service
- * tagged `app.playlist_definition`, decides which ones run, builds their
- * track lists and writes them to Navidrome via Subsonic. Mirrors
- * {@see \App\Notifier\Notifier} (tagged iterator + CSV enable list +
- * best-effort per-item isolation).
+ * tagged `app.playlist_definition`, builds their track lists and writes
+ * them to Navidrome via Subsonic. Mirrors {@see \App\Notifier\Notifier}
+ * (tagged iterator + best-effort per-item isolation).
  *
- * Enablement model:
- *   - `PLAYLISTS_ENABLED` (CSV of slugs) gates the « generate all » run
- *     (`generate(null)`), so a fresh install ships nothing until opted in.
- *   - An explicit `generate($slug)` (CLI `--slug`, per-row UI button)
- *     bypasses the CSV — generating one by name is an explicit intent.
+ * `generate(null)` regenerates EVERY defined playlist; `generate($slug)`
+ * just that one. (There is no enable/disable list — « generate all » means
+ * all.)
  *
  * Idempotent write: a playlist of the same name owned by the configured
  * user is overwritten in place; otherwise a new one is created.
@@ -27,25 +24,20 @@ class PlaylistGenerator
     /** @var list<PlaylistDefinitionInterface> */
     private readonly array $definitions;
 
-    /** @var list<string> */
-    private readonly array $enabledSlugs;
-
     /**
      * @param iterable<PlaylistDefinitionInterface> $definitions
      */
     public function __construct(
         iterable $definitions,
-        string $enabledCsv,
         private readonly SubsonicClient $subsonic,
         private readonly int $defaultLimit = 50,
         private readonly LoggerInterface $logger = new NullLogger(),
     ) {
         $this->definitions = is_array($definitions) ? array_values($definitions) : iterator_to_array($definitions, false);
-        $this->enabledSlugs = self::parseCsv($enabledCsv);
     }
 
     /**
-     * @return list<array{slug: string, name: string, description: string, enabled: bool}>
+     * @return list<array{slug: string, name: string, description: string}>
      */
     public function listDefinitions(): array
     {
@@ -55,7 +47,6 @@ class PlaylistGenerator
                 'slug' => $def->getSlug(),
                 'name' => $def->getName(),
                 'description' => $def->getDescription(),
-                'enabled' => in_array($def->getSlug(), $this->enabledSlugs, true),
             ];
         }
 
@@ -65,8 +56,8 @@ class PlaylistGenerator
     /**
      * Generate playlists and (unless dry-run) write them to Navidrome.
      *
-     * @param ?string $slug   null → every ENABLED definition ; a slug →
-     *                        that one definition regardless of the CSV.
+     * @param ?string $slug   null → every defined playlist ; a slug → that
+     *                        one definition.
      *
      * @return list<PlaylistRunResult>
      *
@@ -152,35 +143,16 @@ class PlaylistGenerator
      */
     private function resolveTargets(?string $slug): array
     {
-        if ($slug !== null) {
-            foreach ($this->definitions as $def) {
-                if ($def->getSlug() === $slug) {
-                    return [$def];
-                }
-            }
-
-            throw new \InvalidArgumentException(sprintf('Unknown playlist definition "%s".', $slug));
+        if ($slug === null) {
+            return $this->definitions;
         }
 
-        return array_values(array_filter(
-            $this->definitions,
-            fn (PlaylistDefinitionInterface $d): bool => in_array($d->getSlug(), $this->enabledSlugs, true),
-        ));
-    }
-
-    /**
-     * @return list<string>
-     */
-    private static function parseCsv(string $csv): array
-    {
-        $slugs = [];
-        foreach (explode(',', $csv) as $raw) {
-            $slug = strtolower(trim($raw));
-            if ($slug !== '') {
-                $slugs[] = $slug;
+        foreach ($this->definitions as $def) {
+            if ($def->getSlug() === $slug) {
+                return [$def];
             }
         }
 
-        return array_values(array_unique($slugs));
+        throw new \InvalidArgumentException(sprintf('Unknown playlist definition "%s".', $slug));
     }
 }

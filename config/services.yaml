@@ -4,7 +4,6 @@ parameters:
     # var (.env, docker-compose, phpunit) always overrides these. `default::`
     # is unfit for the ints (it falls back to 0 → empty/broken playlists),
     # hence parameter-level defaults with real values.
-    env(PLAYLISTS_ENABLED): ''
     env(PLAYLIST_DEFAULT_LIMIT): '50'
     env(PLAYLIST_RETOUR_MAX_YEARS): '25'
     env(PLAYLIST_RETOUR_WINDOW_DAYS): '30'
@@ -40,7 +39,6 @@ parameters:
     lidarr.url: '%env(default::LIDARR_URL)%'
     help.compose_service: '%env(default::HELP_COMPOSE_SERVICE)%'
     strawberry.db_path: '%env(resolve:STRAWBERRY_DB_PATH)%'
-    playlists.enabled: '%env(PLAYLISTS_ENABLED)%'
     playlists.default_limit: '%env(int:PLAYLIST_DEFAULT_LIMIT)%'
     playlist.retour.max_years: '%env(int:PLAYLIST_RETOUR_MAX_YEARS)%'
     playlist.retour.window_days: '%env(int:PLAYLIST_RETOUR_WINDOW_DAYS)%'
@@ -95,7 +93,6 @@ services:
     App\Playlist\PlaylistGenerator:
         arguments:
             $definitions: !tagged_iterator app.playlist_definition
-            $enabledCsv: '%playlists.enabled%'
             $defaultLimit: '%playlists.default_limit%'
 
     App\Playlist\Definition\RetourEnArriereDefinition:

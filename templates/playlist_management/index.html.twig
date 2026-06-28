@@ -37,7 +37,7 @@
                     <p class="text-xs text-slate-500">Algorithmes de génération — création / rafraîchissement dans Navidrome.</p>
                 </div>
                 <form method="post" action="{{ path('app_playlists_generate') }}"
-                      onsubmit="return confirm('(Re)générer toutes les playlists activées ?');">
+                      onsubmit="return confirm('(Re)générer toutes les playlists ?');">
                     <input type="hidden" name="_token" value="{{ csrf_token('playlists_generate') }}">
                     <button type="submit"
                             class="bg-sky-700 hover:bg-sky-800 text-white px-4 py-1.5 rounded-sm text-sm font-medium">
@@ -54,20 +54,12 @@
                                 <div class="text-xs text-slate-500">{{ d.description }}</div>
                                 <div class="text-xs text-slate-400 mt-0.5 font-mono">{{ d.slug }}</div>
                             </td>
-                            <td class="px-3 py-2 text-xs">
-                                {% if d.enabled %}
-                                    <span class="inline-block bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-sm">Activée</span>
-                                {% else %}
-                                    <span class="inline-block bg-slate-100 text-slate-500 px-2 py-0.5 rounded-sm"
-                                          title="Non listée dans PLAYLISTS_ENABLED — exclue du « Tout générer », mais régénérable à la demande">Désactivée</span>
-                                {% endif %}
-                            </td>
                             <td class="px-4 py-2 text-right">
                                 <form method="post" action="{{ path('app_playlists_generate_one', { slug: d.slug }) }}">
                                     <input type="hidden" name="_token" value="{{ csrf_token('playlists_generate_one') }}">
                                     <button type="submit"
                                             class="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1 rounded-sm text-xs font-medium">
-                                        ↻ {{ d.enabled ? 'Régénérer' : 'Générer' }}
+                                        ↻ Régénérer
                                     </button>
                                 </form>
                             </td>

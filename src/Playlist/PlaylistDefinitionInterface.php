@@ -17,7 +17,7 @@ interface PlaylistDefinitionInterface
 {
     /**
      * Stable identifier, lowercase-kebab (e.g. "retour-en-arriere"). Used
-     * as the CLI `--slug` value and the `PLAYLISTS_ENABLED` CSV token.
+     * as the CLI `--slug` value and the per-row UI button target.
      */
     public function getSlug(): string;
 

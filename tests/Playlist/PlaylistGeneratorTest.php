@@ -11,48 +11,42 @@ use PHPUnit\Framework\TestCase;
 
 class PlaylistGeneratorTest extends TestCase
 {
-    public function testGenerateAllRunsOnlyEnabledDefinitions(): void
+    public function testGenerateAllRunsEveryDefinition(): void
     {
-        $enabled = $this->def('enabled-one', 'Enabled One', ['mf-1', 'mf-2']);
-        $disabled = $this->def('disabled-one', 'Disabled One', ['mf-3']);
+        $a = $this->def('a', 'A', ['mf-1', 'mf-2']);
+        $b = $this->def('b', 'B', ['mf-3']);
 
         $subsonic = $this->createMock(SubsonicClient::class);
         $subsonic->method('findPlaylistByName')->willReturn(null);
-        $subsonic->expects($this->once())
-            ->method('createPlaylist')
-            ->with('Enabled One', ['mf-1', 'mf-2'])
-            ->willReturn('pl-new');
-        // Description stamped as the playlist comment after creation.
-        $subsonic->expects($this->once())
-            ->method('updatePlaylist')
-            ->with('pl-new', null, 'desc enabled-one');
+        $subsonic->expects($this->exactly(2))->method('createPlaylist')->willReturn('pl-new');
 
-        $gen = new PlaylistGenerator([$enabled, $disabled], 'enabled-one', $subsonic);
+        $gen = new PlaylistGenerator([$a, $b], $subsonic);
         $results = $gen->generate(null, dryRun: false);
 
-        $this->assertCount(1, $results);
-        $this->assertSame('enabled-one', $results[0]->slug);
-        $this->assertSame(PlaylistRunResult::ACTION_CREATED, $results[0]->action);
+        // Both playlists generated — no enable list to filter on.
+        $this->assertCount(2, $results);
+        $this->assertSame(['a', 'b'], array_map(fn ($r) => $r->slug, $results));
     }
 
-    public function testGenerateBySlugBypassesEnabledList(): void
+    public function testGenerateBySlugRunsThatOneOnly(): void
     {
-        $disabled = $this->def('disabled-one', 'Disabled One', ['mf-3']);
+        $a = $this->def('a', 'A', ['mf-1']);
+        $b = $this->def('b', 'B', ['mf-3']);
         $subsonic = $this->createMock(SubsonicClient::class);
         $subsonic->method('findPlaylistByName')->willReturn(null);
-        $subsonic->expects($this->once())->method('createPlaylist')->willReturn('pl-x');
+        $subsonic->expects($this->once())->method('createPlaylist')->with('B', ['mf-3'])->willReturn('pl-b');
 
-        // Empty CSV → nothing enabled, yet an explicit slug still runs.
-        $gen = new PlaylistGenerator([$disabled], '', $subsonic);
-        $results = $gen->generate('disabled-one', dryRun: false);
+        $gen = new PlaylistGenerator([$a, $b], $subsonic);
+        $results = $gen->generate('b', dryRun: false);
 
         $this->assertCount(1, $results);
+        $this->assertSame('b', $results[0]->slug);
         $this->assertSame(PlaylistRunResult::ACTION_CREATED, $results[0]->action);
     }
 
     public function testUnknownSlugThrows(): void
     {
-        $gen = new PlaylistGenerator([$this->def('a', 'A', ['mf-1'])], 'a', $this->createMock(SubsonicClient::class));
+        $gen = new PlaylistGenerator([$this->def('a', 'A', ['mf-1'])], $this->createMock(SubsonicClient::class));
 
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Unknown playlist definition "nope"');
@@ -73,7 +67,7 @@ class PlaylistGeneratorTest extends TestCase
         // Comment refreshed on the existing playlist too.
         $subsonic->expects($this->once())->method('updatePlaylist')->with('pl-existing', null, 'desc a');
 
-        $results = (new PlaylistGenerator([$def], 'a', $subsonic))->generate('a', dryRun: false);
+        $results = (new PlaylistGenerator([$def], $subsonic))->generate('a', dryRun: false);
 
         $this->assertSame(PlaylistRunResult::ACTION_REPLACED, $results[0]->action);
         $this->assertSame('pl-existing', $results[0]->playlistId);
@@ -88,7 +82,7 @@ class PlaylistGeneratorTest extends TestCase
         $subsonic->expects($this->never())->method('findPlaylistByName');
         $subsonic->expects($this->never())->method('updatePlaylist');
 
-        $results = (new PlaylistGenerator([$def], 'a', $subsonic))->generate('a', dryRun: true);
+        $results = (new PlaylistGenerator([$def], $subsonic))->generate('a', dryRun: true);
 
         $this->assertSame(PlaylistRunResult::ACTION_DRY_RUN, $results[0]->action);
         $this->assertSame(['mf-1', 'mf-2'], $results[0]->trackIds);
@@ -102,7 +96,7 @@ class PlaylistGeneratorTest extends TestCase
         $subsonic->expects($this->never())->method('replacePlaylist');
         $subsonic->expects($this->never())->method('updatePlaylist');
 
-        $results = (new PlaylistGenerator([$def], 'a', $subsonic))->generate('a', dryRun: false);
+        $results = (new PlaylistGenerator([$def], $subsonic))->generate('a', dryRun: false);
 
         $this->assertSame(PlaylistRunResult::ACTION_EMPTY, $results[0]->action);
     }
@@ -120,7 +114,7 @@ class PlaylistGeneratorTest extends TestCase
         $subsonic->method('findPlaylistByName')->willReturn(null);
         $subsonic->method('createPlaylist')->willReturn('pl-ok');
 
-        $results = (new PlaylistGenerator([$broken, $ok], 'broken,ok', $subsonic))->generate(null, dryRun: false);
+        $results = (new PlaylistGenerator([$broken, $ok], $subsonic))->generate(null, dryRun: false);
 
         $this->assertCount(2, $results);
         $this->assertSame(PlaylistRunResult::ACTION_ERROR, $results[0]->action);
@@ -128,18 +122,18 @@ class PlaylistGeneratorTest extends TestCase
         $this->assertSame(PlaylistRunResult::ACTION_CREATED, $results[1]->action);
     }
 
-    public function testListDefinitionsReportsEnabledState(): void
+    public function testListDefinitionsReturnsSlugNameDescription(): void
     {
         $gen = new PlaylistGenerator(
             [$this->def('a', 'A', []), $this->def('b', 'B', [])],
-            'a',
             $this->createMock(SubsonicClient::class),
         );
 
         $list = $gen->listDefinitions();
 
-        $this->assertTrue($list[0]['enabled']);
-        $this->assertFalse($list[1]['enabled']);
+        $this->assertSame(['a', 'b'], array_map(fn ($d) => $d['slug'], $list));
+        $this->assertSame('A', $list[0]['name']);
+        $this->assertSame('desc a', $list[0]['description']);
     }
 
     /**
