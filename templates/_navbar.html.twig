@@ -61,7 +61,7 @@
                             aria-haspopup="true">
                         {{ section.label }} <span class="text-xs">▾</span>
                     </button>
-                    <div class="absolute left-1/2 -translate-x-1/2 top-full mt-1 {{ section.width }} bg-slate-800 text-slate-100 rounded-sm shadow-lg invisible opacity-0 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 transition py-1 z-30">
+                    <div class="absolute left-1/2 -translate-x-1/2 top-full mt-1 {{ section.width }} bg-[#15243A] text-slate-100 rounded-sm shadow-lg invisible opacity-0 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 transition py-1 z-30">
                         {% for group in section.groups %}
                             {% if group.heading %}
                                 {% if not loop.first %}
@@ -79,7 +79,7 @@
         {% endfor %}
     </nav>
 {% else %}
-    <nav id="mobile-nav" class="md:hidden hidden border-t border-slate-700 bg-slate-800">
+    <nav id="mobile-nav" class="md:hidden hidden border-t border-slate-700 bg-[#15243A]">
         <div class="max-w-6xl mx-auto px-4 py-2 flex flex-col text-sm">
             {% for section in sections %}
                 {% if section.type == 'link' %}
