@@ -25,6 +25,7 @@ class RunHistory
     public const TYPE_STRAWBERRY_REMATCH = 'strawberry-rematch';
     public const TYPE_STATS = 'stats';
     public const TYPE_PLAYLIST_GENERATE = 'playlist-generate';
+    public const TYPE_RECOMMENDATIONS = 'recommendations';
     public const TYPE_BACKUP_PURGE = 'backup-purge';
     public const TYPE_HISTORY_PURGE = 'history-purge';
 
