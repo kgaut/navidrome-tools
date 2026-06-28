@@ -4,6 +4,7 @@ namespace App\Tests\Playlist;
 
 use App\Navidrome\NavidromeRepository;
 use App\Playlist\Definition\CoupsDeCoeurDefinition;
+use App\Playlist\Definition\KickstartDefinition;
 use App\Playlist\Definition\PepitesOublieesDefinition;
 use App\Playlist\Definition\TopAllTimeDefinition;
 use App\Playlist\Definition\TopDuMoisDefinition;
@@ -77,6 +78,19 @@ class DefinitionsTest extends TestCase
         }
     }
 
+    public function testKickstartReturnsRepoOrderWithoutShuffle(): void
+    {
+        $navidrome = $this->createMock(NavidromeRepository::class);
+        $navidrome->expects($this->once())
+            ->method('getDailyKickstartTracks')
+            ->with(50)
+            ->willReturn(['mf-a', 'mf-b', 'mf-c']);
+
+        // No shuffle: « le top » keeps the frequency-ranked order as-is.
+        $ids = (new KickstartDefinition($navidrome, 50))->build($this->ctx('2026-06-27'));
+        $this->assertSame(['mf-a', 'mf-b', 'mf-c'], $ids);
+    }
+
     public function testSlugsAndNamesAreStable(): void
     {
         $navidrome = $this->createMock(NavidromeRepository::class);
@@ -84,6 +98,7 @@ class DefinitionsTest extends TestCase
         $this->assertSame('top-all-time', (new TopAllTimeDefinition($navidrome))->getSlug());
         $this->assertSame('pepites-oubliees', (new PepitesOublieesDefinition($navidrome))->getSlug());
         $this->assertSame('coups-de-coeur', (new CoupsDeCoeurDefinition($navidrome))->getSlug());
+        $this->assertSame('kickstart', (new KickstartDefinition($navidrome))->getSlug());
     }
 
     private function ctx(string $now): PlaylistContext
