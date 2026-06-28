@@ -6,7 +6,7 @@ parameters:
     # hence parameter-level defaults with real values.
     env(PLAYLISTS_ENABLED): ''
     env(PLAYLIST_DEFAULT_LIMIT): '50'
-    env(PLAYLIST_RETOUR_MAX_YEARS): '10'
+    env(PLAYLIST_RETOUR_MAX_YEARS): '25'
     env(PLAYLIST_RETOUR_WINDOW_DAYS): '30'
     env(PLAYLIST_RETOUR_PER_YEAR): '10'
     env(PLAYLIST_PEPITES_MIN_PLAYS): '5'
