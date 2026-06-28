@@ -121,3 +121,55 @@ jobs:
           build-args: APP_VERSION=${{ steps.appver.outputs.value }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  notify:
+    name: Notify CI result (Discord/Slack)
+    runs-on: ubuntu-latest
+    # Depend on every other job and run even when one failed, so the
+    # notification reflects the WHOLE run's outcome.
+    needs: [phpcs, phpstan, tests, docker-build, docker-publish]
+    if: always()
+    steps:
+      - name: Compute overall status
+        id: status
+        env:
+          # A job is OK when it succeeded OR was skipped (docker-publish is
+          # skipped on PRs and non-default branches). Only real failures /
+          # cancellations flip the run to « failure ».
+          FAILED: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: |
+          if [[ "$FAILED" == "true" ]]; then
+            echo "state=échec" >> "$GITHUB_OUTPUT"
+            echo "emoji=❌" >> "$GITHUB_OUTPUT"
+          else
+            echo "state=succès" >> "$GITHUB_OUTPUT"
+            echo "emoji=✅" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Send webhook
+        env:
+          # Set whichever you use (or both) in repo secrets. Fork PRs don't
+          # receive secrets → the step no-ops with a warning, never fails.
+          DISCORD_WEBHOOK_URL: ${{ secrets.CI_DISCORD_WEBHOOK_URL }}
+          SLACK_WEBHOOK_URL: ${{ secrets.CI_SLACK_WEBHOOK_URL }}
+          STATE: ${{ steps.status.outputs.state }}
+          EMOJI: ${{ steps.status.outputs.emoji }}
+        run: |
+          # Build the message from runner-provided env vars (never inline
+          # ${{ }} into the script — a crafted branch name could inject).
+          RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          MSG="${EMOJI} CI ${STATE} — ${GITHUB_REPOSITORY} @ ${GITHUB_REF_NAME} (${GITHUB_SHA:0:7}) · ${GITHUB_EVENT_NAME} · ${RUN_URL}"
+
+          sent=0
+          if [[ -n "$DISCORD_WEBHOOK_URL" ]]; then
+            curl -fsS -X POST -H 'Content-Type: application/json' \
+              --data "$(jq -nc --arg c "$MSG" '{content: $c}')" "$DISCORD_WEBHOOK_URL"
+            sent=1
+          fi
+          if [[ -n "$SLACK_WEBHOOK_URL" ]]; then
+            curl -fsS -X POST -H 'Content-Type: application/json' \
+              --data "$(jq -nc --arg t "$MSG" '{text: $t}')" "$SLACK_WEBHOOK_URL"
+            sent=1
+          fi
+          if [[ "$sent" -eq 0 ]]; then
+            echo "::warning::Aucun webhook configuré (secrets CI_DISCORD_WEBHOOK_URL / CI_SLACK_WEBHOOK_URL). Notification ignorée."
+          fi
