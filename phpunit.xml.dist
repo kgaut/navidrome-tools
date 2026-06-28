@@ -62,6 +62,10 @@
         <env name="RECO_SEED_LIMIT" value="25"/>
         <env name="RECO_PER_SEED" value="20"/>
         <env name="RECO_LIMIT" value="50"/>
+        <env name="RECO_LISTENBRAINZ_COUNT" value="100"/>
+        <env name="LISTENBRAINZ_USER" value=""/>
+        <env name="LISTENBRAINZ_BASE_URL" value="https://api.listenbrainz.org"/>
+        <env name="LISTENBRAINZ_TOKEN" value=""/>
     </php>
 
     <testsuites>

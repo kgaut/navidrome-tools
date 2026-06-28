@@ -26,6 +26,10 @@ parameters:
     env(RECO_SEED_LIMIT): '25'
     env(RECO_PER_SEED): '20'
     env(RECO_LIMIT): '50'
+    env(RECO_LISTENBRAINZ_COUNT): '100'
+    env(LISTENBRAINZ_USER): ''
+    env(LISTENBRAINZ_BASE_URL): 'https://api.listenbrainz.org'
+    env(LISTENBRAINZ_TOKEN): ''
 
     app.auth_user: '%env(APP_AUTH_USER)%'
     app.auth_password: '%env(APP_AUTH_PASSWORD)%'
@@ -71,6 +75,10 @@ parameters:
     reco.seed_limit: '%env(int:RECO_SEED_LIMIT)%'
     reco.per_seed: '%env(int:RECO_PER_SEED)%'
     reco.limit: '%env(int:RECO_LIMIT)%'
+    reco.listenbrainz_count: '%env(int:RECO_LISTENBRAINZ_COUNT)%'
+    listenbrainz.user: '%env(LISTENBRAINZ_USER)%'
+    listenbrainz.base_url: '%env(LISTENBRAINZ_BASE_URL)%'
+    listenbrainz.token: '%env(LISTENBRAINZ_TOKEN)%'
     notify.drivers: '%env(NOTIFY_DRIVERS)%'
     notify.on: '%env(NOTIFY_ON)%'
     notify.gotify.url: '%env(NOTIFY_GOTIFY_URL)%'
@@ -285,6 +293,16 @@ services:
             $sources: !tagged_iterator app.recommendation_source
             $seedLimit: '%reco.seed_limit%'
             $defaultLimit: '%reco.limit%'
+
+    App\Recommendation\ListenBrainzClient:
+        arguments:
+            $user: '%listenbrainz.user%'
+            $baseUrl: '%listenbrainz.base_url%'
+            $token: '%listenbrainz.token%'
+
+    App\Recommendation\ListenBrainzRecommendationSource:
+        arguments:
+            $count: '%reco.listenbrainz_count%'
 
     App\Twig\ScrobbleLinksExtension:
         arguments:
