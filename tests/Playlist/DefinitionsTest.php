@@ -4,11 +4,14 @@ namespace App\Tests\Playlist;
 
 use App\Navidrome\NavidromeRepository;
 use App\Playlist\Definition\CoupsDeCoeurDefinition;
+use App\Playlist\Definition\DecouvertesRecentesDefinition;
+use App\Playlist\Definition\FidelesCompagnonsDefinition;
 use App\Playlist\Definition\HappyBirthdayDefinition;
 use App\Playlist\Definition\HitParadeDefinition;
 use App\Playlist\Definition\KickstartDefinition;
 use App\Playlist\Definition\PepitesOublieesDefinition;
 use App\Playlist\Definition\TopAllTimeDefinition;
+use App\Playlist\Definition\TopDeLanneeDefinition;
 use App\Playlist\Definition\TopDuMoisDefinition;
 use App\Playlist\PlaylistContext;
 use PHPUnit\Framework\TestCase;
@@ -130,6 +133,48 @@ class DefinitionsTest extends TestCase
         $this->assertSame(['a', 'b', 'c'], $ids);
     }
 
+    public function testTopDeLanneeQueriesPreviousCalendarYear(): void
+    {
+        $navidrome = $this->createMock(NavidromeRepository::class);
+        // now = 2026-06-27 → previous full year = 2025.
+        $navidrome->expects($this->once())
+            ->method('getTopTracksWithDates')
+            ->with(2025, null, null, 50)
+            ->willReturn([['id' => 'mf-1'], ['id' => 'mf-2']]);
+
+        $ids = (new TopDeLanneeDefinition($navidrome, 50))->build($this->ctx('2026-06-27'));
+
+        sort($ids); // shuffled → assert the set.
+        $this->assertSame(['mf-1', 'mf-2'], $ids);
+    }
+
+    public function testDecouvertesRecentesUsesCutoffFromSinceDays(): void
+    {
+        $navidrome = $this->createMock(NavidromeRepository::class);
+        $navidrome->expects($this->once())
+            ->method('getRecentlyDiscoveredTracks')
+            ->with(
+                $this->callback(static fn (\DateTimeInterface $d): bool => $d->format('Y-m-d') === '2026-05-28'),
+                50,
+            )
+            ->willReturn(['mf-new']);
+
+        $def = new DecouvertesRecentesDefinition($navidrome, sinceDays: 30, limit: 50);
+        $this->assertSame(['mf-new'], $def->build($this->ctx('2026-06-27')));
+    }
+
+    public function testFidelesCompagnonsKeepsRepoOrder(): void
+    {
+        $navidrome = $this->createMock(NavidromeRepository::class);
+        $navidrome->expects($this->once())
+            ->method('getMostConsistentTracks')
+            ->with(50)
+            ->willReturn(['mf-a', 'mf-b']);
+
+        // Ranked by regularity → no shuffle.
+        $this->assertSame(['mf-a', 'mf-b'], (new FidelesCompagnonsDefinition($navidrome, 50))->build($this->ctx('2026-06-27')));
+    }
+
     public function testSlugsAndNamesAreStable(): void
     {
         $navidrome = $this->createMock(NavidromeRepository::class);
@@ -140,6 +185,9 @@ class DefinitionsTest extends TestCase
         $this->assertSame('kickstart', (new KickstartDefinition($navidrome))->getSlug());
         $this->assertSame('happy-birthday', (new HappyBirthdayDefinition($navidrome))->getSlug());
         $this->assertSame('hit-parade', (new HitParadeDefinition($navidrome))->getSlug());
+        $this->assertSame('top-de-lannee', (new TopDeLanneeDefinition($navidrome))->getSlug());
+        $this->assertSame('decouvertes-recentes', (new DecouvertesRecentesDefinition($navidrome))->getSlug());
+        $this->assertSame('fideles-compagnons', (new FidelesCompagnonsDefinition($navidrome))->getSlug());
     }
 
     private function ctx(string $now): PlaylistContext

@@ -504,6 +504,78 @@ class NavidromeRepository
     }
 
     /**
+     * « Découvertes récentes » : tracks whose VERY FIRST scrobble (ever, for
+     * this user) falls on/after `$since`, newest discovery first. Requires
+     * the scrobbles table — the annotation table has no per-play history, so
+     * « first heard on date X » can't be reconstructed; returns [] on
+     * Navidrome < 0.55.
+     *
+     * @return string[] media_file ids, most-recently-discovered first
+     */
+    public function getRecentlyDiscoveredTracks(\DateTimeInterface $since, int $limit): array
+    {
+        if (!$this->hasScrobblesTable()) {
+            return [];
+        }
+
+        $userId = $this->resolveUserId();
+        $sql = <<<'SQL'
+            SELECT s.media_file_id AS id
+            FROM scrobbles s
+            WHERE s.user_id = :uid
+            GROUP BY s.media_file_id
+            HAVING MIN(s.submission_time) >= :since
+            ORDER BY MIN(s.submission_time) DESC
+            LIMIT :lim
+        SQL;
+
+        $rows = $this->connection()->fetchAllAssociative(
+            $sql,
+            ['uid' => $userId, 'since' => $since->getTimestamp(), 'lim' => $limit],
+            [
+                'since' => \Doctrine\DBAL\ParameterType::INTEGER,
+                'lim' => \Doctrine\DBAL\ParameterType::INTEGER,
+            ],
+        );
+
+        return array_map(static fn (array $r): string => (string) $r['id'], $rows);
+    }
+
+    /**
+     * « Fidèles compagnons » : tracks played across the MOST DISTINCT days
+     * (regularity, not raw volume — a track heard once a week for a year
+     * beats one binged 50× in a day). Requires the scrobbles table; returns
+     * [] on Navidrome < 0.55. Day bucketing in `date(...,'unixepoch')` (UTC).
+     *
+     * @return string[] media_file ids, most-distinct-days first
+     */
+    public function getMostConsistentTracks(int $limit): array
+    {
+        if (!$this->hasScrobblesTable()) {
+            return [];
+        }
+
+        $userId = $this->resolveUserId();
+        $sql = <<<'SQL'
+            SELECT s.media_file_id AS id,
+                   COUNT(DISTINCT date(s.submission_time, 'unixepoch')) AS days
+            FROM scrobbles s
+            WHERE s.user_id = :uid
+            GROUP BY s.media_file_id
+            ORDER BY days DESC, COUNT(*) DESC
+            LIMIT :lim
+        SQL;
+
+        $rows = $this->connection()->fetchAllAssociative(
+            $sql,
+            ['uid' => $userId, 'lim' => $limit],
+            ['lim' => \Doctrine\DBAL\ParameterType::INTEGER],
+        );
+
+        return array_map(static fn (array $r): string => (string) $r['id'], $rows);
+    }
+
+    /**
      * Top tracks ever played on a given day-of-year (e.g. every 22 May,
      * across all years) ranked by play count. Used by the « Happy
      * birthday » playlist. Requires the scrobbles table — the annotation
