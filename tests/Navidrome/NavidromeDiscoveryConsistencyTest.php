@@ -28,7 +28,8 @@ class NavidromeDiscoveryConsistencyTest extends TestCase
 
     public function testRecentlyDiscoveredKeepsOnlyTracksFirstHeardInWindow(): void
     {
-        $conn = $this->db($path);
+        $path = $this->tmpPath();
+        $conn = NavidromeFixtureFactory::createDatabase($path, withScrobbles: true);
         NavidromeFixtureFactory::insertTrack($conn, 'mf-new', 'New', 'Artist');
         NavidromeFixtureFactory::insertTrack($conn, 'mf-old', 'Old', 'Artist');
         // mf-new: first (and only) heard inside the window.
@@ -57,7 +58,8 @@ class NavidromeDiscoveryConsistencyTest extends TestCase
 
     public function testMostConsistentRanksByDistinctDaysNotVolume(): void
     {
-        $conn = $this->db($path);
+        $path = $this->tmpPath();
+        $conn = NavidromeFixtureFactory::createDatabase($path, withScrobbles: true);
         NavidromeFixtureFactory::insertTrack($conn, 'mf-regular', 'Regular', 'Artist');
         NavidromeFixtureFactory::insertTrack($conn, 'mf-binge', 'Binge', 'Artist');
         // mf-regular: 3 distinct days, 1 play each.
@@ -87,12 +89,12 @@ class NavidromeDiscoveryConsistencyTest extends TestCase
         $this->assertSame([], $repo->getMostConsistentTracks(10));
     }
 
-    private function db(?string &$path): Connection
+    private function tmpPath(): string
     {
         $path = sys_get_temp_dir() . '/nd-disccons-' . uniqid() . '.db';
         $this->cleanup[] = $path;
 
-        return NavidromeFixtureFactory::createDatabase($path, withScrobbles: true);
+        return $path;
     }
 
     private static function play(Connection $conn, string $mediaId, string $time): void
