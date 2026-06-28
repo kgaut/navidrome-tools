@@ -12,7 +12,7 @@
                   onsubmit="return confirm('Interroger MusicBrainz pour les artistes ayant ≥3 scrobbles non matchés ? Throttle ~1 req/s, les alias uniques sont appliqués automatiquement.');">
                 <input type="hidden" name="_token" value="{{ csrf_token('navidrome_suggest_aliases') }}">
                 <button type="submit"
-                        class="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-1.5 rounded-sm text-sm font-medium"
+                        class="bg-[#F2A93C] hover:bg-[#e6982f] text-[#15243A] px-4 py-1.5 rounded-sm text-sm font-medium"
                         title="Interroge MusicBrainz et crée les alias artiste uniques haute-confiance (≥3 scrobbles)">
                     🎯 Suggérer des alias
                 </button>
@@ -23,7 +23,7 @@
                     <input type="checkbox" name="auto_stop" value="1"> auto-stop
                 </label>
                 <button type="submit"
-                        class="bg-amber-600 hover:bg-amber-700 text-white px-4 py-1.5 rounded-sm text-sm font-medium">
+                        class="bg-[#F2A93C] hover:bg-[#e6982f] text-[#15243A] px-4 py-1.5 rounded-sm text-sm font-medium">
                     ↺ Rematcher tous
                 </button>
             </form>
@@ -41,7 +41,7 @@
             <input type="text" name="title" value="{{ filter_title }}" placeholder="Rechercher…"
                    class="border rounded-sm px-2 py-1 text-sm w-40">
         </div>
-        <button type="submit" class="px-3 py-1.5 rounded-sm bg-slate-900 text-white text-sm">Filtrer</button>
+        <button type="submit" class="px-3 py-1.5 rounded-sm bg-[#15243A] text-white text-sm">Filtrer</button>
         <a href="{{ path('app_navidrome_unmatched') }}" class="text-xs text-slate-500 hover:underline self-center">Reset</a>
         <a href="{{ path('app_lastfm_alias_index') }}" class="ml-auto text-xs text-sky-700 hover:underline self-center">
             Gérer les alias track →

@@ -10,7 +10,7 @@
         <form method="post" action="{{ path('app_strawberry_rematch') }}" class="flex gap-2">
             <input type="hidden" name="_token" value="{{ csrf_token('strawberry_rematch') }}">
             <button type="submit"
-                    class="bg-amber-600 hover:bg-amber-700 text-white px-4 py-1.5 rounded-sm text-sm font-medium">
+                    class="bg-[#F2A93C] hover:bg-[#e6982f] text-[#15243A] px-4 py-1.5 rounded-sm text-sm font-medium">
                 ↺ Rematcher tous
             </button>
         </form>
@@ -27,7 +27,7 @@
             <input type="text" name="title" value="{{ filter_title }}" placeholder="Rechercher…"
                    class="border rounded-sm px-2 py-1 text-sm w-40">
         </div>
-        <button type="submit" class="px-3 py-1.5 rounded-sm bg-slate-900 text-white text-sm">Filtrer</button>
+        <button type="submit" class="px-3 py-1.5 rounded-sm bg-[#15243A] text-white text-sm">Filtrer</button>
         <a href="{{ path('app_strawberry_unmatched') }}" class="text-xs text-slate-500 hover:underline self-center">Reset</a>
     </form>
 
