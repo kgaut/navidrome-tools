@@ -66,6 +66,38 @@ class RecommendationStore
     }
 
     /**
+     * Drop one artist from the current snapshot (e.g. just added to Lidarr or
+     * ignored) so the review page stops showing it without a full recompute.
+     * Matches by MBID when given, else by normalized name. No-op when there's
+     * no snapshot yet.
+     */
+    public function removeFromSnapshot(?string $mbid, string $name): void
+    {
+        $loaded = $this->load();
+        if ($loaded === null) {
+            return;
+        }
+
+        $norm = NavidromeRepository::normalize($name);
+        $kept = array_values(array_filter($loaded['items'], static function (ArtistRecommendation $r) use ($mbid, $norm): bool {
+            if ($mbid !== null && $mbid !== '' && $r->mbid === $mbid) {
+                return false;
+            }
+            if (($mbid === null || $mbid === '') && $norm !== '' && NavidromeRepository::normalize($r->name) === $norm) {
+                return false;
+            }
+
+            return true;
+        }));
+
+        $payload = [
+            'generated_at' => $loaded['generated_at'],
+            'items' => array_map(static fn (ArtistRecommendation $r): array => $r->jsonSerialize(), $kept),
+        ];
+        $this->settings->set(self::KEY_SNAPSHOT, json_encode($payload, \JSON_THROW_ON_ERROR | \JSON_UNESCAPED_UNICODE));
+    }
+
+    /**
      * Mark an artist as ignored so the engine drops it from future runs.
      * Both the MBID (Lidarr's key) and the normalized name are stored so a
      * recommendation lacking an MBID can still be dismissed.

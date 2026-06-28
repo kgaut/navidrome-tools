@@ -62,6 +62,49 @@ class RecommendationStoreTest extends TestCase
         $this->assertNull((new RecommendationStore($this->settings($store)))->load());
     }
 
+    public function testRemoveFromSnapshotByMbidPreservesGeneratedAt(): void
+    {
+        $store = [];
+        $subject = new RecommendationStore($this->settings($store));
+        $subject->save(new RecommendationResult([
+            new ArtistRecommendation('Aphex Twin', 'mbid-aphex', 13.0, ['lastfm'], []),
+            new ArtistRecommendation('Boards of Canada', 'mbid-boc', 5.0, ['lastfm'], []),
+        ]), new \DateTimeImmutable('2026-06-28T10:00:00+00:00'));
+
+        $subject->removeFromSnapshot('mbid-aphex', 'Aphex Twin');
+
+        $loaded = $subject->load();
+        $this->assertNotNull($loaded);
+        $this->assertSame('2026-06-28T10:00:00+00:00', $loaded['generated_at']);
+        $this->assertCount(1, $loaded['items']);
+        $this->assertSame('Boards of Canada', $loaded['items'][0]->name);
+    }
+
+    public function testRemoveFromSnapshotByNameWhenNoMbid(): void
+    {
+        $store = [];
+        $subject = new RecommendationStore($this->settings($store));
+        $subject->save(new RecommendationResult([
+            new ArtistRecommendation('Some Artist', null, 4.0, ['listenbrainz'], []),
+            new ArtistRecommendation('Keep Me', null, 3.0, ['listenbrainz'], []),
+        ]), new \DateTimeImmutable('2026-06-28T10:00:00+00:00'));
+
+        $subject->removeFromSnapshot(null, 'some artist'); // normalized match
+
+        $loaded = $subject->load();
+        $this->assertNotNull($loaded);
+        $this->assertCount(1, $loaded['items']);
+        $this->assertSame('Keep Me', $loaded['items'][0]->name);
+    }
+
+    public function testRemoveFromSnapshotNoOpWithoutSnapshot(): void
+    {
+        $store = [];
+        $subject = new RecommendationStore($this->settings($store));
+        $subject->removeFromSnapshot('mbid-x', 'X'); // must not throw
+        $this->assertNull($subject->load());
+    }
+
     public function testIgnorePersistsMbidAndNormalizedName(): void
     {
         $store = [];
