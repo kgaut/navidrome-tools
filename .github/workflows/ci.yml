@@ -126,9 +126,11 @@ jobs:
     name: Notify CI result (Discord/Slack)
     runs-on: ubuntu-latest
     # Depend on every other job and run even when one failed, so the
-    # notification reflects the WHOLE run's outcome.
+    # notification reflects the WHOLE run's outcome. Scoped to the develop
+    # branch only: no notification on PRs, main, or tags. `always()` keeps
+    # it running after a failed job; the ref check gates the branch.
     needs: [phpcs, phpstan, tests, docker-build, docker-publish]
-    if: always()
+    if: ${{ always() && github.ref == 'refs/heads/develop' }}
     steps:
       - name: Compute overall status
         id: status
