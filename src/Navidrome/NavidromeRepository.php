@@ -457,6 +457,53 @@ class NavidromeRepository
     }
 
     /**
+     * « Kickstart » : tracks that most often OPEN the listening day. For
+     * each day we take the first scrobble (smallest submission_time across
+     * all tracks), then rank tracks by how many days they were that first
+     * play. Requires the scrobbles table — the annotation table has no
+     * per-play timestamp, so this returns [] on Navidrome < 0.55.
+     *
+     * Day bucketing uses `date(submission_time, 'unixepoch')` (UTC), the
+     * same convention as every other day-grouped query here.
+     *
+     * Tie note: if two tracks share the exact same minimum timestamp on a
+     * day (rare — same-second bulk import), both count for that day. We
+     * don't use a window function to break the tie, matching the repo style.
+     *
+     * @return string[] media_file ids ordered by « first of day » count DESC
+     */
+    public function getDailyKickstartTracks(int $limit): array
+    {
+        if (!$this->hasScrobblesTable()) {
+            return [];
+        }
+
+        $userId = $this->resolveUserId();
+        $sql = <<<'SQL'
+            SELECT s.media_file_id AS id, COUNT(*) AS days
+            FROM scrobbles s
+            WHERE s.user_id = :uid
+              AND s.submission_time IN (
+                  SELECT MIN(submission_time)
+                  FROM scrobbles
+                  WHERE user_id = :uid
+                  GROUP BY date(submission_time, 'unixepoch')
+              )
+            GROUP BY s.media_file_id
+            ORDER BY COUNT(*) DESC, MAX(s.submission_time) DESC
+            LIMIT :lim
+        SQL;
+
+        $rows = $this->connection()->fetchAllAssociative(
+            $sql,
+            ['uid' => $userId, 'lim' => $limit],
+            ['lim' => \Doctrine\DBAL\ParameterType::INTEGER],
+        );
+
+        return array_map(static fn (array $r): string => (string) $r['id'], $rows);
+    }
+
+    /**
      * Top tracks within [from, to). Uses scrobbles when available, otherwise
      * falls back to annotation.play_date.
      *

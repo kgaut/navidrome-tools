@@ -108,6 +108,10 @@ services:
         arguments:
             $limit: '%playlists.default_limit%'
 
+    App\Playlist\Definition\KickstartDefinition:
+        arguments:
+            $limit: '%playlists.default_limit%'
+
     App\Playlist\Definition\PepitesOublieesDefinition:
         arguments:
             $minPlays: '%playlist.pepites.min_plays%'
