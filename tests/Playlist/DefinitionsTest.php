@@ -5,6 +5,7 @@ namespace App\Tests\Playlist;
 use App\Navidrome\NavidromeRepository;
 use App\Playlist\Definition\CoupsDeCoeurDefinition;
 use App\Playlist\Definition\HappyBirthdayDefinition;
+use App\Playlist\Definition\HitParadeDefinition;
 use App\Playlist\Definition\KickstartDefinition;
 use App\Playlist\Definition\PepitesOublieesDefinition;
 use App\Playlist\Definition\TopAllTimeDefinition;
@@ -106,6 +107,29 @@ class DefinitionsTest extends TestCase
         $this->assertSame(['mf-a', 'mf-b', 'mf-c'], $ids);
     }
 
+    public function testHitParadeQueriesEachWeekRecentFirstAndDedupes(): void
+    {
+        $navidrome = $this->createMock(NavidromeRepository::class);
+
+        $captured = [];
+        $navidrome->method('topTracksInWindow')->willReturnCallback(
+            function (\DateTimeInterface $from, \DateTimeInterface $to, int $limit) use (&$captured): array {
+                $captured[] = [$from->format('Y-m-d'), $to->format('Y-m-d'), $limit];
+
+                // Week 1 → [a, b]; week 2 → [b, c]. Union dedup = [a, b, c].
+                return count($captured) === 1 ? ['a', 'b'] : ['b', 'c'];
+            },
+        );
+
+        $ids = (new HitParadeDefinition($navidrome, weeks: 2, perWeek: 3))->build($this->ctx('2026-06-27'));
+
+        // Two 7-day windows, most recent first, top-3 each.
+        $this->assertSame(['2026-06-20', '2026-06-27', 3], $captured[0]);
+        $this->assertSame(['2026-06-13', '2026-06-20', 3], $captured[1]);
+        // No shuffle: deterministic, recent week first, deduped.
+        $this->assertSame(['a', 'b', 'c'], $ids);
+    }
+
     public function testSlugsAndNamesAreStable(): void
     {
         $navidrome = $this->createMock(NavidromeRepository::class);
@@ -115,6 +139,7 @@ class DefinitionsTest extends TestCase
         $this->assertSame('coups-de-coeur', (new CoupsDeCoeurDefinition($navidrome))->getSlug());
         $this->assertSame('kickstart', (new KickstartDefinition($navidrome))->getSlug());
         $this->assertSame('happy-birthday', (new HappyBirthdayDefinition($navidrome))->getSlug());
+        $this->assertSame('hit-parade', (new HitParadeDefinition($navidrome))->getSlug());
     }
 
     private function ctx(string $now): PlaylistContext
