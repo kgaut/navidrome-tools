@@ -154,8 +154,10 @@ jobs:
           STATE: ${{ steps.status.outputs.state }}
           EMOJI: ${{ steps.status.outputs.emoji }}
         run: |
-          # Build the message from runner-provided env vars (never inline
-          # ${{ }} into the script — a crafted branch name could inject).
+          # Build the message from runner-provided env vars. Never inline
+          # workflow template expressions into the script (a crafted branch
+          # name could inject) — and note GitHub parses such expressions even
+          # inside run blocks, so don't write the empty-braces token here.
           RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           MSG="${EMOJI} CI ${STATE} — ${GITHUB_REPOSITORY} @ ${GITHUB_REF_NAME} (${GITHUB_SHA:0:7}) · ${GITHUB_EVENT_NAME} · ${RUN_URL}"
 
