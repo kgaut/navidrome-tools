@@ -504,6 +504,45 @@ class NavidromeRepository
     }
 
     /**
+     * Top tracks ever played on a given day-of-year (e.g. every 22 May,
+     * across all years) ranked by play count. Used by the « Happy
+     * birthday » playlist. Requires the scrobbles table — the annotation
+     * table only keeps the LAST play date, so it can't recover « played on
+     * 22 May 2019 » alongside « …2022 ». Returns [] on Navidrome < 0.55.
+     *
+     * Day matched via `strftime('%m-%d', submission_time, 'unixepoch')`
+     * (UTC), the same convention as the other day-grouped queries.
+     *
+     * @return string[] media_file ids ordered by play count DESC
+     */
+    public function getTopTracksOnDayOfYear(int $month, int $day, int $limit): array
+    {
+        if (!$this->hasScrobblesTable()) {
+            return [];
+        }
+
+        $userId = $this->resolveUserId();
+        $monthDay = sprintf('%02d-%02d', $month, $day);
+        $sql = <<<'SQL'
+            SELECT s.media_file_id AS id, COUNT(*) AS plays
+            FROM scrobbles s
+            WHERE s.user_id = :uid
+              AND strftime('%m-%d', s.submission_time, 'unixepoch') = :md
+            GROUP BY s.media_file_id
+            ORDER BY COUNT(*) DESC, MAX(s.submission_time) DESC
+            LIMIT :lim
+        SQL;
+
+        $rows = $this->connection()->fetchAllAssociative(
+            $sql,
+            ['uid' => $userId, 'md' => $monthDay, 'lim' => $limit],
+            ['lim' => \Doctrine\DBAL\ParameterType::INTEGER],
+        );
+
+        return array_map(static fn (array $r): string => (string) $r['id'], $rows);
+    }
+
+    /**
      * Top tracks within [from, to). Uses scrobbles when available, otherwise
      * falls back to annotation.play_date.
      *
