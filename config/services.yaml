@@ -14,6 +14,7 @@ parameters:
     env(PLAYLIST_BIRTHDAY_DAY): '22'
     env(PLAYLIST_HITPARADE_WEEKS): '52'
     env(PLAYLIST_HITPARADE_PER_WEEK): '3'
+    env(PLAYLIST_DISCOVERIES_DAYS): '30'
 
     app.auth_user: '%env(APP_AUTH_USER)%'
     app.auth_password: '%env(APP_AUTH_PASSWORD)%'
@@ -49,6 +50,7 @@ parameters:
     playlist.birthday.day: '%env(int:PLAYLIST_BIRTHDAY_DAY)%'
     playlist.hitparade.weeks: '%env(int:PLAYLIST_HITPARADE_WEEKS)%'
     playlist.hitparade.per_week: '%env(int:PLAYLIST_HITPARADE_PER_WEEK)%'
+    playlist.discoveries.days: '%env(int:PLAYLIST_DISCOVERIES_DAYS)%'
     notify.drivers: '%env(NOTIFY_DRIVERS)%'
     notify.on: '%env(NOTIFY_ON)%'
     notify.gotify.url: '%env(NOTIFY_GOTIFY_URL)%'
@@ -127,6 +129,19 @@ services:
         arguments:
             $weeks: '%playlist.hitparade.weeks%'
             $perWeek: '%playlist.hitparade.per_week%'
+
+    App\Playlist\Definition\TopDeLanneeDefinition:
+        arguments:
+            $limit: '%playlists.default_limit%'
+
+    App\Playlist\Definition\FidelesCompagnonsDefinition:
+        arguments:
+            $limit: '%playlists.default_limit%'
+
+    App\Playlist\Definition\DecouvertesRecentesDefinition:
+        arguments:
+            $sinceDays: '%playlist.discoveries.days%'
+            $limit: '%playlists.default_limit%'
 
     App\Playlist\Definition\PepitesOublieesDefinition:
         arguments:
