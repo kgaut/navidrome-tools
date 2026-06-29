@@ -66,6 +66,12 @@
         <env name="LISTENBRAINZ_USER" value=""/>
         <env name="LISTENBRAINZ_BASE_URL" value="https://api.listenbrainz.org"/>
         <env name="LISTENBRAINZ_TOKEN" value=""/>
+        <env name="AUDIOMUSE_BASE_URL" value=""/>
+        <env name="AUDIOMUSE_API_KEY" value=""/>
+        <env name="PLAYLIST_MIX_SEED_DAYS" value="7"/>
+        <env name="PLAYLIST_MIX_SEED_COUNT" value="15"/>
+        <env name="PLAYLIST_MIX_PER_SEED" value="20"/>
+        <env name="PLAYLIST_MIX_MAX_PLAYS" value="5"/>
     </php>
 
     <testsuites>
