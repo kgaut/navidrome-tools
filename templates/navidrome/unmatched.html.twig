@@ -1,114 +1,95 @@
 {% extends 'base.html.twig' %}
 {% block title %}Non matchés — Navidrome{% endblock %}
-{% block body %}
-    <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
-        <div>
-            <a href="{{ path('app_navidrome_sync') }}" class="text-sm text-sky-700 hover:underline">← Sync Navidrome</a>
-            <h1 class="text-2xl font-semibold mt-1">Scrobbles non matchés — Navidrome</h1>
-            <p class="text-sm text-slate-500">{{ total }} groupe{{ total != 1 ? 's' : '' }} (artiste, titre, album)</p>
-        </div>
-        <div class="flex gap-2 items-center flex-wrap">
-            <form method="post" action="{{ path('app_navidrome_suggest_aliases') }}" class="flex gap-2 items-center"
-                  onsubmit="return confirm('Interroger MusicBrainz pour les artistes ayant ≥3 scrobbles non matchés ? Throttle ~1 req/s, les alias uniques sont appliqués automatiquement.');">
-                <input type="hidden" name="_token" value="{{ csrf_token('navidrome_suggest_aliases') }}">
-                <button type="submit"
-                        class="bg-[#F2A93C] hover:bg-[#e6982f] text-[#15243A] px-4 py-1.5 rounded-sm text-sm font-medium"
-                        title="Interroge MusicBrainz et crée les alias artiste uniques haute-confiance (≥3 scrobbles)">
-                    🎯 Suggérer des alias
-                </button>
-            </form>
-            <form method="post" action="{{ path('app_navidrome_rematch') }}" class="flex gap-2 items-center">
-                <input type="hidden" name="_token" value="{{ csrf_token('navidrome_rematch') }}">
-                <label class="flex items-center gap-1 text-xs text-slate-500">
-                    <input type="checkbox" name="auto_stop" value="1"> auto-stop
-                </label>
-                <button type="submit"
-                        class="bg-[#F2A93C] hover:bg-[#e6982f] text-[#15243A] px-4 py-1.5 rounded-sm text-sm font-medium">
-                    ↺ Rematcher tous
-                </button>
-            </form>
-        </div>
-    </div>
 
-    <form method="get" class="bg-white shadow-sm rounded-sm p-4 mb-4 flex flex-wrap gap-3 items-end">
-        <div>
-            <label class="block text-xs uppercase text-slate-500 mb-1">Artiste</label>
-            <input type="text" name="artist" value="{{ filter_artist }}" placeholder="Rechercher…"
-                   class="border rounded-sm px-2 py-1 text-sm w-40">
+{% block page_subtitle %}{{ total }} groupe{{ total != 1 ? 's' : '' }} (artiste, titre, album){% endblock %}
+
+{% block header_actions %}
+    <form method="post" action="{{ path('app_navidrome_suggest_aliases') }}"
+          onsubmit="return confirm('Interroger MusicBrainz pour les artistes ayant ≥3 scrobbles non matchés ? Throttle ~1 req/s, les alias uniques sont appliqués automatiquement.');">
+        <input type="hidden" name="_token" value="{{ csrf_token('navidrome_suggest_aliases') }}">
+        <button type="submit" class="btn btn--primary btn--sm"
+                title="Interroge MusicBrainz et crée les alias artiste uniques haute-confiance (≥3 scrobbles)">
+            ⌖ Suggérer des alias
+        </button>
+    </form>
+    <form method="post" action="{{ path('app_navidrome_rematch') }}" class="row gap-8">
+        <input type="hidden" name="_token" value="{{ csrf_token('navidrome_rematch') }}">
+        <label class="checkbox"><input type="checkbox" name="auto_stop" value="1"> auto-stop</label>
+        <button type="submit" class="btn btn--outline btn--sm">↻ Rematcher tous</button>
+    </form>
+{% endblock %}
+
+{% block body %}
+    <form method="get" class="filter-bar" style="border:1px solid var(--border); border-radius:var(--r-card);">
+        <div class="field">
+            <label>Artiste</label>
+            <input type="text" name="artist" value="{{ filter_artist }}" placeholder="Rechercher…" class="input">
         </div>
-        <div>
-            <label class="block text-xs uppercase text-slate-500 mb-1">Titre</label>
-            <input type="text" name="title" value="{{ filter_title }}" placeholder="Rechercher…"
-                   class="border rounded-sm px-2 py-1 text-sm w-40">
+        <div class="field">
+            <label>Titre</label>
+            <input type="text" name="title" value="{{ filter_title }}" placeholder="Rechercher…" class="input">
         </div>
-        <button type="submit" class="px-3 py-1.5 rounded-sm bg-[#15243A] text-white text-sm">Filtrer</button>
-        <a href="{{ path('app_navidrome_unmatched') }}" class="text-xs text-slate-500 hover:underline self-center">Reset</a>
-        <a href="{{ path('app_lastfm_alias_index') }}" class="ml-auto text-xs text-sky-700 hover:underline self-center">
-            Gérer les alias track →
-        </a>
-        <a href="{{ path('app_lastfm_artist_alias_index') }}" class="text-xs text-sky-700 hover:underline self-center">
-            Alias artiste →
-        </a>
+        <button type="submit" class="btn btn--primary btn--sm" style="align-self:flex-end;">Filtrer</button>
+        <a href="{{ path('app_navidrome_unmatched') }}" class="btn btn--ghost btn--sm" style="align-self:flex-end;">Reset</a>
+        <a href="{{ path('app_lastfm_alias_index') }}" class="link mono fs-12 ml-auto">Gérer les alias track →</a>
+        <a href="{{ path('app_lastfm_artist_alias_index') }}" class="link mono fs-12">Alias artiste →</a>
     </form>
 
     {% if rows is empty %}
-        <div class="bg-white rounded-sm p-6 text-center text-slate-500">Aucun scrobble non matché 🎉</div>
+        <div class="empty-state">Aucun scrobble non matché 🎉</div>
     {% else %}
-    <div class="bg-white shadow-sm rounded-sm overflow-hidden mb-4">
-        <table class="w-full text-sm">
-            <thead class="bg-slate-100 text-xs uppercase text-slate-500">
+    <div class="card" style="padding:0; overflow:hidden;">
+        <table class="data-table data-table--in-card">
+            <thead>
                 <tr>
-                    <th class="px-3 py-2 text-left">Artiste</th>
-                    <th class="px-3 py-2 text-left">Titre</th>
-                    <th class="px-3 py-2 text-left">Album</th>
-                    <th class="px-3 py-2 text-left">Diagnostic</th>
-                    <th class="px-3 py-2 text-right">Scrobbles</th>
-                    <th class="px-3 py-2 text-right">Dernier joué</th>
-                    <th class="px-3 py-2 text-right">Actions</th>
+                    <th>Artiste</th>
+                    <th>Titre</th>
+                    <th>Album</th>
+                    <th>Raison</th>
+                    <th class="num">Scrobbles</th>
+                    <th class="num">Dernier joué</th>
+                    <th class="right">Actions</th>
                 </tr>
             </thead>
-            <tbody class="divide-y">
+            <tbody>
             {% for row in rows %}
                 {% set lidarr = row.album ? lidarr_album_url(row.artist, row.album) : lidarr_artist_url(row.artist) %}
-                <tr class="hover:bg-slate-50">
-                    <td class="px-3 py-1.5">{{ row.artist }}</td>
-                    <td class="px-3 py-1.5">{{ row.title }}</td>
-                    <td class="px-3 py-1.5 text-slate-400 text-xs">{{ row.album ?? '—' }}</td>
-                    <td class="px-3 py-1.5 text-xs">
+                <tr>
+                    <td>{{ row.artist }}</td>
+                    <td>{{ row.title }}</td>
+                    <td class="mono">{{ row.album ?? '—' }}</td>
+                    <td>
                         {% set d = row.diagnosis %}
                         {% if d.reason == 'artist_unknown' %}
-                            <span class="inline-block px-2 py-0.5 rounded-sm bg-rose-100 text-rose-800" title="Aucun artiste comparable dans la bibliothèque Navidrome.">Artiste inconnu</span>
+                            <span class="badge badge--warning" title="Aucun artiste comparable dans la bibliothèque Navidrome.">Artiste inconnu</span>
                         {% elseif d.reason == 'matcher_gap' %}
-                            <span class="inline-block px-2 py-0.5 rounded-sm bg-violet-100 text-violet-800"
+                            <span class="badge badge--accent"
                                   title="Track présente en bibliothèque mais la cascade matcher l'a ratée. Un rematch (cache négatif purgé) devrait la résoudre.">
                                 Présente — cascade KO
                             </span>
                         {% elseif d.reason == 'artist_near_match' %}
-                            <span class="inline-block px-2 py-0.5 rounded-sm bg-amber-100 text-amber-800"
+                            <span class="badge badge--warning"
                                   title="Suggestions : {{ d.artist_suggestions|map(s => s.name ~ ' (' ~ s.distance ~ ')')|join(', ') }}">
                                 Artiste ≈ {{ d.artist_suggestions[0].name }}
                             </span>
                         {% elseif d.reason == 'title_near_match' %}
-                            <span class="inline-block px-2 py-0.5 rounded-sm bg-sky-100 text-sky-800"
+                            <span class="badge badge--accent"
                                   title="Suggestions : {{ d.title_suggestions|map(s => s.title ~ ' (' ~ s.distance ~ ')')|join(', ') }}">
                                 Titre ≈ {{ d.title_suggestions[0].title }}
                             </span>
                         {% elseif d.reason == 'track_missing' %}
-                            <span class="inline-block px-2 py-0.5 rounded-sm bg-slate-100 text-slate-700" title="L'artiste existe mais ce titre est introuvable dans la bibliothèque.">Track absente</span>
+                            <span class="badge badge--neutral" title="L'artiste existe mais ce titre est introuvable dans la bibliothèque.">Track absente</span>
                         {% else %}
-                            <span class="inline-block px-2 py-0.5 rounded-sm bg-slate-100 text-slate-500">—</span>
+                            <span class="badge badge--neutral">—</span>
                         {% endif %}
                     </td>
-                    <td class="px-3 py-1.5 text-right font-mono">{{ row.count }}</td>
-                    <td class="px-3 py-1.5 text-right text-xs text-slate-500">{{ row.last_played_at|date('d/m/Y') }}</td>
-                    <td class="px-3 py-1.5 text-right whitespace-nowrap">
+                    <td class="num">{{ row.count }}</td>
+                    <td class="num mono">{{ row.last_played_at|date('d/m/Y') }}</td>
+                    <td class="right nowrap">
                         {% if lidarr %}
-                            <a href="{{ lidarr }}" target="_blank" rel="noopener"
-                               class="text-xs text-emerald-700 hover:underline mr-2"
-                               title="Chercher dans Lidarr">⇗ Lidarr</a>
+                            <a href="{{ lidarr }}" target="_blank" rel="noopener" class="mono fs-11 muted" title="Chercher dans Lidarr">⇗ Lidarr</a>
                         {% endif %}
-                        <a href="{{ path('app_lastfm_alias_new', {artist: row.artist, title: row.title}) }}"
-                           class="text-xs text-sky-700 hover:underline">✏️ Alias</a>
+                        <a href="{{ path('app_lastfm_alias_new', {artist: row.artist, title: row.title}) }}" class="mono fs-11 t-teal">✎ Alias</a>
                     </td>
                 </tr>
             {% endfor %}
@@ -116,10 +97,11 @@
         </table>
     </div>
     {% if pages > 1 %}
-    <div class="flex gap-2 items-center text-sm">
-        {% if page > 1 %}<a href="{{ path('app_navidrome_unmatched', {page: page - 1, artist: filter_artist, title: filter_title}) }}" class="px-3 py-1 rounded-sm bg-white border">← Préc.</a>{% endif %}
-        <span class="text-slate-500">Page {{ page }} / {{ pages }}</span>
-        {% if page < pages %}<a href="{{ path('app_navidrome_unmatched', {page: page + 1, artist: filter_artist, title: filter_title}) }}" class="px-3 py-1 rounded-sm bg-white border">Suiv. →</a>{% endif %}
+    <div class="pagination">
+        {% if page > 1 %}<a href="{{ path('app_navidrome_unmatched', {page: page - 1, artist: filter_artist, title: filter_title}) }}">← Préc.</a>{% endif %}
+        <span class="current">{{ page }}</span>
+        <span>/ {{ pages }}</span>
+        {% if page < pages %}<a href="{{ path('app_navidrome_unmatched', {page: page + 1, artist: filter_artist, title: filter_title}) }}">Suiv. →</a>{% endif %}
     </div>
     {% endif %}
     {% endif %}

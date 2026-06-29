@@ -1,124 +1,107 @@
 {% extends 'base.html.twig' %}
 {% block title %}Dashboard{% endblock %}
+
+{% block page_subtitle %}
+    {% if last_fetch %}dernier fetch · {{ last_fetch|date('d/m/Y H:i') }} · {% endif %}{{ app.user.userIdentifier }}
+{% endblock %}
+
+{% block header_actions %}
+    {% if container_configured %}
+        <span class="status-pill">
+            <span class="dot{{ container_status == 'running' ? '' : ' dot--warning' }}"></span>
+            navidrome · {{ container_label }}
+        </span>
+        <form method="post" action="{{ path('app_navidrome_container_start') }}">
+            <input type="hidden" name="_token" value="{{ csrf_token('navidrome_container') }}">
+            <button type="submit" class="btn btn--success btn--sm">▷ démarrer</button>
+        </form>
+        <form method="post" action="{{ path('app_navidrome_container_stop') }}">
+            <input type="hidden" name="_token" value="{{ csrf_token('navidrome_container') }}">
+            <button type="submit" class="btn btn--warning btn--sm">■ arrêter</button>
+        </form>
+    {% endif %}
+{% endblock %}
+
 {% block body %}
-    <h1 class="text-2xl font-semibold mb-6">Dashboard</h1>
+    {% set total_match = navidrome_matched + navidrome_unmatched %}
+    {% set match_rate = total_match > 0 ? (navidrome_matched / total_match * 100) : null %}
 
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-        <div class="bg-white shadow-sm rounded-sm p-4">
-            <div class="text-xs uppercase text-slate-500">Scrobbles locaux</div>
-            <div class="text-3xl font-semibold">{{ total_scrobbles|number_format(0, '.', ' ') }}</div>
-            <div class="text-xs text-slate-400 mt-1">
-                {% if last_fetch %}dernière sync {{ last_fetch|date('d/m H:i') }}{% endif %}
-                — <a href="{{ path('app_lastfm_import') }}" class="hover:underline">Import</a>
-            </div>
+    {# Rangée KPI #}
+    <div class="grid grid--4">
+        <div class="kpi">
+            <div class="kpi__label">Scrobbles</div>
+            <div class="kpi__value">{{ total_scrobbles|number_format(0, '.', ' ') }}</div>
+            <div class="kpi__delta"><a href="{{ path('app_lastfm_import') }}" class="link">↧ importer</a></div>
         </div>
 
-        <div class="bg-white shadow-sm rounded-sm p-4 {{ navidrome_unmatched > 0 ? 'border border-amber-200' : '' }}">
-            <div class="text-xs uppercase text-slate-500">
-                Navidrome
-                {% if container_configured %}
-                — <span class="font-mono {{ container_status == 'running' ? 'text-emerald-600' : (container_status == 'stopped' ? 'text-slate-500' : 'text-rose-600') }}">{{ container_label }}</span>
-                {% endif %}
-            </div>
-            <div class="text-lg font-semibold">{{ navidrome_matched|number_format(0, '.', ' ') }} matchés</div>
-            <div class="text-xs mt-1 space-y-0.5">
-                {% if navidrome_pending > 0 %}
-                <div class="text-amber-700">{{ navidrome_pending }} en attente — <a href="{{ path('app_navidrome_sync') }}" class="underline">sync</a></div>
-                {% endif %}
-                {% if navidrome_unmatched > 0 %}
-                <div class="text-rose-600">{{ navidrome_unmatched }} non matchés — <a href="{{ path('app_navidrome_unmatched') }}" class="underline">voir</a></div>
-                {% elseif navidrome_pending == 0 %}
-                <div class="text-emerald-600">✓ à jour</div>
-                {% endif %}
-            </div>
+        <div class="kpi kpi--teal">
+            <div class="kpi__label">Taux de match</div>
+            {% if match_rate is not null %}
+                <div class="kpi__value">{{ match_rate|number_format(1) }}<span class="unit">%</span></div>
+                <div class="progress"><div class="progress__fill" style="width: {{ match_rate|number_format(1, '.', '') }}%"></div></div>
+            {% else %}
+                <div class="kpi__value">—</div>
+            {% endif %}
         </div>
 
-        {% if strawberry_active %}
-        <div class="bg-white shadow-sm rounded-sm p-4 {{ strawberry_unmatched > 0 ? 'border border-amber-200' : '' }}">
-            <div class="text-xs uppercase text-slate-500">Strawberry</div>
-            <div class="text-xs mt-1 space-y-0.5">
-                {% if strawberry_pending > 0 %}
-                <div class="text-amber-700">{{ strawberry_pending }} en attente — <a href="{{ path('app_strawberry_sync') }}" class="underline">sync</a></div>
-                {% endif %}
-                {% if strawberry_unmatched > 0 %}
-                <div class="text-rose-600">{{ strawberry_unmatched }} non matchés — <a href="{{ path('app_strawberry_unmatched') }}" class="underline">voir</a></div>
-                {% elseif strawberry_pending == 0 %}
-                <div class="text-emerald-600">✓ à jour</div>
-                {% endif %}
-            </div>
+        <div class="kpi kpi--orange">
+            <div class="kpi__label">Non-matchés</div>
+            <div class="kpi__value">{{ navidrome_unmatched|number_format(0, '.', ' ') }}</div>
+            {% if navidrome_unmatched > 0 %}<div class="kpi__delta"><a href="{{ path('app_navidrome_unmatched') }}" class="link">voir →</a></div>{% endif %}
         </div>
-        {% endif %}
 
-        <div class="bg-white shadow-sm rounded-sm p-4">
-            <div class="text-xs uppercase text-slate-500">Accès rapide</div>
-            <div class="text-xs mt-2 space-y-1">
-                <div><a href="{{ path('app_stats') }}" class="text-sky-700 hover:underline">Statistiques →</a></div>
-                <div><a href="{{ path('app_lastfm_alias_index') }}" class="text-sky-700 hover:underline">Aliases track →</a></div>
-                <div><a href="{{ path('app_lastfm_artist_alias_index') }}" class="text-sky-700 hover:underline">Aliases artiste →</a></div>
-            </div>
+        <div class="kpi">
+            <div class="kpi__label">En attente de sync</div>
+            <div class="kpi__value">{{ navidrome_pending|number_format(0, '.', ' ') }}</div>
+            {% if navidrome_pending > 0 %}<div class="kpi__delta"><a href="{{ path('app_navidrome_sync') }}" class="link">⇄ synchroniser</a></div>{% endif %}
         </div>
     </div>
 
-    {# Container start/stop #}
-    {% if container_configured %}
-    <div class="bg-white shadow-sm rounded-sm p-4 mb-6 flex items-center gap-4">
-        <span class="text-sm font-medium">Conteneur Navidrome :</span>
-        <span class="text-sm font-mono {{ container_status == 'running' ? 'text-emerald-600' : (container_status == 'stopped' ? 'text-slate-500' : 'text-rose-600') }}">
-            {{ container_label }}
-        </span>
-        <form method="post" action="{{ path('app_navidrome_container_start') }}" class="inline">
-            <input type="hidden" name="_token" value="{{ csrf_token('navidrome_container') }}">
-            <button type="submit" class="text-xs bg-[#F2A93C] hover:bg-[#e6982f] text-[#15243A] px-3 py-1 rounded-sm">▶ Start</button>
-        </form>
-        <form method="post" action="{{ path('app_navidrome_container_stop') }}" class="inline">
-            <input type="hidden" name="_token" value="{{ csrf_token('navidrome_container') }}">
-            <button type="submit" class="text-xs bg-rose-600 hover:bg-rose-700 text-white px-3 py-1 rounded-sm">■ Stop</button>
-        </form>
+    {% if strawberry_active %}
+    <div class="grid grid--4">
+        <div class="kpi">
+            <div class="kpi__label">Strawberry · en attente</div>
+            <div class="kpi__value kpi__value--sm">{{ (strawberry_pending ?? 0)|number_format(0, '.', ' ') }}</div>
+            {% if strawberry_pending > 0 %}<div class="kpi__delta"><a href="{{ path('app_strawberry_sync') }}" class="link">⇄ synchroniser</a></div>{% endif %}
+        </div>
+        <div class="kpi kpi--orange">
+            <div class="kpi__label">Strawberry · non-matchés</div>
+            <div class="kpi__value kpi__value--sm">{{ (strawberry_unmatched ?? 0)|number_format(0, '.', ' ') }}</div>
+            {% if strawberry_unmatched > 0 %}<div class="kpi__delta"><a href="{{ path('app_strawberry_unmatched') }}" class="link">voir →</a></div>{% endif %}
+        </div>
     </div>
     {% endif %}
 
-    <div class="bg-white shadow-sm rounded-sm overflow-hidden">
-        <div class="flex items-center justify-between px-3 py-2 bg-slate-100 border-b">
-            <h2 class="text-sm font-semibold text-slate-700">Derniers runs</h2>
-            <a href="{{ path('app_history') }}" class="text-xs text-sky-700 hover:underline">Voir tout →</a>
+    {# Actions rapides + derniers runs #}
+    <div class="grid grid--dash-runs">
+        <div class="card">
+            <div class="card__title card__title--sm">Actions rapides</div>
+            <div class="grid grid--2" style="gap:10px;">
+                <a href="{{ path('app_lastfm_import') }}" class="btn btn--ghost">↧ Import Last.fm</a>
+                <a href="{{ path('app_navidrome_sync') }}" class="btn btn--ghost">⇄ Sync Navidrome</a>
+                <a href="{{ path('app_stats') }}" class="btn btn--ghost">▤ Statistiques</a>
+                <a href="{{ path('app_recommendations_index') }}" class="btn btn--ghost">✧ Recommandations</a>
+            </div>
         </div>
-        {% if recent_runs is empty %}
-            <div class="px-3 py-4 text-sm text-slate-500 text-center">Aucun run pour l'instant.</div>
-        {% else %}
-            <table class="w-full text-sm">
-                <thead class="bg-slate-50 text-xs text-slate-500 uppercase">
-                    <tr>
-                        <th class="px-3 py-2 text-left">Label</th>
-                        <th class="px-3 py-2 text-left">Type</th>
-                        <th class="px-3 py-2 text-left">Statut</th>
-                        <th class="px-3 py-2 text-right">Durée</th>
-                        <th class="px-3 py-2 text-right">Lancé le</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y">
-                {% for run in recent_runs %}
-                    <tr class="hover:bg-slate-50">
-                        <td class="px-3 py-1.5">
-                            <a href="{{ path('app_history_show', {id: run.id}) }}" class="hover:underline">{{ run.label }}</a>
-                        </td>
-                        <td class="px-3 py-1.5 font-mono text-xs text-slate-500">{{ run.type }}</td>
-                        <td class="px-3 py-1.5">
-                            <span class="text-xs px-1.5 py-0.5 rounded-sm font-medium
-                                {% if run.status == 'success' %}bg-emerald-100 text-emerald-800
-                                {% elseif run.status == 'error' %}bg-rose-100 text-rose-800
-                                {% elseif run.status == 'running' %}bg-sky-100 text-sky-800
-                                {% else %}bg-slate-100 text-slate-700{% endif %}">
-                                {{ run.status }}
-                            </span>
-                        </td>
-                        <td class="px-3 py-1.5 text-right text-xs font-mono">
-                            {% if run.durationMs %}{{ (run.durationMs / 1000)|number_format(1) }}s{% else %}—{% endif %}
-                        </td>
-                        <td class="px-3 py-1.5 text-right text-xs text-slate-500">{{ run.startedAt|date('d/m H:i') }}</td>
-                    </tr>
-                {% endfor %}
-                </tbody>
-            </table>
-        {% endif %}
+
+        <div class="card" style="padding:0;">
+            <div class="row between" style="padding:14px 16px; border-bottom:1px solid var(--border);">
+                <div class="card__title card__title--sm mb-0">Derniers runs</div>
+                <a href="{{ path('app_history') }}" class="link mono fs-12">voir tout →</a>
+            </div>
+            {% if recent_runs is empty %}
+                <div class="empty-state" style="border:none;">Aucun run pour l'instant.</div>
+            {% else %}
+                <div class="divide" style="padding:4px 16px 10px;">
+                    {% for run in recent_runs %}
+                        <div class="run-row">
+                            <span class="dot{{ run.status == 'success' ? '' : (run.status == 'error' ? ' dot--warning' : '') }}"></span>
+                            <a href="{{ path('app_history_show', {id: run.id}) }}" class="name link">{{ run.label }}</a>
+                            <span class="time">{{ run.startedAt|date('d/m H:i') }}{% if run.durationMs %} · {{ (run.durationMs / 1000)|number_format(1) }}s{% endif %}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
     </div>
 {% endblock %}

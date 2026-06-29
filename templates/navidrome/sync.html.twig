@@ -1,80 +1,94 @@
 {% extends 'base.html.twig' %}
 {% block title %}Sync Navidrome{% endblock %}
-{% block body %}
-    <h1 class="text-2xl font-semibold mb-4">Synchronisation → Navidrome</h1>
 
-    <div class="bg-amber-50 border border-amber-300 rounded-sm p-4 mb-6 text-sm text-amber-900">
+{% block page_subtitle %}matching · insertion · contrôle conteneur{% endblock %}
+
+{% block body %}
+    <div class="banner banner--warning">
         <strong>Navidrome doit être arrêté</strong> pour éviter toute corruption SQLite.
-        Utilisez <code>--auto-stop</code> en CLI ou cochez la case ci-dessous
-        (requiert <code>NAVIDROME_CONTAINER_NAME</code> configuré).
+        Utilisez <span class="mono">--auto-stop</span> en CLI ou cochez la case ci-dessous
+        (requiert <span class="mono">NAVIDROME_CONTAINER_NAME</span> configuré).
     </div>
 
-    {# Compteurs #}
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-        <div class="bg-white shadow-sm rounded-sm p-4">
-            <div class="text-xs uppercase text-slate-500">En attente</div>
-            <div class="text-3xl font-semibold {{ pending > 0 ? 'text-amber-600' : '' }}">{{ pending|number_format(0, '.', ' ') }}</div>
-        </div>
-        <div class="bg-white shadow-sm rounded-sm p-4">
-            <div class="text-xs uppercase text-slate-500">Matchés</div>
-            <div class="text-3xl font-semibold text-emerald-600">{{ matched|number_format(0, '.', ' ') }}</div>
-        </div>
-        <div class="bg-white shadow-sm rounded-sm p-4">
-            <div class="text-xs uppercase text-slate-500">Doublons</div>
-            <div class="text-3xl font-semibold text-slate-500">{{ duplicates|number_format(0, '.', ' ') }}</div>
-        </div>
-        <div class="bg-white shadow-sm rounded-sm p-4">
-            <div class="text-xs uppercase text-slate-500">
-                <a href="{{ path('app_navidrome_unmatched') }}" class="underline hover:no-underline">Non matchés</a>
+    {# 3 cartes : conteneur · en attente · non-matchés #}
+    <div class="grid grid--3">
+        <div class="card">
+            <div class="card__title card__title--sm">Conteneur Navidrome</div>
+            <div class="status-pill mb-12">
+                <span class="dot{{ (container_status ?? null) == 'running' ? '' : ' dot--warning' }}"></span>
+                {{ (container_status ?? null) == 'running' ? 'en ligne' : 'arrêté' }}
             </div>
-            <div class="text-3xl font-semibold {{ unmatched > 0 ? 'text-rose-600' : '' }}">{{ unmatched|number_format(0, '.', ' ') }}</div>
+            <div class="row gap-8">
+                <form method="post" action="{{ path('app_navidrome_container_start') }}">
+                    <input type="hidden" name="_token" value="{{ csrf_token('navidrome_container') }}">
+                    <button type="submit" class="btn btn--success btn--sm">▷ démarrer</button>
+                </form>
+                <form method="post" action="{{ path('app_navidrome_container_stop') }}">
+                    <input type="hidden" name="_token" value="{{ csrf_token('navidrome_container') }}">
+                    <button type="submit" class="btn btn--warning btn--sm">■ arrêter</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="kpi kpi--teal">
+            <div class="kpi__label">En attente de sync</div>
+            <div class="kpi__value">{{ pending|number_format(0, '.', ' ') }}</div>
+        </div>
+
+        <div class="kpi kpi--orange">
+            <div class="kpi__label">
+                <a href="{{ path('app_navidrome_unmatched') }}" class="link">Non-matchés →</a>
+            </div>
+            <div class="kpi__value">{{ unmatched|number_format(0, '.', ' ') }}</div>
+            <div class="kpi__delta muted">{{ matched|number_format(0, '.', ' ') }} matchés · {{ duplicates|number_format(0, '.', ' ') }} doublons</div>
         </div>
     </div>
 
     {# Formulaire sync #}
-    <div class="bg-white shadow-sm rounded-sm p-6 max-w-xl mb-6">
-        <h2 class="text-lg font-semibold mb-4">Lancer la synchronisation</h2>
-        <form method="post" action="{{ path('app_navidrome_sync_post') }}" class="space-y-4">
+    <div class="card">
+        <div class="card__title">Lancer la synchronisation</div>
+        <form method="post" action="{{ path('app_navidrome_sync_post') }}">
             <input type="hidden" name="_token" value="{{ csrf_token('navidrome_sync') }}">
 
-            <div class="flex flex-col gap-2">
-                <label class="flex items-center gap-2 text-sm">
-                    <input type="checkbox" name="auto_stop" value="1"> Auto-stop Navidrome (requiert NAVIDROME_CONTAINER_NAME)
+            <div class="row gap-16 mb-12">
+                <label class="checkbox">
+                    <input type="checkbox" name="auto_stop" value="1"> --auto-stop (requiert NAVIDROME_CONTAINER_NAME)
                 </label>
-                <label class="flex items-center gap-2 text-sm">
-                    <input type="checkbox" name="dry_run" value="1"> Dry-run (matching sans écriture)
+                <label class="checkbox">
+                    <input type="checkbox" name="dry_run" value="1"> --dry-run (matching sans écriture)
                 </label>
             </div>
 
-            <div class="grid grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-xs uppercase text-slate-500 mb-1">Limite (0 = tout)</label>
-                    <input type="number" name="limit" value="0" min="0"
-                           class="w-full border rounded-sm px-3 py-2 text-sm">
+            <div class="row gap-16 mb-12">
+                <div class="field">
+                    <label>Limite (0 = tout)</label>
+                    <input type="number" name="limit" value="0" min="0" class="input">
                 </div>
-                <div>
-                    <label class="block text-xs uppercase text-slate-500 mb-1">Tolérance dedup (s)</label>
-                    <input type="number" name="tolerance" value="60" min="0"
-                           class="w-full border rounded-sm px-3 py-2 text-sm">
+                <div class="field">
+                    <label>Tolérance dedup (s)</label>
+                    <input type="number" name="tolerance" value="60" min="0" class="input">
                 </div>
             </div>
 
-            <button type="submit"
-                    class="bg-[#F2A93C] hover:bg-[#e6982f] text-[#15243A] px-6 py-2 rounded-sm text-sm font-medium">
-                ▶ Lancer la sync
-            </button>
+            <button type="submit" class="btn btn--primary">▷ sync-navidrome</button>
+        </form>
+        <form method="post" action="{{ path('app_navidrome_rematch') }}" class="row gap-8 mt-12">
+            <input type="hidden" name="_token" value="{{ csrf_token('navidrome_rematch') }}">
+            <label class="checkbox">
+                <input type="checkbox" name="auto_stop" value="1"> --auto-stop
+            </label>
+            <button type="submit" class="btn btn--outline">↻ rematch</button>
         </form>
 
-        <div class="mt-4 text-xs text-slate-400">
-            <strong>CLI :</strong>
-            <code>php bin/console app:scrobbles:sync-navidrome [--auto-stop] [--dry-run] [--limit=N]</code>
+        <div class="muted mono fs-12 mt-12">
+            CLI : <span class="t-3">php bin/console app:scrobbles:sync-navidrome [--auto-stop] [--dry-run] [--limit=N]</span>
         </div>
     </div>
 
-    {# Reset #}
-    <div class="bg-white shadow-sm rounded-sm p-6 max-w-xl border-l-4 border-rose-400">
-        <h2 class="text-lg font-semibold mb-2">Zone dangereuse — Reset</h2>
-        <p class="text-sm text-slate-600 mb-4">
+    {# Zone dangereuse #}
+    <div class="card">
+        <div class="card__title t-orange">Zone dangereuse — Reset</div>
+        <p class="t-3 mb-12">
             Remet <strong>tous</strong> les morceaux (matchés, doublons, non matchés, skipped)
             en <em>pending</em> pour retenter la synchronisation à zéro. Les playcounts déjà
             écrits dans Navidrome ne sont pas modifiés.
@@ -82,10 +96,7 @@
         <form method="post" action="{{ path('app_navidrome_sync_reset') }}"
               onsubmit="return confirm('Confirmer le reset de tous les statuts Navidrome en pending ?');">
             <input type="hidden" name="_token" value="{{ csrf_token('navidrome_sync_reset') }}">
-            <button type="submit"
-                    class="bg-rose-600 hover:bg-rose-700 text-white px-6 py-2 rounded-sm text-sm font-medium">
-                ⟲ Reset → pending
-            </button>
+            <button type="submit" class="btn btn--danger">⟲ Reset → pending</button>
         </form>
     </div>
 {% endblock %}

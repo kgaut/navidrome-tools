@@ -1,102 +1,81 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}Recommandations d'artistes{% endblock %}
+{% block title %}Recommandations{% endblock %}
+
+{% block page_subtitle %}
+    Artistes similaires à ce que tu écoutes (Last.fm{{ listenBrainzConfigured ? ' + ListenBrainz' : '' }}){% if generatedAt %} · dernier calcul {{ generatedAt|date('Y-m-d H:i') }}{% endif %}
+{% endblock %}
+
+{% block header_actions %}
+    <form method="post" action="{{ path('app_recommendations_refresh') }}">
+        <input type="hidden" name="_token" value="{{ csrf_token('recommendations_refresh') }}">
+        <button type="submit" class="btn btn--warning btn--sm">↻ Rafraîchir</button>
+    </form>
+{% endblock %}
 
 {% block body %}
-    <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
-        <div>
-            <h1 class="text-2xl font-semibold">Recommandations d'artistes</h1>
-            <p class="text-sm text-slate-500">
-                Artistes similaires à ce que tu écoutes (Last.fm{{ listenBrainzConfigured ? ' + ListenBrainz' : '' }}),
-                à ajouter à Lidarr en un clic.
-                {% if generatedAt %}
-                    Dernier calcul : {{ generatedAt|date('Y-m-d H:i') }}.
-                {% endif %}
-            </p>
-        </div>
-        <form method="post" action="{{ path('app_recommendations_refresh') }}">
-            <input type="hidden" name="_token" value="{{ csrf_token('recommendations_refresh') }}">
-            <button type="submit"
-                    class="bg-[#F2A93C] hover:bg-[#e6982f] text-[#15243A] px-4 py-1.5 rounded-sm text-sm font-medium">
-                ↻ Rafraîchir
-            </button>
-        </form>
-    </div>
-
     {% if not lidarrConfigured %}
-        <div class="bg-sky-50 border border-sky-200 text-sky-800 rounded-sm p-3 text-sm mb-4">
+        <div class="banner banner--info">
             Lidarr n'est pas configuré (clé API) — l'ajout 1 clic est désactivé, mais les liens
-            « ⇗ Lidarr » restent disponibles si <code>LIDARR_URL</code> est défini.
+            « ⇗ Lidarr » restent disponibles si <code class="mono">LIDARR_URL</code> est défini.
         </div>
     {% endif %}
 
     {% if recommendations is empty %}
-        <div class="bg-slate-50 border border-slate-200 text-slate-700 rounded-sm p-6 text-center text-sm">
+        <div class="empty-state">
             Aucune recommandation pour l'instant.
-            Clique sur <span class="font-medium">↻ Rafraîchir</span> pour lancer un calcul
-            (vérifie que <code>LASTFM_API_KEY</code>{{ listenBrainzConfigured ? '' : ' / LISTENBRAINZ_USER' }} est configuré).
+            Clique sur <span class="fw-600">↻ Rafraîchir</span> pour lancer un calcul
+            (vérifie que <code class="mono">LASTFM_API_KEY</code>{{ listenBrainzConfigured ? '' : ' / LISTENBRAINZ_USER' }} est configuré).
         </div>
     {% else %}
-        <div class="bg-white shadow-sm rounded-sm overflow-hidden">
-            <table class="w-full text-sm">
-                <thead class="bg-slate-100 text-xs uppercase text-slate-500">
+        <div class="card" style="padding:0; overflow:auto;">
+            <table class="data-table data-table--in-card">
+                <thead>
                     <tr>
-                        <th class="px-3 py-2 text-left w-px">#</th>
-                        <th class="px-3 py-2 text-left">Artiste</th>
-                        <th class="px-3 py-2 text-left">Sources</th>
-                        <th class="px-3 py-2 text-right">Score</th>
-                        <th class="px-3 py-2 text-right">Actions</th>
+                        <th class="num">#</th>
+                        <th>Artiste</th>
+                        <th>Sources</th>
+                        <th class="num">Score</th>
+                        <th class="right">Actions</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y">
+                <tbody>
                     {% for r in recommendations %}
-                        <tr class="hover:bg-slate-50">
-                            <td class="px-3 py-2 text-slate-400 tabular-nums">{{ loop.index }}</td>
-                            <td class="px-3 py-2">
-                                <div class="font-medium">{{ r.name }}</div>
+                        <tr>
+                            <td class="num">{{ loop.index }}</td>
+                            <td>
+                                <div class="cell-track__title">{{ r.name }}</div>
                                 {% if r.seeds is not empty %}
-                                    <div class="text-xs text-slate-500">
-                                        parce que tu écoutes {{ r.seeds|slice(0, 3)|join(', ') }}
-                                    </div>
+                                    <div class="cell-track__sub">parce que tu écoutes {{ r.seeds|slice(0, 3)|join(', ') }}</div>
                                 {% endif %}
                                 {% if not r.mbid %}
-                                    <div class="text-xs text-amber-600">MBID introuvable — ajout Lidarr indisponible</div>
+                                    <div class="cell-track__sub t-orange">MBID introuvable — ajout Lidarr indisponible</div>
                                 {% endif %}
                             </td>
-                            <td class="px-3 py-2">
+                            <td>
                                 {% for s in r.sources %}
-                                    <span class="inline-block bg-slate-100 text-slate-600 px-2 py-0.5 rounded-sm text-xs mr-1">{{ s }}</span>
+                                    <span class="badge badge--accent" style="margin-right:4px;">{{ s }}</span>
                                 {% endfor %}
                             </td>
-                            <td class="px-3 py-2 text-right tabular-nums text-slate-600">{{ r.score|number_format(1) }}</td>
-                            <td class="px-3 py-2">
-                                <div class="flex items-center justify-end gap-2">
+                            <td class="num">{{ r.score|number_format(1) }}</td>
+                            <td>
+                                <div class="row" style="justify-content:flex-end;">
                                     {% if lidarrConfigured and r.mbid %}
                                         <form method="post" action="{{ path('app_recommendations_add') }}"
                                               onsubmit="return confirm('Ajouter « {{ r.name|e('js') }} » à Lidarr ? (déclenche une recherche / téléchargement)');">
                                             <input type="hidden" name="_token" value="{{ csrf_token('recommendations_add') }}">
                                             <input type="hidden" name="mbid" value="{{ r.mbid }}">
                                             <input type="hidden" name="name" value="{{ r.name }}">
-                                            <button type="submit"
-                                                    class="bg-[#F2A93C] hover:bg-[#e6982f] text-[#15243A] px-3 py-1 rounded-sm text-xs font-medium">
-                                                + Ajouter à Lidarr
-                                            </button>
+                                            <button type="submit" class="btn btn--primary btn--sm">+ Ajouter à Lidarr</button>
                                         </form>
                                     {% elseif lidarr_artist_url(r.name) %}
-                                        <a href="{{ lidarr_artist_url(r.name) }}" target="_blank" rel="noopener"
-                                           class="border border-[#F2A93C] text-[#15243A] hover:bg-[#FCEFD8] px-3 py-1 rounded-sm text-xs font-medium">
-                                            ⇗ Lidarr
-                                        </a>
+                                        <a href="{{ lidarr_artist_url(r.name) }}" target="_blank" rel="noopener" class="btn btn--outline btn--sm">⇗ Lidarr</a>
                                     {% endif %}
                                     <form method="post" action="{{ path('app_recommendations_ignore') }}">
                                         <input type="hidden" name="_token" value="{{ csrf_token('recommendations_ignore') }}">
                                         <input type="hidden" name="mbid" value="{{ r.mbid }}">
                                         <input type="hidden" name="name" value="{{ r.name }}">
-                                        <button type="submit"
-                                                class="text-slate-500 hover:text-slate-800 px-3 py-1 rounded-sm text-xs"
-                                                title="Ne plus recommander cet artiste">
-                                            ✕ Ignorer
-                                        </button>
+                                        <button type="submit" class="btn btn--outline btn--sm" title="Ne plus recommander cet artiste">✕ Ignorer</button>
                                     </form>
                                 </div>
                             </td>
@@ -105,7 +84,7 @@
                 </tbody>
             </table>
         </div>
-        <p class="mt-3 text-xs text-slate-400">
+        <p class="muted mono fs-11">
             « Ajouter à Lidarr » crée l'artiste (monitoré, recherche lancée selon ta config Lidarr).
             « Ignorer » le retire définitivement des futures recommandations.
         </p>

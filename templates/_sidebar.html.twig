@@ -1,0 +1,63 @@
+{#
+    Sidebar de navigation (thème Console). Source unique des liens ; l'item
+    actif est déterminé côté serveur via la route courante. Chaque item porte
+    `match` = routes qui l'activent (un écran à onglets active son item parent).
+#}
+{% set route = app.request.attributes.get('_route') %}
+{% set sections = [
+    { heading: 'PILOTAGE', items: [
+        { label: 'Dashboard',       glyph: '▦', route: 'app_dashboard',              match: ['app_dashboard'] },
+        { label: 'Statistiques',    glyph: '▤', route: 'app_stats',                  match: ['app_stats', 'app_lastfm_stats', 'app_navidrome_stats', 'app_lastfm_top_artists', 'app_lastfm_top_albums', 'app_lastfm_top_tracks', 'app_navidrome_top_artists', 'app_navidrome_top_albums', 'app_navidrome_top_tracks'] },
+        { label: 'Scrobbles',       glyph: '≡', route: 'app_lastfm_scrobbles',       match: ['app_lastfm_scrobbles'] },
+        { label: 'Recommandations', glyph: '✧', route: 'app_recommendations_index',  match: ['app_recommendations_index'] },
+        { label: 'Playlists',       glyph: '♬', route: 'app_playlists_index',        match: ['app_playlists_index', 'app_playlists_show'] },
+    ]},
+    { heading: 'SYNCHRO', items: [
+        { label: 'Import Last.fm',  glyph: '↧', route: 'app_lastfm_import',          match: ['app_lastfm_import'] },
+        { label: 'Sync Navidrome',  glyph: '⇄', route: 'app_navidrome_sync',         match: ['app_navidrome_sync'] },
+        { label: 'Non-matchés',     glyph: '⚠', route: 'app_navidrome_unmatched',  match: ['app_navidrome_unmatched'] },
+        { label: 'Alias',           glyph: '⌖', route: 'app_lastfm_alias_index',     match: ['app_lastfm_alias_index', 'app_lastfm_alias_new', 'app_lastfm_alias_edit', 'app_lastfm_artist_alias_index', 'app_lastfm_artist_alias_new', 'app_lastfm_artist_alias_edit'], badge: alias_count() },
+        { label: 'Strawberry',      glyph: '♪', route: 'app_strawberry_sync',        match: ['app_strawberry_sync', 'app_strawberry_unmatched'] },
+    ]},
+    { heading: 'SYSTÈME', items: [
+        { label: 'Historique runs', glyph: '◷', route: 'app_history',                match: ['app_history', 'app_history_show'] },
+        { label: 'Aide',            glyph: '?', route: 'app_help',                    match: ['app_help'] },
+    ]},
+] %}
+
+<aside class="sidebar">
+    <a href="{{ path('app_dashboard') }}" class="sidebar__logo">
+        <svg width="30" height="30" viewBox="0 0 256 256" aria-hidden="true">
+            <circle cx="128" cy="128" r="104" fill="#16273E"></circle>
+            <rect x="73" y="110" width="20" height="58" rx="10" fill="#35C9D6"></rect>
+            <rect x="103" y="76" width="20" height="92" rx="10" fill="#54D6B0"></rect>
+            <rect x="133" y="100" width="20" height="68" rx="10" fill="#35C9D6"></rect>
+            <rect x="163" y="68" width="20" height="100" rx="10" fill="#54D6B0"></rect>
+        </svg>
+        <span class="sidebar__wordmark">navidrome<span>-tools</span></span>
+    </a>
+
+    <nav class="nav">
+        {% for section in sections %}
+            <div class="nav__section">{{ section.heading }}</div>
+            {% for item in section.items %}
+                {% set active = route in item.match %}
+                <a href="{{ path(item.route) }}" class="nav__item{{ active ? ' nav__item--active' : '' }}">
+                    <span class="nav__glyph">{{ item.glyph }}</span>
+                    {{ item.label }}
+                    {% if item.badge is defined and item.badge > 0 %}
+                        <span class="nav__badge">{{ item.badge }}</span>
+                    {% endif %}
+                </a>
+            {% endfor %}
+        {% endfor %}
+    </nav>
+
+    <div class="sidebar__footer">
+        <div class="row between" style="gap:8px;">
+            <span class="mono" style="color:var(--text-3);">{{ app.user.userIdentifier }}</span>
+            <a href="{{ path('app_logout') }}" class="link mono">déconnexion</a>
+        </div>
+        <div class="dim">FrankenPHP · PHP {{ constant('PHP_VERSION') }}{% if app_version is defined and app_version != 'dev' %} · {{ app_version }}{% endif %}</div>
+    </div>
+</aside>
