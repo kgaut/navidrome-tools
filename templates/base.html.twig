@@ -17,6 +17,8 @@
 </head>
 <body>
 
+{# Le bloc `body` est défini UNE seule fois ; seul l'enrobage (shell connecté
+   vs. login centré) est conditionnel — ouverture/fermeture scindées autour. #}
 {% if app.user %}
 <div class="app" id="app-shell">
     {% include '_sidebar.html.twig' %}
@@ -33,6 +35,12 @@
         </header>
 
         <div class="page-content">
+{% else %}
+    {# Hors session (login) : pas de shell, contenu centré. #}
+    <div style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;">
+        <div style="width:100%; max-width:380px;">
+{% endif %}
+
             {% for type, messages in app.flashes %}
                 {% for message in messages %}
                     <div class="flash flash--{{ type == 'success' ? 'success' : (type == 'error' ? 'error' : 'info') }}">{{ message }}</div>
@@ -40,6 +48,8 @@
             {% endfor %}
 
             {% block body %}{% endblock %}
+
+{% if app.user %}
         </div>
     </main>
 </div>
@@ -56,15 +66,6 @@
     })();
 </script>
 {% else %}
-    {# Hors session (login) : pas de shell, contenu centré. #}
-    <div style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;">
-        <div style="width:100%; max-width:380px;">
-            {% for type, messages in app.flashes %}
-                {% for message in messages %}
-                    <div class="flash flash--{{ type == 'success' ? 'success' : (type == 'error' ? 'error' : 'info') }}" style="margin-bottom:14px;">{{ message }}</div>
-                {% endfor %}
-            {% endfor %}
-            {% block body %}{% endblock %}
         </div>
     </div>
 {% endif %}
