@@ -68,7 +68,9 @@
         "phpstan": "phpstan analyse --memory-limit=512M",
         "phpcs": "phpcs",
         "phpcbf": "phpcbf",
+        "lint-twig": "@php bin/lint-twig.php",
         "ci": [
+            "@lint-twig",
             "@phpcs",
             "@phpstan",
             "@test"
