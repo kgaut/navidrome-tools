@@ -4,6 +4,7 @@ namespace App\Service;
 
 use App\Entity\StatsSnapshot;
 use App\Navidrome\NavidromeRepository;
+use App\Repository\StatsHistoryRepository;
 use App\Repository\StatsSnapshotRepository;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -26,6 +27,7 @@ class NavidromeStatsService
         private readonly StatsSnapshotRepository $snapshots,
         private readonly EntityManagerInterface $em,
         private readonly DisparityStatsService $disparity,
+        private readonly StatsHistoryRepository $history,
     ) {
     }
 
@@ -82,6 +84,10 @@ class NavidromeStatsService
             'top_artists_alltime' => $this->navidrome->getTopArtistsWithDates(null, null, null, self::TOP_PAGE_LIMIT),
         ];
 
+        // One daily measurement of the library size for the evolution chart
+        // (upserted per day — see StatsHistoryRepository::recordDay()).
+        $this->history->recordDay(new \DateTimeImmutable('today'), $data['library']);
+
         $snapshot = $this->snapshots->findOneByPeriod(self::SNAPSHOT_KEY);
         if ($snapshot === null) {
             $snapshot = new StatsSnapshot(self::SNAPSHOT_KEY);
@@ -107,8 +113,13 @@ class NavidromeStatsService
             return null;
         }
 
-        /** @var array<string, mixed> */
-        return $snapshot->getData();
+        /** @var array<string, mixed> $data */
+        $data = $snapshot->getData();
+        // Attach the live daily history (read straight from stats_history so
+        // the evolution charts reflect every recorded day, snapshot age aside).
+        $data['library_history'] = $this->history->series();
+
+        return $data;
     }
 
     /**

@@ -1,7 +1,62 @@
 {% extends 'base.html.twig' %}
 {% block title %}Stats Navidrome{% endblock %}
 
+{# Format a metric value for display: humanized hours for durations, grouped
+   integer otherwise. #}
+{% macro fmt(v, isDuration) %}
+{%- if isDuration -%}
+    {%- set h = (v // 3600) -%}
+    {%- if h >= 24 -%}{{ (h // 24) }} j {{ (h % 24) }} h{%- else -%}{{ h }} h {{ ((v // 60) % 60) }} min{%- endif -%}
+{%- else -%}
+    {{ v|number_format(0, '.', ' ') }}
+{%- endif -%}
+{% endmacro %}
+
+{# Server-rendered SVG line chart of one library metric over time.
+   `rows` = list of {day, <key>}. No JS / no chart lib — a non-zero baseline
+   (min..max) so slow-moving counts read as an evolution, not flat full bars. #}
+{% macro evo(rows, key, label, color, isDuration) %}
+{% import _self as self %}
+<div class="bg-white shadow-sm rounded-sm p-4">
+    <div class="flex items-baseline justify-between mb-2">
+        <div class="text-sm font-semibold">{{ label }}</div>
+        {% if rows is not empty %}
+            <div class="text-lg font-semibold" style="color: {{ color }}">
+                {{ self.fmt(attribute(rows|last, key), isDuration) }}
+            </div>
+        {% endif %}
+    </div>
+    {% if rows|length < 2 %}
+        <div class="text-xs text-slate-400">L'historique se construit au fil des jours (une mesure par calcul des stats).</div>
+    {% else %}
+        {% set n = rows|length %}
+        {% set vals = rows|map(r => attribute(r, key)) %}
+        {% set min_v = min(vals) %}
+        {% set max_v = max(vals) %}
+        {% set span = max_v - min_v %}
+        {% set pad = 10 %}
+        {% set pts = '' %}
+        {% for r in rows %}
+            {% set v = attribute(r, key) %}
+            {% set x = (loop.index0 / (n - 1) * 600)|round(2) %}
+            {% set y = span > 0 ? (pad + (1 - (v - min_v) / span) * (120 - 2 * pad))|round(2) : 60 %}
+            {% set pts = pts ~ x ~ ',' ~ y ~ ' ' %}
+        {% endfor %}
+        <svg viewBox="0 0 600 120" preserveAspectRatio="none" class="w-full h-24">
+            <polyline fill="none" stroke="{{ color }}" stroke-width="2" vector-effect="non-scaling-stroke"
+                      stroke-linejoin="round" stroke-linecap="round" points="{{ pts|trim }}" />
+        </svg>
+        <div class="flex justify-between text-xs text-slate-400 mt-1">
+            <span>{{ (rows|first).day }}</span>
+            <span>min {{ self.fmt(min_v, isDuration) }} · max {{ self.fmt(max_v, isDuration) }}</span>
+            <span>{{ (rows|last).day }}</span>
+        </div>
+    {% endif %}
+</div>
+{% endmacro %}
+
 {% block body %}
+    {% import _self as ev %}
     <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
         <h1 class="text-2xl font-semibold">Stats Navidrome</h1>
         <div class="flex items-center gap-3">
@@ -64,6 +119,15 @@
             </div>
             <div class="text-xs text-slate-500">{{ data.library.duration_seconds|number_format(0, '.', ' ') }} s</div>
         </div>
+    </div>
+
+    {# Évolution de la bibliothèque (une mesure par jour, à chaque calcul) #}
+    {% set history = data.library_history ?? [] %}
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+        {{ ev.evo(history, 'tracks', 'Évolution — morceaux', '#0ea5e9', false) }}
+        {{ ev.evo(history, 'artists', 'Évolution — artistes', '#22c55e', false) }}
+        {{ ev.evo(history, 'albums', 'Évolution — albums', '#a855f7', false) }}
+        {{ ev.evo(history, 'duration_seconds', 'Évolution — durée totale', '#f59e0b', true) }}
     </div>
 
     {# Écoutes & coups de cœur #}
