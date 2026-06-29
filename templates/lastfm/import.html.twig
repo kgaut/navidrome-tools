@@ -1,90 +1,91 @@
 {% extends 'base.html.twig' %}
 {% block title %}Import Last.fm{% endblock %}
+
+{% block page_subtitle %}fetch de l'historique · table locale scrobbles{% endblock %}
+
 {% block body %}
-    <h1 class="text-2xl font-semibold mb-4">Import des scrobbles Last.fm</h1>
-
-    <div class="bg-sky-50 border border-sky-300 text-sky-900 rounded-sm p-4 mb-6 text-sm">
-        Les scrobbles sont importés dans la table locale <code>scrobbles</code> (source de vérité).
+    <div class="banner banner--info">
+        Les scrobbles sont importés dans la table locale <span class="mono">scrobbles</span> (source de vérité).
         Le worker Messenger traite les messages en arrière-plan — suivez la progression dans
-        <a href="{{ path('app_history') }}" class="underline">l'historique</a>.
+        <a href="{{ path('app_history') }}" class="link">l'historique</a>.
     </div>
 
-    {# Compteurs #}
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <div class="bg-white shadow-sm rounded-sm p-4">
-            <div class="text-xs uppercase text-slate-500">Scrobbles locaux</div>
-            <div class="text-3xl font-semibold">{{ total_scrobbles|number_format(0, '.', ' ') }}</div>
-        </div>
-        {% if user_scrobbles is not null %}
-        <div class="bg-white shadow-sm rounded-sm p-4">
-            <div class="text-xs uppercase text-slate-500">Scrobbles de {{ default_user }}</div>
-            <div class="text-3xl font-semibold">{{ user_scrobbles|number_format(0, '.', ' ') }}</div>
-        </div>
-        {% endif %}
-        <div class="bg-white shadow-sm rounded-sm p-4">
-            <div class="text-xs uppercase text-slate-500">Dernier fetch</div>
-            <div class="text-lg font-medium">
-                {% if last_fetch %}{{ last_fetch|date('d/m/Y H:i') }}{% else %}<span class="text-slate-400">jamais</span>{% endif %}
+    <div class="grid grid--sidebar-main">
+        {# Carte gauche : fetch #}
+        <div class="card">
+            <div class="card__title">Lancer un fetch</div>
+            <form method="post" action="{{ path('app_lastfm_import_post') }}">
+                <input type="hidden" name="_token" value="{{ csrf_token('lastfm_fetch') }}">
+
+                <div class="field mb-12">
+                    <label>Utilisateur Last.fm *</label>
+                    <input type="text" name="user" value="{{ default_user }}" required class="input">
+                </div>
+
+                <div class="field mb-12">
+                    <label>API Key *</label>
+                    <input type="text" name="api_key" value="{{ default_api_key }}" required class="input">
+                </div>
+
+                <div class="row gap-16 mb-12">
+                    <div class="field" style="flex:1;">
+                        <label>Depuis (date-min)</label>
+                        <input type="date" name="date_min" class="input">
+                        <span class="muted fs-11">Vide = smart date (depuis le dernier fetch)</span>
+                    </div>
+                    <div class="field" style="flex:1;">
+                        <label>Jusqu'à (date-max)</label>
+                        <input type="date" name="date_max" class="input">
+                    </div>
+                </div>
+
+                <div class="row gap-16 mb-12">
+                    <div class="field">
+                        <label>Max scrobbles</label>
+                        <input type="number" name="max_scrobbles" min="1" placeholder="∞" class="input" style="width:120px;">
+                    </div>
+                    <label class="checkbox" style="align-self:flex-end;">
+                        <input type="checkbox" name="dry_run" value="1"> --dry-run (ne pas écrire en DB)
+                    </label>
+                </div>
+
+                <button type="submit" class="btn btn--primary btn--block">↧ Lancer le fetch</button>
+            </form>
+
+            <div class="muted mono fs-12 mt-12">
+                CLI : <span class="t-3">php bin/console app:lastfm:fetch [user] [--date-min=YYYY-MM-DD] [--date-max=YYYY-MM-DD] [--dry-run]</span>
             </div>
-            {% if last_fetch is null %}
-            <div class="text-xs text-amber-700 mt-1">Premier import — récupération de l'historique complet.</div>
+        </div>
+
+        {# Carte droite : dernier import #}
+        <div class="card">
+            <div class="card__title">Dernier import</div>
+            <div class="kv">
+                <div class="kv__row">
+                    <span class="k">Statut</span>
+                    <span class="v">
+                        {% if last_fetch %}
+                            <span class="dot"></span> terminé
+                        {% else %}
+                            <span class="dot dot--warning"></span> jamais
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="kv__row"><span class="k">Scrobbles locaux</span><span class="v">{{ total_scrobbles|number_format(0, '.', ' ') }}</span></div>
+                {% if user_scrobbles is not null %}
+                <div class="kv__row"><span class="k">Scrobbles de {{ default_user }}</span><span class="v">{{ user_scrobbles|number_format(0, '.', ' ') }}</span></div>
+                {% endif %}
+                <div class="kv__row">
+                    <span class="k">Quand</span>
+                    <span class="v">{% if last_fetch %}{{ last_fetch|date('d/m/Y H:i') }}{% else %}—{% endif %}</span>
+                </div>
+            </div>
+
+            {% if last_fetch %}
+                <div class="progress"><div class="progress__fill" style="width:100%"></div></div>
+            {% else %}
+                <div class="banner banner--warning mt-12">Premier import — récupération de l'historique complet.</div>
             {% endif %}
-        </div>
-    </div>
-
-    {# Formulaire fetch #}
-    <div class="bg-white shadow-sm rounded-sm p-6 max-w-2xl mb-6">
-        <h2 class="text-lg font-semibold mb-4">Lancer un fetch</h2>
-        <form method="post" action="{{ path('app_lastfm_import_post') }}" class="space-y-4">
-            <input type="hidden" name="_token" value="{{ csrf_token('lastfm_fetch') }}">
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-xs uppercase text-slate-500 mb-1">Utilisateur Last.fm *</label>
-                    <input type="text" name="user" value="{{ default_user }}" required
-                           class="w-full border rounded-sm px-3 py-2 text-sm">
-                </div>
-                <div>
-                    <label class="block text-xs uppercase text-slate-500 mb-1">API Key *</label>
-                    <input type="text" name="api_key" value="{{ default_api_key }}" required
-                           class="w-full border rounded-sm px-3 py-2 text-sm font-mono text-xs">
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-xs uppercase text-slate-500 mb-1">Depuis (date-min)</label>
-                    <input type="date" name="date_min"
-                           class="w-full border rounded-sm px-3 py-2 text-sm">
-                    <p class="text-xs text-slate-400 mt-1">Vide = smart date (depuis le dernier fetch)</p>
-                </div>
-                <div>
-                    <label class="block text-xs uppercase text-slate-500 mb-1">Jusqu'à (date-max)</label>
-                    <input type="date" name="date_max"
-                           class="w-full border rounded-sm px-3 py-2 text-sm">
-                </div>
-            </div>
-
-            <div class="flex items-center gap-6">
-                <label class="flex items-center gap-2 text-sm">
-                    <input type="checkbox" name="dry_run" value="1"> Dry-run (ne pas écrire en DB)
-                </label>
-                <label class="flex items-center gap-2 text-sm">
-                    <span class="text-slate-500">Max scrobbles</span>
-                    <input type="number" name="max_scrobbles" min="1" placeholder="∞"
-                           class="w-24 border rounded-sm px-2 py-1 text-sm">
-                </label>
-            </div>
-
-            <button type="submit"
-                    class="bg-[#F2A93C] hover:bg-[#e6982f] text-[#15243A] px-6 py-2 rounded-sm text-sm font-medium">
-                ▶ Lancer le fetch
-            </button>
-        </form>
-
-        <div class="mt-4 text-xs text-slate-400">
-            <strong>CLI :</strong>
-            <code>php bin/console app:lastfm:fetch [user] [--date-min=YYYY-MM-DD] [--date-max=YYYY-MM-DD] [--dry-run]</code>
         </div>
     </div>
 {% endblock %}

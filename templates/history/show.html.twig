@@ -1,49 +1,45 @@
 {% extends 'base.html.twig' %}
 {% block title %}Run #{{ run.id }}{% endblock %}
+
+{% block page_subtitle %}<span class="mono">{{ run.type }}</span> · <span class="mono">{{ run.reference }}</span> · #{{ run.id }}{% endblock %}
+
+{% block header_actions %}
+    <span class="badge
+        {%- if run.status == 'success' %} badge--success
+        {%- elseif run.status == 'error' %} badge--warning
+        {%- elseif run.status == 'running' %} badge--accent
+        {%- else %} badge--neutral{% endif %}"
+          {% if run.status == 'running' %}id="run-status"{% endif %}>
+        {{ run.status }}
+    </span>
+    <a href="{{ path('app_history') }}" class="btn btn--outline btn--sm">← Historique</a>
+{% endblock %}
+
 {% block body %}
-    <div class="mb-4">
-        <a href="{{ path('app_history') }}" class="text-sm text-sky-700 hover:underline">← Historique</a>
-    </div>
-
-    <div class="bg-white shadow-sm rounded-sm p-6 mb-4">
-        <div class="flex items-start justify-between mb-4">
-            <div>
-                <h1 class="text-xl font-semibold">{{ run.label }}</h1>
-                <div class="text-sm text-slate-500 mt-1">
-                    <span class="font-mono">{{ run.type }}</span>
-                    / <span class="font-mono">{{ run.reference }}</span>
-                    / #{{ run.id }}
-                </div>
-            </div>
-            <span class="text-sm px-2 py-1 rounded-sm font-medium
-                {% if run.status == 'success' %}bg-emerald-100 text-emerald-800
-                {% elseif run.status == 'error' %}bg-rose-100 text-rose-800
-                {% elseif run.status == 'running' %}bg-sky-100 text-sky-800
-                {% else %}bg-slate-100 text-slate-700{% endif %}"
-                  {% if run.status == 'running' %}id="run-status"{% endif %}>
-                {{ run.status }}
-            </span>
+    <div class="card">
+        <div class="card__title">{{ run.label }}</div>
+        <div class="kv">
+            <div class="kv__row"><span class="k">Lancé le</span><span class="v">{{ run.startedAt|date('d/m/Y H:i:s') }}</span></div>
+            <div class="kv__row"><span class="k">Terminé le</span><span class="v">{{ run.finishedAt ? run.finishedAt|date('d/m/Y H:i:s') : '—' }}</span></div>
+            <div class="kv__row"><span class="k">Durée</span><span class="v">{{ run.durationMs ? (run.durationMs / 1000)|number_format(2) ~ 's' : '—' }}</span></div>
         </div>
-
-        <dl class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-            <div><dt class="text-xs text-slate-500">Lancé le</dt><dd>{{ run.startedAt|date('d/m/Y H:i:s') }}</dd></div>
-            <div><dt class="text-xs text-slate-500">Terminé le</dt><dd>{{ run.finishedAt ? run.finishedAt|date('d/m/Y H:i:s') : '—' }}</dd></div>
-            <div><dt class="text-xs text-slate-500">Durée</dt><dd>{{ run.durationMs ? (run.durationMs / 1000)|number_format(2) ~ 's' : '—' }}</dd></div>
-        </dl>
-
-        {% if run.message %}
-        <div class="mt-4 p-3 bg-rose-50 border border-rose-200 rounded-sm text-sm text-rose-800 font-mono whitespace-pre-wrap">{{ run.message }}</div>
-        {% endif %}
     </div>
+
+    {% if run.message %}
+    <div class="card">
+        <div class="card__title card__title--sm t-orange">Message</div>
+        <pre class="code-block">{{ run.message }}</pre>
+    </div>
+    {% endif %}
 
     {% if run.metrics %}
-    <div class="bg-white shadow-sm rounded-sm p-6">
-        <h2 class="text-sm font-semibold uppercase text-slate-500 mb-3">Métriques</h2>
-        <dl class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+    <div class="card">
+        <div class="card__title">Métriques</div>
+        <div class="kv">
             {% for key, val in run.metrics %}
-                <div><dt class="text-xs text-slate-500">{{ key }}</dt><dd class="font-mono">{{ val }}</dd></div>
+                <div class="kv__row"><span class="k">{{ key }}</span><span class="v">{{ val }}</span></div>
             {% endfor %}
-        </dl>
+        </div>
     </div>
     {% endif %}
 

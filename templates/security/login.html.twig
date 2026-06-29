@@ -1,31 +1,35 @@
 {% extends 'base.html.twig' %}
 {% block title %}Connexion{% endblock %}
 {% block body %}
-<div class="max-w-sm mx-auto mt-16">
-    <div class="flex flex-col items-center mb-6">
-        <img src="/logo-mark.svg" alt="" width="64" height="64" class="w-16 h-16 mb-3">
-        <h1 class="text-2xl font-semibold text-[#15243A]">navidrome<span class="text-[#F2A93C]">-tools</span></h1>
+    <div class="card card--lg">
+        <div class="col" style="align-items:center; gap:12px; margin-bottom:20px;">
+            <svg width="40" height="40" viewBox="0 0 256 256" aria-hidden="true">
+                <circle cx="128" cy="128" r="104" fill="#16273E"></circle>
+                <rect x="73" y="110" width="20" height="58" rx="10" fill="#35C9D6"></rect>
+                <rect x="103" y="76" width="20" height="92" rx="10" fill="#54D6B0"></rect>
+                <rect x="133" y="100" width="20" height="68" rx="10" fill="#35C9D6"></rect>
+                <rect x="163" y="68" width="20" height="100" rx="10" fill="#54D6B0"></rect>
+            </svg>
+            <div class="sidebar__wordmark" style="font-size:18px;">navidrome<span>-tools</span></div>
+        </div>
+
+        {% if error %}
+            <div class="flash flash--error mb-20">
+                {{ error.messageKey|trans(error.messageData, 'security') }}
+            </div>
+        {% endif %}
+
+        <form method="post" class="col" style="gap:14px;">
+            <div class="field">
+                <label for="inputUsername">Identifiant</label>
+                <input type="text" id="inputUsername" name="_username" value="{{ last_username }}" autofocus class="input input--lg">
+            </div>
+            <div class="field">
+                <label for="inputPassword">Mot de passe</label>
+                <input type="password" id="inputPassword" name="_password" class="input input--lg">
+            </div>
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token('authenticate') }}">
+            <button type="submit" class="btn btn--primary btn--block">Se connecter</button>
+        </form>
     </div>
-    {% if error %}
-        <div class="mb-4 p-3 rounded-sm bg-rose-50 border border-rose-300 text-rose-800 text-sm">
-            {{ error.messageKey|trans(error.messageData, 'security') }}
-        </div>
-    {% endif %}
-    <form method="post" class="bg-white shadow-sm rounded-sm p-6 space-y-4">
-        <div>
-            <label class="block text-xs uppercase text-slate-500 mb-1">Identifiant</label>
-            <input type="text" name="_username" value="{{ last_username }}" autofocus
-                   class="w-full border rounded-sm px-3 py-2 text-sm">
-        </div>
-        <div>
-            <label class="block text-xs uppercase text-slate-500 mb-1">Mot de passe</label>
-            <input type="password" name="_password" class="w-full border rounded-sm px-3 py-2 text-sm">
-        </div>
-        <input type="hidden" name="_csrf_token" value="{{ csrf_token('authenticate') }}">
-        <button type="submit"
-                class="w-full bg-[#15243A] hover:bg-[#1e3354] text-white py-2 rounded-sm text-sm font-medium">
-            Se connecter
-        </button>
-    </form>
-</div>
 {% endblock %}

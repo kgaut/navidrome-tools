@@ -1,68 +1,62 @@
 {% extends 'base.html.twig' %}
 {% block title %}Non matchés — Strawberry{% endblock %}
-{% block body %}
-    <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
-        <div>
-            <a href="{{ path('app_strawberry_sync') }}" class="text-sm text-sky-700 hover:underline">← Sync Strawberry</a>
-            <h1 class="text-2xl font-semibold mt-1">Scrobbles non matchés — Strawberry</h1>
-            <p class="text-sm text-slate-500">{{ total }} groupe{{ total != 1 ? 's' : '' }}</p>
-        </div>
-        <form method="post" action="{{ path('app_strawberry_rematch') }}" class="flex gap-2">
-            <input type="hidden" name="_token" value="{{ csrf_token('strawberry_rematch') }}">
-            <button type="submit"
-                    class="bg-[#F2A93C] hover:bg-[#e6982f] text-[#15243A] px-4 py-1.5 rounded-sm text-sm font-medium">
-                ↺ Rematcher tous
-            </button>
-        </form>
-    </div>
 
-    <form method="get" class="bg-white shadow-sm rounded-sm p-4 mb-4 flex flex-wrap gap-3 items-end">
-        <div>
-            <label class="block text-xs uppercase text-slate-500 mb-1">Artiste</label>
-            <input type="text" name="artist" value="{{ filter_artist }}" placeholder="Rechercher…"
-                   class="border rounded-sm px-2 py-1 text-sm w-40">
+{% block page_subtitle %}{{ total }} groupe{{ total != 1 ? 's' : '' }}{% endblock %}
+
+{% block header_actions %}
+    <form method="post" action="{{ path('app_strawberry_rematch') }}">
+        <input type="hidden" name="_token" value="{{ csrf_token('strawberry_rematch') }}">
+        <button type="submit" class="btn btn--outline btn--sm">↻ Rematcher tous</button>
+    </form>
+{% endblock %}
+
+{% block body %}
+    <form method="get" class="filter-bar" style="border:1px solid var(--border); border-radius:var(--r-card);">
+        <div class="field">
+            <label>Artiste</label>
+            <input type="text" name="artist" value="{{ filter_artist }}" placeholder="Rechercher…" class="input">
         </div>
-        <div>
-            <label class="block text-xs uppercase text-slate-500 mb-1">Titre</label>
-            <input type="text" name="title" value="{{ filter_title }}" placeholder="Rechercher…"
-                   class="border rounded-sm px-2 py-1 text-sm w-40">
+        <div class="field">
+            <label>Titre</label>
+            <input type="text" name="title" value="{{ filter_title }}" placeholder="Rechercher…" class="input">
         </div>
-        <button type="submit" class="px-3 py-1.5 rounded-sm bg-[#15243A] text-white text-sm">Filtrer</button>
-        <a href="{{ path('app_strawberry_unmatched') }}" class="text-xs text-slate-500 hover:underline self-center">Reset</a>
+        <button type="submit" class="btn btn--primary btn--sm" style="align-self:flex-end;">Filtrer</button>
+        <a href="{{ path('app_strawberry_unmatched') }}" class="btn btn--ghost btn--sm" style="align-self:flex-end;">Reset</a>
     </form>
 
     {% if rows is empty %}
-        <div class="bg-white rounded-sm p-6 text-center text-slate-500">Aucun non matché 🎉</div>
+        <div class="empty-state">Aucun non matché 🎉</div>
     {% else %}
-    <div class="bg-white shadow-sm rounded-sm overflow-hidden mb-4">
-        <table class="w-full text-sm">
-            <thead class="bg-slate-100 text-xs uppercase text-slate-500">
+    <div class="card" style="padding:0; overflow:hidden;">
+        <table class="data-table data-table--in-card">
+            <thead>
                 <tr>
-                    <th class="px-3 py-2 text-left">Artiste</th>
-                    <th class="px-3 py-2 text-left">Titre</th>
-                    <th class="px-3 py-2 text-left">Album</th>
-                    <th class="px-3 py-2 text-right">Scrobbles</th>
-                    <th class="px-3 py-2 text-right">Dernier joué</th>
+                    <th>Artiste</th>
+                    <th>Titre</th>
+                    <th>Album</th>
+                    <th class="num">Scrobbles</th>
+                    <th class="num">Dernier joué</th>
                 </tr>
             </thead>
-            <tbody class="divide-y">
+            <tbody>
             {% for row in rows %}
-                <tr class="hover:bg-slate-50">
-                    <td class="px-3 py-1.5">{{ row.artist }}</td>
-                    <td class="px-3 py-1.5">{{ row.title }}</td>
-                    <td class="px-3 py-1.5 text-slate-400 text-xs">{{ row.album ?? '—' }}</td>
-                    <td class="px-3 py-1.5 text-right font-mono">{{ row.count }}</td>
-                    <td class="px-3 py-1.5 text-right text-xs text-slate-500">{{ row.last_played_at|date('d/m/Y') }}</td>
+                <tr>
+                    <td>{{ row.artist }}</td>
+                    <td>{{ row.title }}</td>
+                    <td class="mono">{{ row.album ?? '—' }}</td>
+                    <td class="num">{{ row.count }}</td>
+                    <td class="num mono">{{ row.last_played_at|date('d/m/Y') }}</td>
                 </tr>
             {% endfor %}
             </tbody>
         </table>
     </div>
     {% if pages > 1 %}
-    <div class="flex gap-2 items-center text-sm">
-        {% if page > 1 %}<a href="{{ path('app_strawberry_unmatched', {page: page - 1, artist: filter_artist, title: filter_title}) }}" class="px-3 py-1 rounded-sm bg-white border">← Préc.</a>{% endif %}
-        <span class="text-slate-500">Page {{ page }} / {{ pages }}</span>
-        {% if page < pages %}<a href="{{ path('app_strawberry_unmatched', {page: page + 1, artist: filter_artist, title: filter_title}) }}" class="px-3 py-1 rounded-sm bg-white border">Suiv. →</a>{% endif %}
+    <div class="pagination">
+        {% if page > 1 %}<a href="{{ path('app_strawberry_unmatched', {page: page - 1, artist: filter_artist, title: filter_title}) }}">← Préc.</a>{% endif %}
+        <span class="current">{{ page }}</span>
+        <span>/ {{ pages }}</span>
+        {% if page < pages %}<a href="{{ path('app_strawberry_unmatched', {page: page + 1, artist: filter_artist, title: filter_title}) }}">Suiv. →</a>{% endif %}
     </div>
     {% endif %}
     {% endif %}

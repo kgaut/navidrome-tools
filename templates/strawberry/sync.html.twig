@@ -1,100 +1,90 @@
 {% extends 'base.html.twig' %}
 {% block title %}Sync Strawberry{% endblock %}
-{% block body %}
-    <h1 class="text-2xl font-semibold mb-4">Synchronisation → Strawberry</h1>
 
-    <div class="bg-sky-50 border border-sky-300 rounded-sm p-4 mb-6 text-sm text-sky-900">
-        Strawberry stocke les écoutes en <strong>compteurs agrégés</strong> (<code>playcount</code> +
-        <code>lastplayed</code>). Navidrome peut rester up pendant cette synchronisation.
+{% block page_subtitle %}playcount · lastplayed · compteurs agrégés{% endblock %}
+
+{% block body %}
+    <div class="banner banner--info">
+        Strawberry stocke les écoutes en <strong>compteurs agrégés</strong> (<span class="mono">playcount</span> +
+        <span class="mono">lastplayed</span>). Navidrome peut rester up pendant cette synchronisation.
     </div>
 
     {# Compteurs #}
-    <div class="grid grid-cols-3 gap-4 mb-6">
-        <div class="bg-white shadow-sm rounded-sm p-4">
-            <div class="text-xs uppercase text-slate-500">En attente</div>
-            <div class="text-3xl font-semibold {{ pending > 0 ? 'text-amber-600' : '' }}">{{ pending|number_format(0, '.', ' ') }}</div>
+    <div class="grid grid--3">
+        <div class="kpi kpi--teal">
+            <div class="kpi__label">En attente</div>
+            <div class="kpi__value">{{ pending|number_format(0, '.', ' ') }}</div>
         </div>
-        <div class="bg-white shadow-sm rounded-sm p-4">
-            <div class="text-xs uppercase text-slate-500">Matchés</div>
-            <div class="text-3xl font-semibold text-emerald-600">{{ matched|number_format(0, '.', ' ') }}</div>
+        <div class="kpi kpi--mint">
+            <div class="kpi__label">Matchés</div>
+            <div class="kpi__value">{{ matched|number_format(0, '.', ' ') }}</div>
         </div>
-        <div class="bg-white shadow-sm rounded-sm p-4">
-            <div class="text-xs uppercase text-slate-500">
-                <a href="{{ path('app_strawberry_unmatched') }}" class="underline hover:no-underline">Non matchés</a>
+        <div class="kpi kpi--orange">
+            <div class="kpi__label">
+                <a href="{{ path('app_strawberry_unmatched') }}" class="link">Non matchés →</a>
             </div>
-            <div class="text-3xl font-semibold {{ unmatched > 0 ? 'text-rose-600' : '' }}">{{ unmatched|number_format(0, '.', ' ') }}</div>
+            <div class="kpi__value">{{ unmatched|number_format(0, '.', ' ') }}</div>
         </div>
     </div>
 
     {# Section A : volume monté #}
     {% if strawberry_configured %}
-    <div class="bg-white shadow-sm rounded-sm p-6 max-w-xl mb-6">
-        <h2 class="text-base font-semibold mb-3">Via volume monté (STRAWBERRY_DB_PATH)</h2>
-        <form method="post" action="{{ path('app_strawberry_sync_post') }}" class="space-y-3">
+    <div class="card">
+        <div class="card__title">Via volume monté (STRAWBERRY_DB_PATH)</div>
+        <form method="post" action="{{ path('app_strawberry_sync_post') }}">
             <input type="hidden" name="_token" value="{{ csrf_token('strawberry_sync') }}">
-            <div class="flex gap-4">
-                <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="dry_run" value="1"> Dry-run</label>
-                <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="retry_unmatched" value="1"> Retry unmatched</label>
+            <div class="row gap-16 mb-12">
+                <label class="checkbox"><input type="checkbox" name="dry_run" value="1"> --dry-run</label>
+                <label class="checkbox"><input type="checkbox" name="retry_unmatched" value="1"> retry unmatched</label>
             </div>
-            <button type="submit" class="bg-[#F2A93C] hover:bg-[#e6982f] text-[#15243A] px-5 py-2 rounded-sm text-sm font-medium">▶ Lancer</button>
+            <button type="submit" class="btn btn--primary">▷ Lancer</button>
         </form>
-        <div class="mt-3 text-xs text-slate-400">CLI : <code>php bin/console app:scrobbles:sync-strawberry [--retry-unmatched] [--dry-run]</code></div>
+        <div class="muted mono fs-12 mt-12">CLI : <span class="t-3">php bin/console app:scrobbles:sync-strawberry [--retry-unmatched] [--dry-run]</span></div>
     </div>
     {% endif %}
 
     {# Section B : upload/download #}
-    <div class="bg-white shadow-sm rounded-sm p-6 max-w-xl">
-        <h2 class="text-base font-semibold mb-3">Via upload (Strawberry sur une autre machine)</h2>
+    <div class="card">
+        <div class="card__title">Via upload (Strawberry sur une autre machine)</div>
 
         {% if upload_info %}
-        <div class="bg-emerald-50 border border-emerald-200 rounded-sm p-3 mb-4 text-sm">
-            <div class="flex items-center justify-between gap-4">
-                <div>
-                    <span class="font-medium">strawberry.db</span>
-                    — {{ (upload_info.size / 1024 / 1024)|number_format(1) }} Mo
-                    — uploadé le {{ upload_info.mtime|date('d/m/Y H:i') }}
-                </div>
-                <div class="flex gap-2 shrink-0">
-                    <a href="{{ path('app_strawberry_download') }}"
-                       class="text-xs bg-[#F2A93C] hover:bg-[#e6982f] text-[#15243A] px-3 py-1 rounded-sm">⬇ Download</a>
-                    <form method="post" action="{{ path('app_strawberry_delete_upload') }}" class="inline">
-                        <input type="hidden" name="_token" value="{{ csrf_token('strawberry_delete_upload') }}">
-                        <button type="submit" onclick="return confirm('Supprimer ?')"
-                                class="text-xs bg-rose-600 hover:bg-rose-700 text-white px-3 py-1 rounded-sm">✕</button>
-                    </form>
-                </div>
+        <div class="banner mb-20">
+            <div class="kv mb-12">
+                <div class="kv__row"><span class="k">Fichier</span><span class="v">strawberry.db</span></div>
+                <div class="kv__row"><span class="k">Taille</span><span class="v">{{ (upload_info.size / 1024 / 1024)|number_format(1) }} Mo</span></div>
+                <div class="kv__row"><span class="k">Uploadé le</span><span class="v">{{ upload_info.mtime|date('d/m/Y H:i') }}</span></div>
             </div>
-            <form method="post" action="{{ path('app_strawberry_process_upload') }}" class="mt-3 flex items-center gap-3">
+            <div class="row gap-8 mb-12">
+                <a href="{{ path('app_strawberry_download') }}" class="btn btn--outline btn--sm">⬇ Download</a>
+                <form method="post" action="{{ path('app_strawberry_delete_upload') }}">
+                    <input type="hidden" name="_token" value="{{ csrf_token('strawberry_delete_upload') }}">
+                    <button type="submit" onclick="return confirm('Supprimer ?')" class="btn btn--danger btn--sm">✕ Supprimer</button>
+                </form>
+            </div>
+            <form method="post" action="{{ path('app_strawberry_process_upload') }}" class="row gap-8">
                 <input type="hidden" name="_token" value="{{ csrf_token('strawberry_process') }}">
-                <button type="submit" name="retry_unmatched" value="0"
-                        class="text-sm bg-[#F2A93C] hover:bg-[#e6982f] text-[#15243A] px-4 py-1.5 rounded-sm font-medium">
-                    ▶ Synchroniser
-                </button>
+                <button type="submit" name="retry_unmatched" value="0" class="btn btn--primary btn--sm">▷ Synchroniser</button>
                 {% if unmatched > 0 %}
-                <button type="submit" name="retry_unmatched" value="1"
-                        class="text-sm bg-[#F2A93C] hover:bg-[#e6982f] text-[#15243A] px-4 py-1.5 rounded-sm font-medium">
-                    ↺ Retry {{ unmatched }} non matchés
-                </button>
+                <button type="submit" name="retry_unmatched" value="1" class="btn btn--outline btn--sm">↻ Retry {{ unmatched }} non matchés</button>
                 {% endif %}
             </form>
         </div>
         {% endif %}
 
-        <form method="post" action="{{ path('app_strawberry_upload') }}" enctype="multipart/form-data" class="flex items-center gap-3">
+        <form method="post" action="{{ path('app_strawberry_upload') }}" enctype="multipart/form-data" class="row gap-8">
             <input type="hidden" name="_token" value="{{ csrf_token('strawberry_upload') }}">
-            <input type="file" name="db_file" accept=".db"
-                   class="text-sm text-slate-600 file:mr-2 file:py-1 file:px-3 file:rounded-sm file:border-0 file:text-xs file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200">
-            <button type="submit" class="shrink-0 bg-slate-700 hover:bg-slate-800 text-white px-4 py-1.5 rounded-sm text-sm">⬆ Upload strawberry.db</button>
+            <input type="file" name="db_file" accept=".db" class="input">
+            <button type="submit" class="btn btn--ghost">⬆ Upload strawberry.db</button>
         </form>
-        <p class="text-xs text-slate-400 mt-2">
+        <p class="muted mono fs-11 mt-8">
             Fichier SQLite Strawberry (~/.local/share/strawberry/strawberry/strawberry.db). Max 200 Mo.
         </p>
     </div>
 
-    {# Reset #}
-    <div class="bg-white shadow-sm rounded-sm p-6 max-w-xl mt-6 border-l-4 border-rose-400">
-        <h2 class="text-lg font-semibold mb-2">Zone dangereuse — Reset</h2>
-        <p class="text-sm text-slate-600 mb-4">
+    {# Zone dangereuse #}
+    <div class="card">
+        <div class="card__title t-orange">Zone dangereuse — Reset</div>
+        <p class="t-3 mb-12">
             Remet <strong>tous</strong> les morceaux (matchés, doublons, non matchés, skipped)
             en <em>pending</em> pour retenter la synchronisation à zéro. Les playcounts déjà
             écrits dans Strawberry ne sont pas modifiés.
@@ -102,10 +92,7 @@
         <form method="post" action="{{ path('app_strawberry_sync_reset') }}"
               onsubmit="return confirm('Confirmer le reset de tous les statuts Strawberry en pending ?');">
             <input type="hidden" name="_token" value="{{ csrf_token('strawberry_sync_reset') }}">
-            <button type="submit"
-                    class="bg-rose-600 hover:bg-rose-700 text-white px-6 py-2 rounded-sm text-sm font-medium">
-                ⟲ Reset → pending
-            </button>
+            <button type="submit" class="btn btn--danger">⟲ Reset → pending</button>
         </form>
     </div>
 {% endblock %}

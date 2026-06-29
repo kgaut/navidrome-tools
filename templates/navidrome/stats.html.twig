@@ -17,17 +17,17 @@
    (min..max) so slow-moving counts read as an evolution, not flat full bars. #}
 {% macro evo(rows, key, label, color, isDuration) %}
 {% import _self as self %}
-<div class="bg-white shadow-sm rounded-sm p-4">
-    <div class="flex items-baseline justify-between mb-2">
-        <div class="text-sm font-semibold">{{ label }}</div>
+<div class="card">
+    <div class="row between mb-12">
+        <div class="card__title mb-0">{{ label }}</div>
         {% if rows is not empty %}
-            <div class="text-lg font-semibold" style="color: {{ color }}">
+            <div class="mono fw-600" style="color: {{ color }}">
                 {{ self.fmt(attribute(rows|last, key), isDuration) }}
             </div>
         {% endif %}
     </div>
     {% if rows|length < 2 %}
-        <div class="text-xs text-slate-400">L'historique se construit au fil des jours (une mesure par calcul des stats).</div>
+        <div class="muted fs-12">L'historique se construit au fil des jours (une mesure par calcul des stats).</div>
     {% else %}
         {% set n = rows|length %}
         {% set vals = rows|map(r => attribute(r, key)) %}
@@ -42,11 +42,14 @@
             {% set y = span > 0 ? (pad + (1 - (v - min_v) / span) * (120 - 2 * pad))|round(2) : 60 %}
             {% set pts = pts ~ x ~ ',' ~ y ~ ' ' %}
         {% endfor %}
-        <svg viewBox="0 0 600 120" preserveAspectRatio="none" class="w-full h-24">
-            <polyline fill="none" stroke="{{ color }}" stroke-width="2" vector-effect="non-scaling-stroke"
+        <svg viewBox="0 0 600 120" preserveAspectRatio="none" class="chart-area" style="height:96px;">
+            <line x1="0" y1="10" x2="600" y2="10" stroke="var(--surface-3)" stroke-width="1" vector-effect="non-scaling-stroke" />
+            <line x1="0" y1="60" x2="600" y2="60" stroke="var(--surface-3)" stroke-width="1" vector-effect="non-scaling-stroke" />
+            <line x1="0" y1="110" x2="600" y2="110" stroke="var(--surface-3)" stroke-width="1" vector-effect="non-scaling-stroke" />
+            <polyline fill="none" stroke="var(--teal)" stroke-width="2" vector-effect="non-scaling-stroke"
                       stroke-linejoin="round" stroke-linecap="round" points="{{ pts|trim }}" />
         </svg>
-        <div class="flex justify-between text-xs text-slate-400 mt-1">
+        <div class="axis">
             <span>{{ (rows|first).day }}</span>
             <span>min {{ self.fmt(min_v, isDuration) }} · max {{ self.fmt(max_v, isDuration) }}</span>
             <span>{{ (rows|last).day }}</span>
@@ -55,30 +58,36 @@
 </div>
 {% endmacro %}
 
+{% block page_subtitle %}
+    {% if data %}calculé · {{ data.computed_at|date('d/m/Y H:i') }}{% endif %}
+{% endblock %}
+
+{% block header_actions %}
+    {% if navidrome_available %}
+    <form method="post" action="{{ path('app_navidrome_stats_refresh') }}">
+        <input type="hidden" name="_token" value="{{ csrf_token('navidrome_stats_refresh') }}">
+        <button type="submit" class="btn btn--outline btn--sm">↻ Recalculer</button>
+    </form>
+    {% endif %}
+{% endblock %}
+
 {% block body %}
     {% import _self as ev %}
-    <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
-        <h1 class="text-2xl font-semibold">Stats Navidrome</h1>
-        <div class="flex items-center gap-3">
-            {% if data %}
-                <span class="text-xs text-slate-400">Calculé {{ data.computed_at|date('d/m/Y H:i') }}</span>
-            {% endif %}
-            {% if navidrome_available %}
-            <form method="post" action="{{ path('app_navidrome_stats_refresh') }}" class="inline">
-                <input type="hidden" name="_token" value="{{ csrf_token('navidrome_stats_refresh') }}">
-                <button type="submit" class="text-xs bg-slate-200 hover:bg-slate-300 px-3 py-1.5 rounded-sm">↻ Recalculer</button>
-            </form>
-            {% endif %}
-        </div>
+
+    {# Onglets stats #}
+    <div class="tabs">
+        <a href="{{ path('app_stats') }}" class="tab">Global</a>
+        <a href="{{ path('app_lastfm_stats') }}" class="tab">Last.fm</a>
+        <a href="{{ path('app_navidrome_stats') }}" class="tab tab--active">Navidrome</a>
     </div>
 
     {% if not navidrome_available and not data %}
-        <div class="bg-rose-50 border border-rose-300 text-rose-900 rounded-sm p-4">
+        <div class="banner banner--warning">
             <strong>Base Navidrome indisponible.</strong>
             Vérifiez <code>NAVIDROME_DB_PATH</code> et <code>NAVIDROME_USER</code>.
         </div>
     {% elseif not data %}
-        <div class="bg-amber-50 border border-amber-300 text-amber-900 rounded-sm p-4">
+        <div class="banner banner--warning">
             <strong>Aucune statistique en cache.</strong>
             Cliquez sur <em>↻ Recalculer</em> pour générer un premier instantané
             (l'agrégation peut prendre quelques secondes sur de grosses bibliothèques),
@@ -87,111 +96,101 @@
     {% else %}
 
     {% if not navidrome_available %}
-        <div class="bg-amber-50 border border-amber-300 text-amber-900 rounded-sm p-3 mb-4 text-sm">
+        <div class="banner banner--warning">
             Base Navidrome actuellement indisponible — données issues du dernier snapshot.
         </div>
     {% endif %}
 
-    {# Bibliothèque #}
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
-        <div class="bg-white shadow-sm rounded-sm p-4">
-            <div class="text-xs uppercase text-slate-500">Morceaux</div>
-            <div class="text-3xl font-semibold">{{ data.library.tracks|number_format(0, '.', ' ') }}</div>
+    {# KPIs bibliothèque + écoutes #}
+    <div class="grid grid--6">
+        <div class="kpi">
+            <div class="kpi__label">Morceaux</div>
+            <div class="kpi__value kpi__value--sm">{{ data.library.tracks|number_format(0, '.', ' ') }}</div>
         </div>
-        <div class="bg-white shadow-sm rounded-sm p-4">
-            <div class="text-xs uppercase text-slate-500">Artistes</div>
-            <div class="text-3xl font-semibold">{{ data.library.artists|number_format(0, '.', ' ') }}</div>
+        <div class="kpi kpi--teal">
+            <div class="kpi__label">Artistes</div>
+            <div class="kpi__value kpi__value--sm">{{ data.library.artists|number_format(0, '.', ' ') }}</div>
         </div>
-        <div class="bg-white shadow-sm rounded-sm p-4">
-            <div class="text-xs uppercase text-slate-500">Albums</div>
-            <div class="text-3xl font-semibold">{{ data.library.albums|number_format(0, '.', ' ') }}</div>
+        <div class="kpi">
+            <div class="kpi__label">Albums</div>
+            <div class="kpi__value kpi__value--sm">{{ data.library.albums|number_format(0, '.', ' ') }}</div>
         </div>
-        <div class="bg-white shadow-sm rounded-sm p-4">
-            <div class="text-xs uppercase text-slate-500">Bibliothèque</div>
+        <div class="kpi kpi--mint">
+            <div class="kpi__label">Bibliothèque</div>
             {% set total_h = (data.library.duration_seconds // 3600) %}
             {% set total_m = ((data.library.duration_seconds // 60) % 60) %}
-            <div class="text-lg font-semibold">
+            <div class="kpi__value kpi__value--sm" style="font-size:18px;">
                 {% if total_h >= 24 %}
                     {{ (total_h // 24) }} j {{ (total_h % 24) }} h
                 {% else %}
                     {{ total_h }} h {{ total_m }} min
                 {% endif %}
             </div>
-            <div class="text-xs text-slate-500">{{ data.library.duration_seconds|number_format(0, '.', ' ') }} s</div>
+            <div class="kpi__delta muted">{{ data.library.duration_seconds|number_format(0, '.', ' ') }} s</div>
+        </div>
+        <div class="kpi">
+            <div class="kpi__label">Lectures totales</div>
+            <div class="kpi__value kpi__value--sm">{{ data.total_plays|number_format(0, '.', ' ') }}</div>
+            {% if not data.has_scrobbles %}
+                <div class="kpi__delta t-orange">via annotation (Navidrome &lt; 0.55)</div>
+            {% endif %}
+        </div>
+        <div class="kpi kpi--teal">
+            <div class="kpi__label">Morceaux joués</div>
+            <div class="kpi__value kpi__value--sm">{{ data.distinct_played|number_format(0, '.', ' ') }}</div>
+            {% if data.library.tracks > 0 %}
+                <div class="kpi__delta muted">{{ (data.distinct_played / data.library.tracks * 100)|round(1) }} % de la lib</div>
+            {% endif %}
+        </div>
+    </div>
+
+    {# ♥ coups de cœur #}
+    <div class="grid grid--3">
+        <div class="kpi kpi--orange">
+            <div class="kpi__label">♥ Morceaux</div>
+            <div class="kpi__value kpi__value--sm">{{ data.starred.tracks|number_format(0, '.', ' ') }}</div>
+        </div>
+        <div class="kpi kpi--orange">
+            <div class="kpi__label">♥ Albums</div>
+            <div class="kpi__value kpi__value--sm">{{ data.starred.albums|number_format(0, '.', ' ') }}</div>
+        </div>
+        <div class="kpi kpi--orange">
+            <div class="kpi__label">♥ Artistes</div>
+            <div class="kpi__value kpi__value--sm">{{ data.starred.artists|number_format(0, '.', ' ') }}</div>
         </div>
     </div>
 
     {# Évolution de la bibliothèque (une mesure par jour, à chaque calcul) #}
     {% set history = data.library_history ?? [] %}
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+    <div class="grid grid--2">
         {{ ev.evo(history, 'tracks', 'Évolution — morceaux', '#0ea5e9', false) }}
         {{ ev.evo(history, 'artists', 'Évolution — artistes', '#22c55e', false) }}
         {{ ev.evo(history, 'albums', 'Évolution — albums', '#a855f7', false) }}
         {{ ev.evo(history, 'duration_seconds', 'Évolution — durée totale', '#f59e0b', true) }}
     </div>
 
-    {# Écoutes & coups de cœur #}
-    <div class="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-6">
-        <div class="bg-white shadow-sm rounded-sm p-4">
-            <div class="text-xs uppercase text-slate-500">Lectures totales</div>
-            <div class="text-3xl font-semibold">{{ data.total_plays|number_format(0, '.', ' ') }}</div>
-            {% if not data.has_scrobbles %}
-                <div class="text-[10px] text-amber-600">via annotation (Navidrome &lt; 0.55)</div>
-            {% endif %}
-        </div>
-        <div class="bg-white shadow-sm rounded-sm p-4">
-            <div class="text-xs uppercase text-slate-500">Morceaux joués</div>
-            <div class="text-3xl font-semibold">{{ data.distinct_played|number_format(0, '.', ' ') }}</div>
-            {% if data.library.tracks > 0 %}
-                <div class="text-xs text-slate-500">
-                    {{ (data.distinct_played / data.library.tracks * 100)|round(1) }} % de la lib
-                </div>
-            {% endif %}
-        </div>
-        <div class="bg-white shadow-sm rounded-sm p-4">
-            <div class="text-xs uppercase text-slate-500">♥ Morceaux</div>
-            <div class="text-3xl font-semibold text-rose-600">{{ data.starred.tracks|number_format(0, '.', ' ') }}</div>
-        </div>
-        <div class="bg-white shadow-sm rounded-sm p-4">
-            <div class="text-xs uppercase text-slate-500">♥ Albums</div>
-            <div class="text-3xl font-semibold text-rose-600">{{ data.starred.albums|number_format(0, '.', ' ') }}</div>
-        </div>
-        <div class="bg-white shadow-sm rounded-sm p-4">
-            <div class="text-xs uppercase text-slate-500">♥ Artistes</div>
-            <div class="text-3xl font-semibold text-rose-600">{{ data.starred.artists|number_format(0, '.', ' ') }}</div>
-        </div>
-    </div>
-
     {# Streaks #}
     {% if data.streaks is defined %}
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <div class="bg-white shadow-sm rounded-sm p-4">
-            <div class="text-xs uppercase text-slate-500">🔥 Streak actuelle</div>
-            <div class="text-3xl font-semibold {{ data.streaks.current > 0 ? 'text-orange-600' : '' }}">
-                {{ data.streaks.current|number_format(0, '.', ' ') }}<span class="text-base text-slate-500"> j</span>
-            </div>
+    <div class="grid grid--3">
+        <div class="kpi kpi--orange">
+            <div class="kpi__label">🔥 Streak actuelle</div>
+            <div class="kpi__value kpi__value--sm">{{ data.streaks.current|number_format(0, '.', ' ') }}<span class="unit"> j</span></div>
             {% if data.streaks.current > 0 and data.streaks.current_started_at %}
-                <div class="text-xs text-slate-500">depuis le {{ data.streaks.current_started_at|date('d/m/Y') }}</div>
+                <div class="kpi__delta muted">depuis le {{ data.streaks.current_started_at|date('d/m/Y') }}</div>
             {% endif %}
         </div>
-        <div class="bg-white shadow-sm rounded-sm p-4">
-            <div class="text-xs uppercase text-slate-500">Plus longue (12 mois)</div>
-            <div class="text-3xl font-semibold">{{ data.streaks.longest_period|number_format(0, '.', ' ') }}<span class="text-base text-slate-500"> j</span></div>
+        <div class="kpi">
+            <div class="kpi__label">Plus longue (12 mois)</div>
+            <div class="kpi__value kpi__value--sm">{{ data.streaks.longest_period|number_format(0, '.', ' ') }}<span class="unit"> j</span></div>
             {% if data.streaks.longest_period > 0 and data.streaks.longest_period_started_at %}
-                <div class="text-xs text-slate-500">
-                    du {{ data.streaks.longest_period_started_at|date('d/m/Y') }}
-                    au {{ data.streaks.longest_period_ended_at|date('d/m/Y') }}
-                </div>
+                <div class="kpi__delta muted">du {{ data.streaks.longest_period_started_at|date('d/m/Y') }} au {{ data.streaks.longest_period_ended_at|date('d/m/Y') }}</div>
             {% endif %}
         </div>
-        <div class="bg-white shadow-sm rounded-sm p-4">
-            <div class="text-xs uppercase text-slate-500">Plus longue (all-time)</div>
-            <div class="text-3xl font-semibold">{{ data.streaks.longest_alltime|number_format(0, '.', ' ') }}<span class="text-base text-slate-500"> j</span></div>
+        <div class="kpi">
+            <div class="kpi__label">Plus longue (all-time)</div>
+            <div class="kpi__value kpi__value--sm">{{ data.streaks.longest_alltime|number_format(0, '.', ' ') }}<span class="unit"> j</span></div>
             {% if data.streaks.longest_alltime > 0 and data.streaks.longest_alltime_started_at %}
-                <div class="text-xs text-slate-500">
-                    du {{ data.streaks.longest_alltime_started_at|date('d/m/Y') }}
-                    au {{ data.streaks.longest_alltime_ended_at|date('d/m/Y') }}
-                </div>
+                <div class="kpi__delta muted">du {{ data.streaks.longest_alltime_started_at|date('d/m/Y') }} au {{ data.streaks.longest_alltime_ended_at|date('d/m/Y') }}</div>
             {% endif %}
         </div>
     </div>
@@ -200,59 +199,54 @@
     {# Disparité Last.fm ↔ Navidrome — mois et années où la bibliothèque
        couvre le moins bien les scrobbles Last.fm. #}
     {% if data.disparity is defined %}
-    <div class="mb-6">
-        <div class="flex items-baseline justify-between mb-2 flex-wrap gap-2">
-            <h2 class="text-lg font-semibold">Disparité Last.fm ↔ Navidrome</h2>
+    <div class="col">
+        <div class="row between wrap">
+            <div class="card__title mb-0">Disparité Last.fm ↔ Navidrome</div>
             {% if data.disparity.anchor_month %}
-                <p class="text-xs text-slate-500">
+                <p class="muted mono fs-11 mb-0">
                     Comparaison depuis {{ data.disparity.anchor_month }} (premier scrobble Navidrome). Triés par écart de plays décroissant.
                 </p>
             {% endif %}
         </div>
         {% if data.disparity.anchor_month is null %}
-            <div class="bg-white rounded-sm p-4 text-sm text-slate-500">
+            <div class="empty-state">
                 Aucune écoute Navidrome encore — la disparité apparaîtra après le premier sync.
             </div>
         {% elseif data.disparity.by_month is empty and data.disparity.by_year is empty %}
-            <div class="bg-white rounded-sm p-4 text-sm text-slate-500">
+            <div class="empty-state">
                 Aucune disparité significative depuis {{ data.disparity.anchor_month }} 🎉
             </div>
         {% else %}
-            {% set cov_class = {
-                'high':   'text-emerald-700 bg-emerald-50',
-                'medium': 'text-amber-700 bg-amber-50',
-                'low':    'text-rose-700 bg-rose-50',
-            } %}
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div class="grid grid--2">
                 {% for panel in [
                     { title: 'Top mois', rows: data.disparity.by_month, label_key: 'month' },
                     { title: 'Top années', rows: data.disparity.by_year, label_key: 'year' },
                 ] %}
-                    <div class="bg-white shadow-sm rounded-sm overflow-hidden">
-                        <div class="px-3 py-2 bg-slate-100 text-xs uppercase text-slate-500 font-medium">{{ panel.title }}</div>
+                    <div class="card" style="padding:0;">
+                        <div class="card__title" style="padding:16px 16px 0;">{{ panel.title }}</div>
                         {% if panel.rows is empty %}
-                            <div class="px-3 py-4 text-sm text-slate-500">—</div>
+                            <div class="empty-state" style="border:none;">—</div>
                         {% else %}
-                            <table class="w-full text-sm">
-                                <thead class="text-xs uppercase text-slate-500">
+                            <table class="data-table data-table--in-card" style="margin-top:8px;">
+                                <thead>
                                     <tr>
-                                        <th class="px-3 py-1.5 text-left">Période</th>
-                                        <th class="px-3 py-1.5 text-right">Last.fm</th>
-                                        <th class="px-3 py-1.5 text-right">Navidrome</th>
-                                        <th class="px-3 py-1.5 text-right">Écart</th>
-                                        <th class="px-3 py-1.5 text-right">Couverture</th>
+                                        <th>Période</th>
+                                        <th class="num">Last.fm</th>
+                                        <th class="num">Navidrome</th>
+                                        <th class="num">Écart</th>
+                                        <th class="num">Couverture</th>
                                     </tr>
                                 </thead>
-                                <tbody class="divide-y">
+                                <tbody>
                                 {% for row in panel.rows %}
-                                    {% set tone = row.coverage_pct >= 80 ? 'high' : (row.coverage_pct >= 40 ? 'medium' : 'low') %}
-                                    <tr class="hover:bg-slate-50">
-                                        <td class="px-3 py-1.5 font-medium">{{ attribute(row, panel.label_key) }}</td>
-                                        <td class="px-3 py-1.5 text-right font-mono text-slate-700">{{ row.lastfm|number_format(0, '.', ' ') }}</td>
-                                        <td class="px-3 py-1.5 text-right font-mono text-slate-700">{{ row.navidrome|number_format(0, '.', ' ') }}</td>
-                                        <td class="px-3 py-1.5 text-right font-mono font-semibold">{{ row.gap|number_format(0, '.', ' ') }}</td>
-                                        <td class="px-3 py-1.5 text-right">
-                                            <span class="inline-block rounded-sm px-2 py-0.5 text-xs {{ cov_class[tone] }}">{{ row.coverage_pct }}%</span>
+                                    {% set tone = row.coverage_pct >= 80 ? 'success' : (row.coverage_pct >= 40 ? 'warning' : 'warning') %}
+                                    <tr>
+                                        <td class="fw-600">{{ attribute(row, panel.label_key) }}</td>
+                                        <td class="num">{{ row.lastfm|number_format(0, '.', ' ') }}</td>
+                                        <td class="num">{{ row.navidrome|number_format(0, '.', ' ') }}</td>
+                                        <td class="num fw-600 {{ row.coverage_pct < 40 ? 't-orange' : '' }}">{{ row.gap|number_format(0, '.', ' ') }}</td>
+                                        <td class="num">
+                                            <span class="badge badge--{{ tone }}">{{ row.coverage_pct }}%</span>
                                         </td>
                                     </tr>
                                 {% endfor %}
@@ -275,16 +269,16 @@
     ] %}
     {% for chart in charts %}
     {% if chart.rows is not empty %}
-    <div class="bg-white shadow-sm rounded-sm p-4 mb-6">
-        <div class="text-sm font-semibold mb-3">{{ chart.title }}</div>
+    <div class="card">
+        <div class="card__title">{{ chart.title }}</div>
         {% set max_v = max(chart.rows|map(r => r.plays)) %}
-        <div class="flex items-end gap-1 h-24">
+        <div class="bars">
             {% for row in chart.rows %}
-            <div class="flex-1 flex flex-col items-center gap-1 min-w-0">
-                <div class="w-full bg-sky-400 rounded-t-sm"
-                     style="height: {{ max_v > 0 ? ((row.plays / max_v * 88)|round) : 0 }}px"
+            <div class="bars__col">
+                <div class="bars__bar"
+                     style="height: {{ max_v > 0 ? ((row.plays / max_v * 100)|round) : 0 }}%"
                      title="{{ attribute(row, chart.key) }} : {{ row.plays }} {{ unit }}"></div>
-                <div class="text-xs text-slate-400 truncate" style="font-size:9px">
+                <div class="bars__label">
                     {%- if chart.key == 'month' -%}
                         {{ row.month|slice(5, 2) }}/{{ row.month|slice(2, 2) }}
                     {%- else -%}
@@ -299,97 +293,67 @@
     {% endfor %}
 
     {# Top all-time #}
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+    <div class="grid grid--3">
         {% if data.top_artists is not empty %}
-        <div class="bg-white shadow-sm rounded-sm overflow-hidden">
-            <div class="px-4 py-2 bg-slate-100 border-b text-sm font-semibold">Top artistes (all-time)</div>
-            <table class="w-full text-sm">
-                <tbody class="divide-y">
+        <div class="card">
+            <div class="card__title">Top artistes (all-time)</div>
+            <div class="bar-list">
                 {% set max_a = data.top_artists[0].plays %}
                 {% for i, row in data.top_artists %}
-                <tr class="hover:bg-slate-50">
-                    <td class="px-3 py-1.5 text-slate-400 w-8 text-right text-xs">{{ i + 1 }}</td>
-                    <td class="px-3 py-1.5 font-medium truncate">{{ row.artist }}</td>
-                    <td class="px-3 py-1.5 w-24">
-                        <div class="bg-sky-200 h-2 rounded-full" style="width: {{ (row.plays / max_a * 100)|round }}%"></div>
-                    </td>
-                    <td class="px-3 py-1.5 text-right font-mono text-xs">{{ row.plays }}</td>
-                </tr>
+                <div class="bar-list__row">
+                    <div><span><span class="muted mono">{{ i + 1 }}</span> {{ row.artist }}</span><span class="count">{{ row.plays }}</span></div>
+                    <div class="bar-list__track"><div class="bar-list__fill" style="width: {{ (row.plays / max_a * 100)|round }}%"></div></div>
+                </div>
                 {% endfor %}
-                </tbody>
-            </table>
+            </div>
         </div>
         {% endif %}
 
         {% if data.top_tracks is not empty %}
-        <div class="bg-white shadow-sm rounded-sm overflow-hidden">
-            <div class="px-4 py-2 bg-slate-100 border-b text-sm font-semibold">Top morceaux (all-time)</div>
-            <table class="w-full text-sm">
-                <tbody class="divide-y">
+        <div class="card">
+            <div class="card__title">Top morceaux (all-time)</div>
+            <div class="bar-list">
                 {% set max_t = data.top_tracks[0].plays %}
                 {% for i, row in data.top_tracks %}
-                <tr class="hover:bg-slate-50">
-                    <td class="px-3 py-1.5 text-slate-400 w-8 text-right text-xs">{{ i + 1 }}</td>
-                    <td class="px-3 py-1.5">
-                        <div class="font-medium truncate max-w-40">{{ row.title }}</div>
-                        <div class="text-xs text-slate-500 truncate max-w-40">{{ row.artist }}</div>
-                    </td>
-                    <td class="px-3 py-1.5 w-20">
-                        <div class="bg-emerald-200 h-2 rounded-full" style="width: {{ (row.plays / max_t * 100)|round }}%"></div>
-                    </td>
-                    <td class="px-3 py-1.5 text-right font-mono text-xs">{{ row.plays }}</td>
-                </tr>
+                <div class="bar-list__row">
+                    <div><span><span class="muted mono">{{ i + 1 }}</span> {{ row.title }} <span class="muted">· {{ row.artist }}</span></span><span class="count">{{ row.plays }}</span></div>
+                    <div class="bar-list__track"><div class="bar-list__fill bar-list__fill--alt" style="width: {{ (row.plays / max_t * 100)|round }}%"></div></div>
+                </div>
                 {% endfor %}
-                </tbody>
-            </table>
+            </div>
         </div>
         {% endif %}
 
         {% if data.top_albums is not empty %}
-        <div class="bg-white shadow-sm rounded-sm overflow-hidden">
-            <div class="px-4 py-2 bg-slate-100 border-b text-sm font-semibold">Top albums (all-time)</div>
-            <table class="w-full text-sm">
-                <tbody class="divide-y">
+        <div class="card">
+            <div class="card__title">Top albums (all-time)</div>
+            <div class="bar-list">
                 {% set max_al = data.top_albums[0].plays %}
                 {% for i, row in data.top_albums %}
-                <tr class="hover:bg-slate-50">
-                    <td class="px-3 py-1.5 text-slate-400 w-8 text-right text-xs">{{ i + 1 }}</td>
-                    <td class="px-3 py-1.5">
-                        <div class="font-medium truncate max-w-40">{{ row.album }}</div>
-                        <div class="text-xs text-slate-500 truncate max-w-40">{{ row.album_artist }}</div>
-                    </td>
-                    <td class="px-3 py-1.5 w-20">
-                        <div class="bg-amber-200 h-2 rounded-full" style="width: {{ (row.plays / max_al * 100)|round }}%"></div>
-                    </td>
-                    <td class="px-3 py-1.5 text-right font-mono text-xs">{{ row.plays }}</td>
-                </tr>
+                <div class="bar-list__row">
+                    <div><span><span class="muted mono">{{ i + 1 }}</span> {{ row.album }} <span class="muted">· {{ row.album_artist }}</span></span><span class="count">{{ row.plays }}</span></div>
+                    <div class="bar-list__track"><div class="bar-list__fill" style="width: {{ (row.plays / max_al * 100)|round }}%; background: var(--orange);"></div></div>
+                </div>
                 {% endfor %}
-                </tbody>
-            </table>
+            </div>
         </div>
         {% endif %}
     </div>
 
     {# 100 derniers lus + 25 derniers ♥ #}
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="grid grid--2">
         {% if data.recent_scrobbles is not empty %}
-        <div class="bg-white shadow-sm rounded-sm overflow-hidden">
-            <div class="px-4 py-2 bg-slate-100 border-b text-sm font-semibold">
-                100 derniers morceaux lus
-            </div>
-            <div class="max-h-[640px] overflow-y-auto">
-                <table class="w-full text-sm">
-                    <tbody class="divide-y">
+        <div class="card" style="padding:0;">
+            <div class="card__title" style="padding:16px 16px 0;">100 derniers morceaux lus</div>
+            <div style="max-height:640px; overflow-y:auto; margin-top:8px;">
+                <table class="data-table data-table--in-card">
+                    <tbody>
                     {% for row in data.recent_scrobbles %}
-                    <tr class="hover:bg-slate-50">
-                        <td class="px-3 py-1.5 w-32 text-xs text-slate-500 whitespace-nowrap">
-                            {{ row.played_at|date('d/m H:i') }}
-                        </td>
-                        <td class="px-3 py-1.5">
-                            <div class="font-medium truncate max-w-xs">{{ row.title ?: '—' }}</div>
-                            <div class="text-xs text-slate-500 truncate max-w-xs">
-                                {{ row.artist ?: '—' }}{% if row.album %} · {{ row.album }}{% endif %}
-                            </div>
+                    <tr>
+                        <td class="mono nowrap" style="width:120px;">{{ row.played_at|date('d/m H:i') }}</td>
+                        <td>
+                            <div class="cell-track__title">{{ row.title ?: '—' }}</div>
+                            <div class="cell-track__sub">{{ row.artist ?: '—' }}{% if row.album %} · {{ row.album }}{% endif %}</div>
                         </td>
                     </tr>
                     {% endfor %}
@@ -398,34 +362,28 @@
             </div>
         </div>
         {% else %}
-        <div class="bg-white shadow-sm rounded-sm p-4 text-sm text-slate-500">
+        <div class="empty-state">
             Aucune écoute trouvée dans Navidrome.
             {% if not data.has_scrobbles %}
-                <br><span class="text-xs">La table <code>scrobbles</code> n'existe pas (Navidrome &lt; 0.55) ; les écoutes récentes n'apparaîtront qu'après mise à jour.</span>
+                <br><span class="fs-12 muted">La table <code>scrobbles</code> n'existe pas (Navidrome &lt; 0.55) ; les écoutes récentes n'apparaîtront qu'après mise à jour.</span>
             {% endif %}
         </div>
         {% endif %}
 
         {% if data.recent_starred is not empty %}
-        <div class="bg-white shadow-sm rounded-sm overflow-hidden">
-            <div class="px-4 py-2 bg-slate-100 border-b text-sm font-semibold">
-                25 derniers coups de cœur
-            </div>
-            <div class="max-h-[640px] overflow-y-auto">
-                <table class="w-full text-sm">
-                    <tbody class="divide-y">
+        <div class="card" style="padding:0;">
+            <div class="card__title" style="padding:16px 16px 0;">25 derniers coups de cœur</div>
+            <div style="max-height:640px; overflow-y:auto; margin-top:8px;">
+                <table class="data-table data-table--in-card">
+                    <tbody>
                     {% for row in data.recent_starred %}
-                    <tr class="hover:bg-slate-50">
-                        <td class="px-3 py-1.5 w-12 text-rose-500 text-center">♥</td>
-                        <td class="px-3 py-1.5">
-                            <div class="font-medium truncate max-w-xs">{{ row.title ?: '—' }}</div>
-                            <div class="text-xs text-slate-500 truncate max-w-xs">
-                                {{ row.artist ?: '—' }}{% if row.album %} · {{ row.album }}{% endif %}
-                            </div>
+                    <tr>
+                        <td class="t-orange" style="width:40px; text-align:center;">♥</td>
+                        <td>
+                            <div class="cell-track__title">{{ row.title ?: '—' }}</div>
+                            <div class="cell-track__sub">{{ row.artist ?: '—' }}{% if row.album %} · {{ row.album }}{% endif %}</div>
                         </td>
-                        <td class="px-3 py-1.5 w-24 text-xs text-slate-500 whitespace-nowrap text-right">
-                            {{ row.starred_at|date('d/m/Y') }}
-                        </td>
+                        <td class="mono num nowrap" style="width:96px;">{{ row.starred_at|date('d/m/Y') }}</td>
                     </tr>
                     {% endfor %}
                     </tbody>
@@ -433,9 +391,7 @@
             </div>
         </div>
         {% else %}
-        <div class="bg-white shadow-sm rounded-sm p-4 text-sm text-slate-500">
-            Aucun coup de cœur enregistré dans Navidrome.
-        </div>
+        <div class="empty-state">Aucun coup de cœur enregistré dans Navidrome.</div>
         {% endif %}
     </div>
 

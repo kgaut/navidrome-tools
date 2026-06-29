@@ -1,6 +1,6 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}Playlists Navidrome{% endblock %}
+{% block title %}Playlists{% endblock %}
 
 {% macro duration(seconds) %}
     {%- set s = seconds|default(0) -%}
@@ -9,71 +9,62 @@
     {%- if h > 0 -%}{{ h }}h{{ '%02d'|format(m) }}{%- else -%}{{ m }} min{%- endif -%}
 {% endmacro %}
 
+{% block page_subtitle %}
+    {{ playlists|length }} playlist{{ playlists|length > 1 ? 's' : '' }}
+    récupérée{{ playlists|length > 1 ? 's' : '' }} via l'API Subsonic, triées par dernière modification
+{% endblock %}
+
+{% block header_actions %}
+    {% if definitions is not empty %}
+        <form method="post" action="{{ path('app_playlists_generate') }}"
+              onsubmit="return confirm('(Re)générer toutes les playlists activées ?');">
+            <input type="hidden" name="_token" value="{{ csrf_token('playlists_generate') }}">
+            <button type="submit" class="btn btn--warning btn--sm">↻ Tout (re)générer</button>
+        </form>
+    {% endif %}
+{% endblock %}
+
 {% block body %}
     {% import _self as fmt %}
 
-    <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
-        <div>
-            <h1 class="text-2xl font-semibold">Playlists Navidrome</h1>
-            <p class="text-sm text-slate-500">
-                {{ playlists|length }} playlist{{ playlists|length > 1 ? 's' : '' }}
-                récupérée{{ playlists|length > 1 ? 's' : '' }} via l'API Subsonic,
-                triées par dernière modification.
-            </p>
-        </div>
-    </div>
-
     {% if error %}
-        <div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-sm p-4 text-sm mb-4">
-            Impossible de joindre Navidrome : {{ error }}
-        </div>
+        <div class="flash flash--error">Impossible de joindre Navidrome : {{ error }}</div>
     {% endif %}
 
     {% if definitions is not empty %}
-        <div class="bg-white shadow-sm rounded-sm overflow-hidden mb-6">
-            <div class="flex items-center justify-between px-4 py-3 bg-slate-50 border-b">
+        <div class="card" style="padding:0;">
+            <div class="row between" style="padding:14px 16px; border-bottom:1px solid var(--border);">
                 <div>
-                    <h2 class="font-semibold">Playlists générées</h2>
-                    <p class="text-xs text-slate-500">Algorithmes de génération — création / rafraîchissement dans Navidrome.</p>
+                    <div class="card__title card__title--sm mb-0">Playlists générées</div>
+                    <div class="muted mono fs-11 mt-8">Algorithmes de génération — création / rafraîchissement dans Navidrome.</div>
                 </div>
-                <form method="post" action="{{ path('app_playlists_generate') }}"
-                      onsubmit="return confirm('(Re)générer toutes les playlists activées ?');">
-                    <input type="hidden" name="_token" value="{{ csrf_token('playlists_generate') }}">
-                    <button type="submit"
-                            class="bg-[#F2A93C] hover:bg-[#e6982f] text-[#15243A] px-4 py-1.5 rounded-sm text-sm font-medium">
-                        ↻ Tout (re)générer
-                    </button>
-                </form>
             </div>
-            <table class="w-full text-sm" data-toggle-token="{{ csrf_token('playlists_toggle') }}">
-                <tbody class="divide-y">
+            <table class="data-table data-table--in-card" data-toggle-token="{{ csrf_token('playlists_toggle') }}">
+                <tbody>
                     {% for d in definitions %}
-                        <tr class="hover:bg-slate-50">
-                            <td class="pl-4 pr-2 py-2 w-px">
-                                <label class="inline-flex items-center cursor-pointer" title="Inclure dans « Tout (re)générer »">
-                                    <input type="checkbox" class="js-playlist-toggle w-4 h-4 accent-[#F2A93C]"
+                        <tr>
+                            <td style="width:1px;">
+                                <label class="checkbox" title="Inclure dans « Tout (re)générer »">
+                                    <input type="checkbox" class="js-playlist-toggle"
                                            data-slug="{{ d.slug }}" {{ d.enabled ? 'checked' : '' }}>
                                 </label>
                             </td>
-                            <td class="px-2 py-2">
-                                <div class="font-medium">{{ d.name }}</div>
-                                <div class="text-xs text-slate-500">{{ d.description }}</div>
-                                <div class="text-xs text-slate-400 mt-0.5 font-mono">{{ d.slug }}</div>
+                            <td>
+                                <div class="cell-track__title">{{ d.name }}</div>
+                                <div class="cell-track__sub">{{ d.description }}</div>
+                                <div class="mono fs-11 muted mt-8">{{ d.slug }}</div>
                             </td>
-                            <td class="px-4 py-2 text-right">
+                            <td class="right">
                                 <form method="post" action="{{ path('app_playlists_generate_one', { slug: d.slug }) }}">
                                     <input type="hidden" name="_token" value="{{ csrf_token('playlists_generate_one') }}">
-                                    <button type="submit"
-                                            class="bg-[#F2A93C] hover:bg-[#e6982f] text-[#15243A] px-3 py-1 rounded-sm text-xs font-medium">
-                                        ↻ Régénérer
-                                    </button>
+                                    <button type="submit" class="btn btn--warning btn--sm">↻ Régénérer</button>
                                 </form>
                             </td>
                         </tr>
                     {% endfor %}
                 </tbody>
             </table>
-            <p class="px-4 py-2 text-xs text-slate-400 border-t">
+            <p class="muted mono fs-11" style="padding:10px 16px; border-top:1px solid var(--border-dim);">
                 La case inclut (ou non) la playlist dans « Tout (re)générer » et la planification.
                 « Régénérer » fonctionne toujours, même décochée.
             </p>
@@ -102,47 +93,40 @@
     {% endif %}
 
     {% if playlists is empty and not error %}
-        <div class="bg-slate-50 border border-slate-200 text-slate-700 rounded-sm p-6 text-center text-sm">
-            Aucune playlist trouvée côté Navidrome.
-        </div>
+        <div class="empty-state">Aucune playlist trouvée côté Navidrome.</div>
     {% elseif playlists is not empty %}
-        <div class="bg-white shadow-sm rounded-sm overflow-hidden">
-            <table class="w-full text-sm">
-                <thead class="bg-slate-100 text-xs uppercase text-slate-500">
+        <div class="card" style="padding:0;">
+            <table class="data-table">
+                <thead>
                     <tr>
-                        <th class="px-3 py-2 text-left">Nom</th>
-                        <th class="px-3 py-2 text-left">Owner</th>
-                        <th class="px-3 py-2 text-right">Morceaux</th>
-                        <th class="px-3 py-2 text-right">Durée</th>
-                        <th class="px-3 py-2 text-left">Créée</th>
-                        <th class="px-3 py-2 text-left">Modifiée</th>
-                        <th class="px-3 py-2 text-left">Visibilité</th>
+                        <th>Nom</th>
+                        <th>Owner</th>
+                        <th class="num">Morceaux</th>
+                        <th class="num">Durée</th>
+                        <th>Créée</th>
+                        <th>Modifiée</th>
+                        <th>Visibilité</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for p in playlists %}
-                        <tr class="border-t hover:bg-slate-50">
-                            <td class="px-3 py-2">
-                                <a href="{{ path('app_playlists_show', { id: p.id }) }}"
-                                   class="text-sky-700 hover:underline font-medium">{{ p.name }}</a>
+                        <tr>
+                            <td>
+                                <a href="{{ path('app_playlists_show', { id: p.id }) }}" class="link fw-600">{{ p.name }}</a>
                                 {% if p.comment %}
-                                    <div class="text-xs text-slate-500 mt-0.5">{{ p.comment }}</div>
+                                    <div class="cell-track__sub">{{ p.comment }}</div>
                                 {% endif %}
                             </td>
-                            <td class="px-3 py-2 text-slate-700">{{ p.owner }}</td>
-                            <td class="px-3 py-2 text-right tabular-nums">{{ p.songCount }}</td>
-                            <td class="px-3 py-2 text-right tabular-nums">{{ fmt.duration(p.duration) }}</td>
-                            <td class="px-3 py-2 text-xs text-slate-500">
-                                {{ p.created ? p.created|date('Y-m-d') : '—' }}
-                            </td>
-                            <td class="px-3 py-2 text-xs text-slate-500">
-                                {{ p.changed ? p.changed|date('Y-m-d H:i') : '—' }}
-                            </td>
-                            <td class="px-3 py-2 text-xs">
+                            <td class="t-3">{{ p.owner }}</td>
+                            <td class="num">{{ p.songCount }}</td>
+                            <td class="num">{{ fmt.duration(p.duration) }}</td>
+                            <td class="mono">{{ p.created ? p.created|date('Y-m-d') : '—' }}</td>
+                            <td class="mono">{{ p.changed ? p.changed|date('Y-m-d H:i') : '—' }}</td>
+                            <td>
                                 {% if p.public %}
-                                    <span class="inline-block bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-sm">Public</span>
+                                    <span class="badge badge--success">Public</span>
                                 {% else %}
-                                    <span class="inline-block bg-slate-100 text-slate-600 px-2 py-0.5 rounded-sm">Privé</span>
+                                    <span class="badge badge--neutral">Privé</span>
                                 {% endif %}
                             </td>
                         </tr>

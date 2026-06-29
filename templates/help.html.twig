@@ -1,220 +1,219 @@
 {% extends 'base.html.twig' %}
-{% block title %}Aide — navidrome-tools{% endblock %}
+{% block title %}Aide{% endblock %}
+
+{% block page_subtitle %}Cheat-sheet : commandes, enchaînements typiques et procédures sensibles{% endblock %}
+
 {% block body %}
     {% set dc = 'docker compose exec -T ' ~ compose_service %}
 
-    <div class="mb-6">
-        <h1 class="text-2xl font-semibold">Aide & cheat-sheet</h1>
-        <p class="text-sm text-slate-500 mt-1">
-            Référence rapide des commandes, des enchaînements typiques et des procédures sensibles.
-            Toutes les commandes CLI sont préfixées par <code class="bg-slate-100 px-1 rounded-sm">{{ dc }}</code> :
-            adapte le nom du service si ton <code class="bg-slate-100 px-1 rounded-sm">compose.yml</code> diffère.
-        </p>
-    </div>
+    <p class="muted">
+        Toutes les commandes CLI sont préfixées par <span class="mono t-3">{{ dc }}</span> :
+        adapte le nom du service si ton <span class="mono t-3">compose.yml</span> diffère.
+    </p>
 
     {# Sommaire #}
-    <div class="bg-white rounded-sm p-4 mb-6 text-sm shadow-sm">
-        <div class="font-semibold mb-2 text-xs uppercase text-slate-500">Sommaire</div>
-        <ul class="list-disc list-inside space-y-1 text-sky-700">
-            <li><a href="#flow" class="hover:underline">Flow type — premier import</a></li>
-            <li><a href="#fetch" class="hover:underline">Récupérer / mettre à jour l'historique Last.fm</a></li>
-            <li><a href="#sync" class="hover:underline">Synchroniser dans Navidrome / Strawberry</a></li>
-            <li><a href="#rematch" class="hover:underline">Rejouer le matching après changement de bibliothèque</a></li>
-            <li><a href="#aliases" class="hover:underline">Générer / suggérer des alias</a></li>
-            <li><a href="#loves" class="hover:underline">Synchroniser les loved ↔ starred</a></li>
-            <li><a href="#stats" class="hover:underline">Recalculer les stats</a></li>
-            <li><a href="#wipe" class="hover:underline">⚠️ Wipe complet + ré-import (procédure dangereuse)</a></li>
-            <li><a href="#crontab" class="hover:underline">Crontab type</a></li>
-            <li><a href="#tips" class="hover:underline">Astuces & pièges</a></li>
+    <div class="card">
+        <div class="card__title">Sommaire</div>
+        <ul class="list-reset" style="display:flex; flex-direction:column; gap:6px;">
+            <li><a href="#flow" class="link">Flow type — premier import</a></li>
+            <li><a href="#fetch" class="link">Récupérer / mettre à jour l'historique Last.fm</a></li>
+            <li><a href="#sync" class="link">Synchroniser dans Navidrome / Strawberry</a></li>
+            <li><a href="#rematch" class="link">Rejouer le matching après changement de bibliothèque</a></li>
+            <li><a href="#aliases" class="link">Générer / suggérer des alias</a></li>
+            <li><a href="#loves" class="link">Synchroniser les loved ↔ starred</a></li>
+            <li><a href="#stats" class="link">Recalculer les stats</a></li>
+            <li><a href="#wipe" class="link t-orange">⚠ Wipe complet + ré-import (procédure dangereuse)</a></li>
+            <li><a href="#crontab" class="link">Crontab type</a></li>
+            <li><a href="#tips" class="link">Astuces & pièges</a></li>
         </ul>
     </div>
 
     {# Flow type #}
-    <section id="flow" class="bg-white rounded-sm p-4 mb-6 shadow-sm">
-        <h2 class="text-lg font-semibold mb-2">Flow type — premier import</h2>
-        <ol class="list-decimal list-inside space-y-2 text-sm">
-            <li>Remplir <code>LASTFM_API_KEY</code>, <code>LASTFM_USER</code> et <code>NAVIDROME_*</code> dans <code>.env</code>.</li>
+    <section id="flow" class="card">
+        <div class="card__title">Flow type — premier import</div>
+        <ol class="t-3" style="padding-left:18px; display:flex; flex-direction:column; gap:10px;">
+            <li>Remplir <span class="mono">LASTFM_API_KEY</span>, <span class="mono">LASTFM_USER</span> et <span class="mono">NAVIDROME_*</span> dans <span class="mono">.env</span>.</li>
             <li>Récupérer tout l'historique Last.fm :
-                <pre class="bg-slate-100 p-2 rounded-sm text-xs mt-1 overflow-x-auto">{{ dc }} php bin/console app:lastfm:fetch --max-scrobbles=0</pre>
+                <pre class="code-block"><span class="c-read">{{ dc }} php bin/console app:lastfm:fetch --max-scrobbles=0</span></pre>
             </li>
             <li>(Optionnel) auto-générer des alias à haute confiance avant le sync :
-                <pre class="bg-slate-100 p-2 rounded-sm text-xs mt-1 overflow-x-auto">{{ dc }} php bin/console app:aliases:generate --dry-run
-{{ dc }} php bin/console app:aliases:generate</pre>
+                <pre class="code-block"><span class="c-write">{{ dc }} php bin/console app:aliases:generate --dry-run
+{{ dc }} php bin/console app:aliases:generate</span></pre>
             </li>
             <li>Synchroniser vers Navidrome (le conteneur est stoppé pendant l'écriture) :
-                <pre class="bg-slate-100 p-2 rounded-sm text-xs mt-1 overflow-x-auto">{{ dc }} php bin/console app:scrobbles:sync-navidrome --auto-stop</pre>
+                <pre class="code-block"><span class="c-write">{{ dc }} php bin/console app:scrobbles:sync-navidrome --auto-stop</span></pre>
             </li>
             <li>(Optionnel) re-tenter les non-matchés après avoir ajouté des pistes :
-                <pre class="bg-slate-100 p-2 rounded-sm text-xs mt-1 overflow-x-auto">{{ dc }} php bin/console app:scrobbles:rematch --target navidrome --auto-stop</pre>
+                <pre class="code-block"><span class="c-write">{{ dc }} php bin/console app:scrobbles:rematch --target navidrome --auto-stop</span></pre>
             </li>
             <li>Propager les coups de cœur :
-                <pre class="bg-slate-100 p-2 rounded-sm text-xs mt-1 overflow-x-auto">{{ dc }} php bin/console app:loves:lastfm-to-navidrome --auto-stop</pre>
+                <pre class="code-block"><span class="c-fav">{{ dc }} php bin/console app:loves:lastfm-to-navidrome --auto-stop</span></pre>
             </li>
         </ol>
     </section>
 
     {# Fetch #}
-    <section id="fetch" class="bg-white rounded-sm p-4 mb-6 shadow-sm">
-        <h2 class="text-lg font-semibold mb-2">Récupérer / mettre à jour l'historique Last.fm</h2>
-        <p class="text-sm text-slate-500 mb-2">
-            Fetch incrémental par défaut (depuis le dernier scrobble en base). <code>--max-scrobbles=0</code> = pas de limite.
+    <section id="fetch" class="card">
+        <div class="card__title">Récupérer / mettre à jour l'historique Last.fm</div>
+        <p class="muted mb-12">
+            Fetch incrémental par défaut (depuis le dernier scrobble en base). <span class="mono">--max-scrobbles=0</span> = pas de limite.
         </p>
-        <pre class="bg-slate-100 p-2 rounded-sm text-xs overflow-x-auto"># Récupérer ce qui est nouveau depuis le dernier sync
-{{ dc }} php bin/console app:lastfm:fetch
+        <pre class="code-block"><span class="c-comment"># Récupérer ce qui est nouveau depuis le dernier sync</span>
+<span class="c-read">{{ dc }} php bin/console app:lastfm:fetch</span>
 
-# Backfill complet
-{{ dc }} php bin/console app:lastfm:fetch --max-scrobbles=0
+<span class="c-comment"># Backfill complet</span>
+<span class="c-read">{{ dc }} php bin/console app:lastfm:fetch --max-scrobbles=0</span>
 
-# Backfill bornée (utile pour tester sur un sous-ensemble)
-{{ dc }} php bin/console app:lastfm:fetch --date-min=2024-01-01 --date-max=2024-12-31
+<span class="c-comment"># Backfill bornée (utile pour tester sur un sous-ensemble)</span>
+<span class="c-read">{{ dc }} php bin/console app:lastfm:fetch --date-min=2024-01-01 --date-max=2024-12-31</span>
 
-# Rafraîchir l'attribut « loved » sur les anciens scrobbles
-{{ dc }} php bin/console app:lastfm:loved:sync</pre>
+<span class="c-comment"># Rafraîchir l'attribut « loved » sur les anciens scrobbles</span>
+<span class="c-fav">{{ dc }} php bin/console app:lastfm:loved:sync</span></pre>
     </section>
 
     {# Sync #}
-    <section id="sync" class="bg-white rounded-sm p-4 mb-6 shadow-sm">
-        <h2 class="text-lg font-semibold mb-2">Synchroniser dans Navidrome / Strawberry</h2>
-        <p class="text-sm text-slate-500 mb-2">
-            Écrit dans la base SQLite Navidrome (le conteneur doit être arrêté). <code>--auto-stop</code> gère l'arrêt
-            et le redémarrage du conteneur. Met également à jour <code>annotation.play_count</code> pour que le
+    <section id="sync" class="card">
+        <div class="card__title">Synchroniser dans Navidrome / Strawberry</div>
+        <p class="muted mb-12">
+            Écrit dans la base SQLite Navidrome (le conteneur doit être arrêté). <span class="mono">--auto-stop</span> gère l'arrêt
+            et le redémarrage du conteneur. Met également à jour <span class="mono">annotation.play_count</span> pour que le
             compteur de lecture s'affiche correctement dans l'UI Navidrome.
         </p>
-        <pre class="bg-slate-100 p-2 rounded-sm text-xs overflow-x-auto"># Sync Navidrome (recommandé : --auto-stop)
-{{ dc }} php bin/console app:scrobbles:sync-navidrome --auto-stop
+        <pre class="code-block"><span class="c-comment"># Sync Navidrome (recommandé : --auto-stop)</span>
+<span class="c-write">{{ dc }} php bin/console app:scrobbles:sync-navidrome --auto-stop</span>
 
-# Aperçu sans écrire
-{{ dc }} php bin/console app:scrobbles:sync-navidrome --dry-run
+<span class="c-comment"># Aperçu sans écrire</span>
+<span class="c-read">{{ dc }} php bin/console app:scrobbles:sync-navidrome --dry-run</span>
 
-# Sync Strawberry (lecture/écriture sur strawberry.db, pas de conteneur à arrêter)
-{{ dc }} php bin/console app:scrobbles:sync-strawberry</pre>
+<span class="c-comment"># Sync Strawberry (lecture/écriture sur strawberry.db, pas de conteneur à arrêter)</span>
+<span class="c-write">{{ dc }} php bin/console app:scrobbles:sync-strawberry</span></pre>
     </section>
 
     {# Rematch #}
-    <section id="rematch" class="bg-white rounded-sm p-4 mb-6 shadow-sm">
-        <h2 class="text-lg font-semibold mb-2">Rejouer le matching après changement de bibliothèque</h2>
-        <p class="text-sm text-slate-500 mb-2">
-            Reset les <code>unmatched</code> → <code>pending</code> et relance la cascade. À lancer après avoir ajouté
-            des pistes à Navidrome, créé des alias manuels ou tourné une commande <code>app:aliases:*</code>.
+    <section id="rematch" class="card">
+        <div class="card__title">Rejouer le matching après changement de bibliothèque</div>
+        <p class="muted mb-12">
+            Reset les <span class="mono">unmatched</span> → <span class="mono">pending</span> et relance la cascade. À lancer après avoir ajouté
+            des pistes à Navidrome, créé des alias manuels ou tourné une commande <span class="mono">app:aliases:*</span>.
         </p>
-        <pre class="bg-slate-100 p-2 rounded-sm text-xs overflow-x-auto">{{ dc }} php bin/console app:scrobbles:rematch --target navidrome --auto-stop
-{{ dc }} php bin/console app:scrobbles:rematch --target strawberry</pre>
+        <pre class="code-block"><span class="c-write">{{ dc }} php bin/console app:scrobbles:rematch --target navidrome --auto-stop
+{{ dc }} php bin/console app:scrobbles:rematch --target strawberry</span></pre>
     </section>
 
     {# Aliases #}
-    <section id="aliases" class="bg-white rounded-sm p-4 mb-6 shadow-sm">
-        <h2 class="text-lg font-semibold mb-2">Générer / suggérer des alias</h2>
-        <p class="text-sm text-slate-500 mb-2">
-            <strong>Ordre recommandé :</strong> <code>aliases:generate</code> (offline, MBID-only) →
-            <code>aliases:musicbrainz</code> (online) → <code>scrobbles:rematch</code> pour ré-injecter les écoutes
+    <section id="aliases" class="card">
+        <div class="card__title">Générer / suggérer des alias</div>
+        <p class="muted mb-12">
+            <strong class="t-2">Ordre recommandé :</strong> <span class="mono">aliases:generate</span> (offline, MBID-only) →
+            <span class="mono">aliases:musicbrainz</span> (online) → <span class="mono">scrobbles:rematch</span> pour ré-injecter les écoutes
             nouvellement résolues.
         </p>
-        <pre class="bg-slate-100 p-2 rounded-sm text-xs overflow-x-auto"># 1) Offline — joue sur les MBID déjà portés par les scrobbles
-{{ dc }} php bin/console app:aliases:generate --dry-run
-{{ dc }} php bin/console app:aliases:generate
+        <pre class="code-block"><span class="c-comment"># 1) Offline — joue sur les MBID déjà portés par les scrobbles</span>
+<span class="c-write">{{ dc }} php bin/console app:aliases:generate --dry-run
+{{ dc }} php bin/console app:aliases:generate</span>
 
-# 2) Online — interroge MusicBrainz pour les artistes encore non aliasés
-{{ dc }} php bin/console app:aliases:musicbrainz --dry-run --limit=20
-{{ dc }} php bin/console app:aliases:musicbrainz                   # applique unique-match
-{{ dc }} php bin/console app:aliases:musicbrainz -i                # prompt pour les ambigus
+<span class="c-comment"># 2) Online — interroge MusicBrainz pour les artistes encore non aliasés</span>
+<span class="c-write">{{ dc }} php bin/console app:aliases:musicbrainz --dry-run --limit=20
+{{ dc }} php bin/console app:aliases:musicbrainz                   </span><span class="c-comment"># applique unique-match</span>
+<span class="c-write">{{ dc }} php bin/console app:aliases:musicbrainz -i                </span><span class="c-comment"># prompt pour les ambigus</span>
 
-# 3) Reprise du sync avec les nouveaux alias
-{{ dc }} php bin/console app:scrobbles:rematch --target navidrome --auto-stop</pre>
-        <p class="text-xs text-slate-500 mt-2">
-            <code>app:aliases:musicbrainz</code> exige un <code>MUSICBRAINZ_USER_AGENT</code> contact-bearing (ToS MB)
+<span class="c-comment"># 3) Reprise du sync avec les nouveaux alias</span>
+<span class="c-write">{{ dc }} php bin/console app:scrobbles:rematch --target navidrome --auto-stop</span></pre>
+        <p class="muted fs-11 mt-12">
+            <span class="mono">app:aliases:musicbrainz</span> exige un <span class="mono">MUSICBRAINZ_USER_AGENT</span> contact-bearing (ToS MB)
             et respecte le rate-limit 1 req/s.
         </p>
     </section>
 
     {# Loves #}
-    <section id="loves" class="bg-white rounded-sm p-4 mb-6 shadow-sm">
-        <h2 class="text-lg font-semibold mb-2">Synchroniser les loved ↔ starred</h2>
-        <p class="text-sm text-slate-500 mb-2">
+    <section id="loves" class="card">
+        <div class="card__title">Synchroniser les loved ↔ starred</div>
+        <p class="muted mb-12">
             Politique « loved wins » : on ne retire jamais un cœur, on n'en propage que de nouveaux. Setup unique :
-            <code>app:lastfm:auth</code> stocke la session key pour le push retour Last.fm.
+            <span class="mono">app:lastfm:auth</span> stocke la session key pour le push retour Last.fm.
         </p>
-        <pre class="bg-slate-100 p-2 rounded-sm text-xs overflow-x-auto"># Setup (une seule fois) — prompt interactif
-{{ dc }} php bin/console app:lastfm:auth
+        <pre class="code-block"><span class="c-comment"># Setup (une seule fois) — prompt interactif</span>
+<span class="c-write">{{ dc }} php bin/console app:lastfm:auth</span>
 
-# Last.fm → Navidrome (écrit dans la DB Navidrome)
-{{ dc }} php bin/console app:loves:lastfm-to-navidrome --auto-stop
+<span class="c-comment"># Last.fm → Navidrome (écrit dans la DB Navidrome)</span>
+<span class="c-fav">{{ dc }} php bin/console app:loves:lastfm-to-navidrome --auto-stop</span>
 
-# Navidrome → Last.fm (pure API, Navidrome reste up)
-{{ dc }} php bin/console app:loves:navidrome-to-lastfm</pre>
+<span class="c-comment"># Navidrome → Last.fm (pure API, Navidrome reste up)</span>
+<span class="c-fav">{{ dc }} php bin/console app:loves:navidrome-to-lastfm</span></pre>
     </section>
 
     {# Stats #}
-    <section id="stats" class="bg-white rounded-sm p-4 mb-6 shadow-sm">
-        <h2 class="text-lg font-semibold mb-2">Recalculer les stats</h2>
-        <p class="text-sm text-slate-500 mb-2">
-            Les pages <code>/lastfm/stats</code> et <code>/navidrome/stats</code> sont servies depuis un snapshot
+    <section id="stats" class="card">
+        <div class="card__title">Recalculer les stats</div>
+        <p class="muted mb-12">
+            Les pages <span class="mono">/lastfm/stats</span> et <span class="mono">/navidrome/stats</span> sont servies depuis un snapshot
             persisté. Recalculer en CLI permet d'avoir des stats fraîches sans solliciter l'UI.
         </p>
-        <pre class="bg-slate-100 p-2 rounded-sm text-xs overflow-x-auto">{{ dc }} php bin/console app:lastfm:stats:compute
+        <pre class="code-block"><span class="c-write">{{ dc }} php bin/console app:lastfm:stats:compute
 {{ dc }} php bin/console app:navidrome:stats:compute
-{{ dc }} php bin/console app:stats                          # résumé compact dans la console</pre>
+{{ dc }} php bin/console app:stats                          </span><span class="c-comment"># résumé compact dans la console</span></pre>
     </section>
 
     {# Wipe #}
-    <section id="wipe" class="bg-rose-50 border border-rose-200 rounded-sm p-4 mb-6 shadow-sm">
-        <h2 class="text-lg font-semibold mb-2 text-rose-800">⚠️ Wipe complet + ré-import — procédure dangereuse</h2>
-        <p class="text-sm text-rose-900 mb-3">
-            Cette procédure efface <strong>toute</strong> l'historique de lecture Navidrome (table <code>scrobbles</code>,
-            compteurs <code>annotation.play_count</code> remis à zéro) et remet le suivi local <code>scrobble_sync</code>
-            en <code>pending</code> pour permettre un ré-import propre depuis Last.fm. <strong>Faire un backup avant.</strong>
+    <section id="wipe" class="card" style="border-color:#3a2e1b;">
+        <div class="card__title t-orange">⚠ Wipe complet + ré-import — procédure dangereuse</div>
+        <p class="muted mb-12">
+            Cette procédure efface <strong class="t-orange">toute</strong> l'historique de lecture Navidrome (table <span class="mono">scrobbles</span>,
+            compteurs <span class="mono">annotation.play_count</span> remis à zéro) et remet le suivi local <span class="mono">scrobble_sync</span>
+            en <span class="mono">pending</span> pour permettre un ré-import propre depuis Last.fm. <strong class="t-orange">Faire un backup avant.</strong>
         </p>
-        <ol class="list-decimal list-inside space-y-2 text-sm text-rose-900">
-            <li><strong>Backup explicite</strong> de la DB Navidrome (le wrapper bash <code>scripts/navidrome-sync.sh</code>
-                en fait un automatiquement, sinon copier <code>navidrome.db</code> + <code>-wal</code> + <code>-shm</code>).</li>
-            <li><strong>Arrêter Navidrome</strong> (manuellement ou via <code>--auto-stop</code> de la commande wipe).</li>
-            <li><strong>Wipe</strong> — toujours commencer en <code>--dry-run</code> pour voir ce qui va être effacé :
-                <pre class="bg-white p-2 rounded-sm text-xs mt-1 overflow-x-auto">{{ dc }} php bin/console app:navidrome:wipe-scrobbles --dry-run
-{{ dc }} php bin/console app:navidrome:wipe-scrobbles --auto-stop</pre>
+        <ol class="t-3" style="padding-left:18px; display:flex; flex-direction:column; gap:10px;">
+            <li><strong class="t-2">Backup explicite</strong> de la DB Navidrome (le wrapper bash <span class="mono">scripts/navidrome-sync.sh</span>
+                en fait un automatiquement, sinon copier <span class="mono">navidrome.db</span> + <span class="mono">-wal</span> + <span class="mono">-shm</span>).</li>
+            <li><strong class="t-2">Arrêter Navidrome</strong> (manuellement ou via <span class="mono">--auto-stop</span> de la commande wipe).</li>
+            <li><strong class="t-2">Wipe</strong> — toujours commencer en <span class="mono">--dry-run</span> pour voir ce qui va être effacé :
+                <pre class="code-block"><span class="c-read">{{ dc }} php bin/console app:navidrome:wipe-scrobbles --dry-run</span>
+<span class="c-write">{{ dc }} php bin/console app:navidrome:wipe-scrobbles --auto-stop</span></pre>
             </li>
-            <li><strong>Ré-import</strong> complet depuis l'historique Last.fm local :
-                <pre class="bg-white p-2 rounded-sm text-xs mt-1 overflow-x-auto">{{ dc }} php bin/console app:scrobbles:sync-navidrome --auto-stop</pre>
-                Le sync écrit dans <code>scrobbles</code> <em>et</em> dans <code>annotation</code> (compteurs de lecture),
+            <li><strong class="t-2">Ré-import</strong> complet depuis l'historique Last.fm local :
+                <pre class="code-block"><span class="c-write">{{ dc }} php bin/console app:scrobbles:sync-navidrome --auto-stop</span></pre>
+                Le sync écrit dans <span class="mono">scrobbles</span> <em>et</em> dans <span class="mono">annotation</span> (compteurs de lecture),
                 donc l'UI Navidrome affichera bien les bonnes valeurs en sortie.
             </li>
-            <li><strong>Vérifier</strong> via <code>/navidrome/stats</code> (puis recalcul du snapshot) :
-                <pre class="bg-white p-2 rounded-sm text-xs mt-1 overflow-x-auto">{{ dc }} php bin/console app:navidrome:stats:compute</pre>
+            <li><strong class="t-2">Vérifier</strong> via <span class="mono">/navidrome/stats</span> (puis recalcul du snapshot) :
+                <pre class="code-block"><span class="c-write">{{ dc }} php bin/console app:navidrome:stats:compute</span></pre>
             </li>
             <li>(Optionnel) re-générer les alias et rematcher si la lib a changé entre temps :
-                <pre class="bg-white p-2 rounded-sm text-xs mt-1 overflow-x-auto">{{ dc }} php bin/console app:aliases:generate
+                <pre class="code-block"><span class="c-write">{{ dc }} php bin/console app:aliases:generate
 {{ dc }} php bin/console app:aliases:musicbrainz
-{{ dc }} php bin/console app:scrobbles:rematch --target navidrome --auto-stop</pre>
+{{ dc }} php bin/console app:scrobbles:rematch --target navidrome --auto-stop</span></pre>
             </li>
         </ol>
-        <p class="text-xs text-rose-700 mt-3">
-            Si le wipe échoue en cours, <code>--auto-stop</code> garantit le redémarrage de Navidrome dans le
-            <code>finally</code> de la commande. <code>app:scrobbles:sync-navidrome</code> remet aussi le conteneur en
+        <p class="t-orange fs-11 mt-12">
+            Si le wipe échoue en cours, <span class="mono">--auto-stop</span> garantit le redémarrage de Navidrome dans le
+            <span class="mono">finally</span> de la commande. <span class="mono">app:scrobbles:sync-navidrome</span> remet aussi le conteneur en
             ligne après l'écriture.
         </p>
     </section>
 
     {# Crontab #}
-    <section id="crontab" class="bg-white rounded-sm p-4 mb-6 shadow-sm">
-        <h2 class="text-lg font-semibold mb-2">Crontab type</h2>
-        <p class="text-sm text-slate-500 mb-2">
-            Pour un sync quotidien automatique, utiliser <code>scripts/navidrome-sync.sh</code> (recopier
-            <code>scripts/navidrome-sync.sh.example</code>) qui orchestre stop conteneur → backup → sync → quick_check
+    <section id="crontab" class="card">
+        <div class="card__title">Crontab type</div>
+        <p class="muted mb-12">
+            Pour un sync quotidien automatique, utiliser <span class="mono">scripts/navidrome-sync.sh</span> (recopier
+            <span class="mono">scripts/navidrome-sync.sh.example</span>) qui orchestre stop conteneur → backup → sync → quick_check
             → restart → purge backups, avec rollback DB sur erreur.
         </p>
-        <pre class="bg-slate-100 p-2 rounded-sm text-xs overflow-x-auto"># Toutes les 6 heures
-0 */6 * * * /chemin/vers/scripts/navidrome-sync.sh >> /var/log/navidrome-sync.log 2>&1</pre>
+        <pre class="code-block"><span class="c-comment"># Toutes les 6 heures</span>
+<span class="c-write">0 */6 * * * /chemin/vers/scripts/navidrome-sync.sh >> /var/log/navidrome-sync.log 2>&1</span></pre>
     </section>
 
     {# Tips #}
-    <section id="tips" class="bg-white rounded-sm p-4 mb-6 shadow-sm">
-        <h2 class="text-lg font-semibold mb-2">Astuces & pièges</h2>
-        <ul class="list-disc list-inside space-y-1 text-sm text-slate-700">
-            <li><strong>Toujours préfixer <code>-T</code></strong> sur <code>docker compose exec</code> en cron — sans ça, <code>docker exec</code> râle « the input device is not a TTY ».</li>
-            <li><strong>Toujours <code>--auto-stop</code></strong> pour les commandes qui écrivent dans Navidrome — l'arrêt
+    <section id="tips" class="card">
+        <div class="card__title">Astuces & pièges</div>
+        <ul class="t-3" style="padding-left:18px; display:flex; flex-direction:column; gap:8px;">
+            <li><strong class="t-2">Toujours préfixer <span class="mono">-T</span></strong> sur <span class="mono">docker compose exec</span> en cron — sans ça, <span class="mono">docker exec</span> râle « the input device is not a TTY ».</li>
+            <li><strong class="t-2">Toujours <span class="mono">--auto-stop</span></strong> pour les commandes qui écrivent dans Navidrome — l'arrêt
                 propre force un WAL checkpoint et évite la corruption.</li>
-            <li><strong>Ne jamais partager <code>APP_CACHE_DIR</code></strong> entre les conteneurs <code>web</code> et <code>worker</code> (race sur <code>cache/prod</code>).</li>
-            <li><strong>SQLite et <code>NAVIDROME_STOP_TIMEOUT_SECONDS</code></strong> : laisser au moins 60 secondes pour que le WAL se checkpoint avant SIGKILL.</li>
-            <li><strong>Pas de relance des syncs en parallèle</strong> — le verrou <code>BEGIN IMMEDIATE</code> empêche deux processus d'écrire en même temps mais le second fail-fast au lieu d'attendre.</li>
-            <li><strong>Voir aussi</strong> : <a href="{{ path('app_history') }}" class="text-sky-700 hover:underline">l'historique des runs</a> garde la trace de chaque exécution (succès / erreur, durée, métriques).</li>
+            <li><strong class="t-2">Ne jamais partager <span class="mono">APP_CACHE_DIR</span></strong> entre les conteneurs <span class="mono">web</span> et <span class="mono">worker</span> (race sur <span class="mono">cache/prod</span>).</li>
+            <li><strong class="t-2">SQLite et <span class="mono">NAVIDROME_STOP_TIMEOUT_SECONDS</span></strong> : laisser au moins 60 secondes pour que le WAL se checkpoint avant SIGKILL.</li>
+            <li><strong class="t-2">Pas de relance des syncs en parallèle</strong> — le verrou <span class="mono">BEGIN IMMEDIATE</span> empêche deux processus d'écrire en même temps mais le second fail-fast au lieu d'attendre.</li>
+            <li><strong class="t-2">Voir aussi</strong> : <a href="{{ path('app_history') }}" class="link">l'historique des runs</a> garde la trace de chaque exécution (succès / erreur, durée, métriques).</li>
         </ul>
     </section>
 {% endblock %}

@@ -7,79 +7,67 @@
     <link rel="icon" href="/favicon-16.png" sizes="16x16" type="image/png">
     <link rel="alternate icon" href="/favicon.ico" sizes="any">
     <link rel="apple-touch-icon" href="/apple-touch-icon-180.png">
-    <meta name="theme-color" content="#15243A">
+    <meta name="theme-color" content="#0B1421">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}{% endblock %} — navidrome-tools{% if app_version is defined and app_version != 'dev' %} {{ app_version }}{% endif %}</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/console.css">
 </head>
-<body class="bg-slate-100 text-slate-900 min-h-screen flex flex-col">
+<body>
 
 {% if app.user %}
-<header class="bg-[#15243A] text-slate-100">
-    <div class="max-w-6xl mx-auto px-4 py-2 flex items-center gap-4">
-        <a href="{{ path('app_dashboard') }}" class="flex items-center gap-2 font-semibold whitespace-nowrap">
-            <img src="/logo-mark.svg" alt="" width="28" height="28" class="w-7 h-7 shrink-0">
-            <span class="text-white">navidrome<span class="text-[#F2A93C]">-tools</span></span>
-        </a>
+<div class="app" id="app-shell">
+    {% include '_sidebar.html.twig' %}
 
-        {% include '_navbar.html.twig' with { variant: 'desktop' } only %}
-
-        <div class="hidden md:flex items-center gap-3 text-sm whitespace-nowrap">
-            <span class="text-slate-400">{{ app.user.userIdentifier }}</span>
-            <a href="{{ path('app_logout') }}" class="hover:text-white">Déconnexion</a>
-        </div>
-
-        <button type="button"
-                id="burger-toggle"
-                class="md:hidden ml-auto inline-flex items-center justify-center w-10 h-10 rounded-sm hover:bg-slate-700"
-                aria-label="Ouvrir le menu"
-                aria-controls="mobile-nav"
-                aria-expanded="false">
-            <svg id="burger-icon-open" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
-            </svg>
-            <svg id="burger-icon-close" class="w-6 h-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-            </svg>
-        </button>
-    </div>
-
-    {% include '_navbar.html.twig' with { variant: 'mobile' } only %}
-</header>
-{% endif %}
-
-<main class="flex-1 max-w-6xl w-full mx-auto px-4 py-6">
-    {% for type, messages in app.flashes %}
-        {% for message in messages %}
-            <div class="mb-4 p-3 rounded-sm text-sm
-                {% if type == 'success' %}bg-emerald-50 border border-emerald-300 text-emerald-800
-                {% elseif type == 'error' %}bg-rose-50 border border-rose-300 text-rose-800
-                {% else %}bg-sky-50 border border-sky-300 text-sky-800{% endif %}">
-                {{ message }}
+    <main class="main">
+        <header class="page-header">
+            <button type="button" class="burger" id="burger-toggle" aria-label="Menu">≡</button>
+            <div>
+                <div class="page-header__title">{% block page_title %}{{ block('title') }}{% endblock %}</div>
+                {% set _subtitle %}{% block page_subtitle %}{% endblock %}{% endset %}
+                {% if _subtitle|trim %}<div class="page-header__subtitle">{{ _subtitle|raw }}</div>{% endif %}
             </div>
-        {% endfor %}
-    {% endfor %}
+            <div class="page-header__actions">{% block header_actions %}{% endblock %}</div>
+        </header>
 
-    {% block body %}{% endblock %}
-</main>
+        <div class="page-content">
+            {% for type, messages in app.flashes %}
+                {% for message in messages %}
+                    <div class="flash flash--{{ type == 'success' ? 'success' : (type == 'error' ? 'error' : 'info') }}">{{ message }}</div>
+                {% endfor %}
+            {% endfor %}
 
-{% if app.user %}
+            {% block body %}{% endblock %}
+        </div>
+    </main>
+</div>
+
 <script>
     (function () {
         var btn = document.getElementById('burger-toggle');
-        var nav = document.getElementById('mobile-nav');
-        var iconOpen = document.getElementById('burger-icon-open');
-        var iconClose = document.getElementById('burger-icon-close');
-        if (!btn || !nav) return;
-        btn.addEventListener('click', function () {
-            var willOpen = nav.classList.contains('hidden');
-            nav.classList.toggle('hidden', !willOpen);
-            iconOpen.classList.toggle('hidden', willOpen);
-            iconClose.classList.toggle('hidden', !willOpen);
-            btn.setAttribute('aria-expanded', String(willOpen));
+        var app = document.getElementById('app-shell');
+        if (!btn || !app) return;
+        btn.addEventListener('click', function () { app.classList.toggle('nav-open'); });
+        app.querySelectorAll('.nav__item').forEach(function (a) {
+            a.addEventListener('click', function () { app.classList.remove('nav-open'); });
         });
     })();
 </script>
+{% else %}
+    {# Hors session (login) : pas de shell, contenu centré. #}
+    <div style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;">
+        <div style="width:100%; max-width:380px;">
+            {% for type, messages in app.flashes %}
+                {% for message in messages %}
+                    <div class="flash flash--{{ type == 'success' ? 'success' : (type == 'error' ? 'error' : 'info') }}" style="margin-bottom:14px;">{{ message }}</div>
+                {% endfor %}
+            {% endfor %}
+            {% block body %}{% endblock %}
+        </div>
+    </div>
 {% endif %}
+
 </body>
 </html>

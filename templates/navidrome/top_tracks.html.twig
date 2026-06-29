@@ -1,59 +1,65 @@
 {% extends 'base.html.twig' %}
 {% block title %}Top morceaux — Navidrome{% endblock %}
-{% block body %}
-    <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
-        <div>
-            <a href="{{ path('app_navidrome_stats') }}" class="text-sm text-sky-700 hover:underline">← Stats Navidrome</a>
-            <h1 class="text-2xl font-semibold mt-1">Top morceaux — Navidrome</h1>
-            <p class="text-sm text-slate-500">
-                Top {{ top_n }} morceaux par lectures.
-                {% include '_top_source_indicator.html.twig' with { source: source, computed_at: computed_at, compute_command: compute_command } only %}
-            </p>
-        </div>
-        <div class="flex gap-2 text-xs">
-            <a href="{{ path('app_lastfm_top_tracks') }}" class="text-sky-700 hover:underline self-center">
-                Voir côté Last.fm →
-            </a>
-        </div>
-    </div>
 
+{% block page_subtitle %}
+    Top {{ top_n }} morceaux par lectures.
+    {% include '_top_source_indicator.html.twig' with { source: source, computed_at: computed_at, compute_command: compute_command } only %}
+{% endblock %}
+
+{% block header_actions %}
+    <a href="{{ path('app_navidrome_stats') }}" class="btn btn--outline btn--sm">← Stats Navidrome</a>
+    <a href="{{ path('app_lastfm_top_tracks') }}" class="btn btn--outline btn--sm">Voir côté Last.fm →</a>
+{% endblock %}
+
+{% block body %}
     {% include '_top_filter_form.html.twig' with { route: 'app_navidrome_top_tracks' } only %}
 
     {% if rows is empty %}
-        <div class="bg-white rounded-sm p-6 text-center text-slate-500">Aucune lecture pour ces filtres.</div>
+        <div class="empty-state">Aucune lecture pour ces filtres.</div>
     {% else %}
-        <div class="bg-white shadow-sm rounded-sm overflow-hidden mb-4">
-            <table class="w-full text-sm">
-                <thead class="bg-slate-100 text-xs uppercase text-slate-500">
+        {% set max_plays = rows|first.plays %}
+        <div class="card" style="padding:0;">
+            <table class="data-table data-table--in-card">
+                <thead>
                     <tr>
-                        <th class="px-3 py-2 text-right w-12">#</th>
-                        <th class="px-3 py-2 text-left">Artiste</th>
-                        <th class="px-3 py-2 text-left">Titre</th>
-                        <th class="px-3 py-2 text-left">Album</th>
-                        <th class="px-3 py-2 text-right">Lectures</th>
-                        <th class="px-3 py-2 text-left">Première</th>
-                        <th class="px-3 py-2 text-left">Dernière</th>
-                        <th class="px-3 py-2 text-right">Actions</th>
+                        <th class="right" style="width:48px;">#</th>
+                        <th>Titre</th>
+                        <th>Album</th>
+                        <th class="num">Lectures</th>
+                        <th>Première</th>
+                        <th>Dernière</th>
+                        <th class="right">Actions</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y">
+                <tbody>
                 {% for row in rows %}
                     {% set navidrome = navidrome_track_url(row.id) %}
                     {% set lastfm = lastfm_track_url(row.artist, row.title) %}
-                    <tr class="hover:bg-slate-50">
-                        <td class="px-3 py-1.5 text-right font-mono text-xs text-slate-400">{{ loop.index }}</td>
-                        <td class="px-3 py-1.5">{{ row.artist }}</td>
-                        <td class="px-3 py-1.5 font-medium">
-                            {{ row.title }}
-                            {% if lastfm %}<a href="{{ lastfm }}" target="_blank" rel="noopener" class="text-xs text-rose-500 hover:underline" title="Last.fm track">[L]</a>{% endif %}
+                    <tr>
+                        <td class="num muted">{{ loop.index }}</td>
+                        <td>
+                            <div class="cell-track">
+                                <div>
+                                    <div class="cell-track__title">
+                                        {{ row.title }}
+                                        {% if lastfm %}<a href="{{ lastfm }}" target="_blank" rel="noopener" class="link mono fs-11" title="Last.fm track">[L]</a>{% endif %}
+                                    </div>
+                                    <div class="cell-track__sub">{{ row.artist }}</div>
+                                </div>
+                            </div>
                         </td>
-                        <td class="px-3 py-1.5 text-slate-500">{{ row.album ?? '—' }}</td>
-                        <td class="px-3 py-1.5 text-right font-mono">{{ row.plays|number_format(0, '.', ' ') }}</td>
-                        <td class="px-3 py-1.5 text-xs text-slate-500 whitespace-nowrap">{{ row.first_played_at ? row.first_played_at|date('d/m/Y H:i') : '—' }}</td>
-                        <td class="px-3 py-1.5 text-xs text-slate-500 whitespace-nowrap">{{ row.last_played_at ? row.last_played_at|date('d/m/Y H:i') : '—' }}</td>
-                        <td class="px-3 py-1.5 text-right whitespace-nowrap">
+                        <td class="muted">{{ row.album ?? '—' }}</td>
+                        <td class="num">
+                            {{ row.plays|number_format(0, '.', ' ') }}
+                            <div class="bar-list__track mt-8">
+                                <div class="bar-list__fill{{ loop.index is odd ? '' : '--alt' }}" style="width: {{ max_plays > 0 ? (row.plays / max_plays * 100) : 0 }}%"></div>
+                            </div>
+                        </td>
+                        <td class="mono muted nowrap">{{ row.first_played_at ? row.first_played_at|date('d/m/Y H:i') : '—' }}</td>
+                        <td class="mono muted nowrap">{{ row.last_played_at ? row.last_played_at|date('d/m/Y H:i') : '—' }}</td>
+                        <td class="right nowrap">
                             {% if navidrome %}
-                                <a href="{{ navidrome }}" target="_blank" rel="noopener" class="text-xs text-emerald-700 hover:underline" title="Ouvrir dans Navidrome">▶ Navidrome</a>
+                                <a href="{{ navidrome }}" target="_blank" rel="noopener" class="link mono fs-11" title="Ouvrir dans Navidrome">▶ Navidrome</a>
                             {% endif %}
                         </td>
                     </tr>
