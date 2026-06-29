@@ -30,6 +30,14 @@ parameters:
     env(LISTENBRAINZ_USER): ''
     env(LISTENBRAINZ_BASE_URL): 'https://api.listenbrainz.org'
     env(LISTENBRAINZ_TOKEN): ''
+    # AudioMuse-AI (analyse sonique) — playlist « Mix de la semaine ».
+    # Inactive tant que AUDIOMUSE_BASE_URL est vide ; clé API optionnelle.
+    env(AUDIOMUSE_BASE_URL): ''
+    env(AUDIOMUSE_API_KEY): ''
+    env(PLAYLIST_MIX_SEED_DAYS): '7'
+    env(PLAYLIST_MIX_SEED_COUNT): '15'
+    env(PLAYLIST_MIX_PER_SEED): '20'
+    env(PLAYLIST_MIX_MAX_PLAYS): '5'
 
     app.auth_user: '%env(APP_AUTH_USER)%'
     app.auth_password: '%env(APP_AUTH_PASSWORD)%'
@@ -79,6 +87,12 @@ parameters:
     listenbrainz.user: '%env(LISTENBRAINZ_USER)%'
     listenbrainz.base_url: '%env(LISTENBRAINZ_BASE_URL)%'
     listenbrainz.token: '%env(LISTENBRAINZ_TOKEN)%'
+    audiomuse.base_url: '%env(AUDIOMUSE_BASE_URL)%'
+    audiomuse.api_key: '%env(AUDIOMUSE_API_KEY)%'
+    playlist.mix.seed_days: '%env(int:PLAYLIST_MIX_SEED_DAYS)%'
+    playlist.mix.seed_count: '%env(int:PLAYLIST_MIX_SEED_COUNT)%'
+    playlist.mix.per_seed: '%env(int:PLAYLIST_MIX_PER_SEED)%'
+    playlist.mix.max_plays: '%env(int:PLAYLIST_MIX_MAX_PLAYS)%'
     notify.drivers: '%env(NOTIFY_DRIVERS)%'
     notify.on: '%env(NOTIFY_ON)%'
     notify.gotify.url: '%env(NOTIFY_GOTIFY_URL)%'
@@ -177,6 +191,14 @@ services:
         arguments:
             $minPlays: '%playlist.pepites.min_plays%'
             $silenceMonths: '%playlist.pepites.silence_months%'
+            $limit: '%playlists.default_limit%'
+
+    App\Playlist\Definition\MixSemaineDefinition:
+        arguments:
+            $seedDays: '%playlist.mix.seed_days%'
+            $seedCount: '%playlist.mix.seed_count%'
+            $perSeed: '%playlist.mix.per_seed%'
+            $maxFamiliarPlays: '%playlist.mix.max_plays%'
             $limit: '%playlists.default_limit%'
 
     App\Service\BackupService:
@@ -299,6 +321,11 @@ services:
             $user: '%listenbrainz.user%'
             $baseUrl: '%listenbrainz.base_url%'
             $token: '%listenbrainz.token%'
+
+    App\AudioMuse\AudioMuseClient:
+        arguments:
+            $baseUrl: '%audiomuse.base_url%'
+            $apiKey: '%audiomuse.api_key%'
 
     App\Recommendation\ListenBrainzRecommendationSource:
         arguments:

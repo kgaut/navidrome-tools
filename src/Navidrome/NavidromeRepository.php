@@ -2147,6 +2147,59 @@ class NavidromeRepository
     }
 
     /**
+     * Lifetime play count per media_file id for the configured user, for an
+     * arbitrary set of ids. Every requested id is present in the result —
+     * **0 when never played** — so callers can filter on familiarity without
+     * worrying about missing keys.
+     *
+     * Counts real plays from the scrobbles table when available (Navidrome
+     * ≥ 0.55); otherwise falls back to `annotation.play_count` (a single
+     * lifetime counter per track, all versions).
+     *
+     * @param string[] $ids
+     *
+     * @return array<string, int> media_file id => play count (0 if unplayed)
+     */
+    public function getPlayCountsByMediaFileId(array $ids): array
+    {
+        $counts = [];
+        foreach ($ids as $id) {
+            $counts[(string) $id] = 0;
+        }
+        if ($counts === []) {
+            return [];
+        }
+
+        $userId = $this->resolveUserId();
+        $idList = array_keys($counts);
+        $placeholders = implode(',', array_fill(0, count($idList), '?'));
+
+        if ($this->hasScrobblesTable()) {
+            $sql = sprintf(
+                'SELECT media_file_id AS id, COUNT(*) AS plays
+                 FROM scrobbles
+                 WHERE user_id = ? AND media_file_id IN (%s)
+                 GROUP BY media_file_id',
+                $placeholders,
+            );
+        } else {
+            $sql = sprintf(
+                "SELECT item_id AS id, play_count AS plays
+                 FROM annotation
+                 WHERE user_id = ? AND item_type = 'media_file' AND item_id IN (%s)",
+                $placeholders,
+            );
+        }
+
+        $rows = $this->connection()->fetchAllAssociative($sql, [$userId, ...$idList]);
+        foreach ($rows as $r) {
+            $counts[(string) $r['id']] = (int) $r['plays'];
+        }
+
+        return $counts;
+    }
+
+    /**
      * Given a list of media_file ids, return those that no longer exist
      * in the Navidrome library (file was removed/moved/renamed). Useful
      * for detecting « dead » entries inside a Subsonic playlist.
