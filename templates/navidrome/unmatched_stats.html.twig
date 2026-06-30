@@ -1,0 +1,135 @@
+{% extends 'base.html.twig' %}
+{% block title %}Stats non-matchés{% endblock %}
+
+{% block page_subtitle %}{{ total|number_format(0, '.', ' ') }} scrobble{{ total != 1 ? 's' : '' }} non matché{{ total != 1 ? 's' : '' }} avec Navidrome{% endblock %}
+
+{% block header_actions %}
+    <a href="{{ path('app_navidrome_unmatched') }}" class="btn btn--outline btn--sm">⚠ Liste des non-matchés</a>
+{% endblock %}
+
+{% block body %}
+    {% if total == 0 %}
+        <div class="empty-state">Aucun scrobble non matché 🎉</div>
+    {% else %}
+
+    {# Où concentrer l'effort : artistes / albums avec le plus de non-matchés #}
+    <div class="grid grid--2">
+        {% set art_max = top_artists is not empty ? top_artists|first.count : 0 %}
+        <div class="card" style="padding:0;">
+            <div class="card__title" style="padding:16px 16px 0;">Artistes à matcher en priorité</div>
+            {% if top_artists is empty %}
+                <div class="empty-state" style="border:none;">—</div>
+            {% else %}
+                <table class="data-table data-table--in-card" style="margin-top:8px;">
+                    <thead><tr><th>Artiste</th><th class="num">Non-matchés</th><th class="right">Action</th></tr></thead>
+                    <tbody>
+                    {% for row in top_artists %}
+                        <tr>
+                            <td>
+                                <div>{{ row.artist }}</div>
+                                <div class="bar-list__track" style="margin-top:5px;">
+                                    <div class="bar-list__fill{{ loop.index0 is odd ? ' bar-list__fill--alt' : '' }}"
+                                         style="width: {{ art_max > 0 ? (row.count / art_max * 100)|round : 0 }}%"></div>
+                                </div>
+                            </td>
+                            <td class="num fw-600">{{ row.count|number_format(0, '.', ' ') }}</td>
+                            <td class="right nowrap">
+                                <a href="{{ path('app_navidrome_unmatched', {artist: row.artist}) }}" class="mono fs-11 t-teal">voir →</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            {% endif %}
+        </div>
+
+        {% set alb_max = top_albums is not empty ? top_albums|first.count : 0 %}
+        <div class="card" style="padding:0;">
+            <div class="card__title" style="padding:16px 16px 0;">Albums à matcher en priorité</div>
+            {% if top_albums is empty %}
+                <div class="empty-state" style="border:none;">—</div>
+            {% else %}
+                <table class="data-table data-table--in-card" style="margin-top:8px;">
+                    <thead><tr><th>Album</th><th class="num">Non-matchés</th><th class="right">Action</th></tr></thead>
+                    <tbody>
+                    {% for row in top_albums %}
+                        <tr>
+                            <td>
+                                <div class="cell-track__title">{{ row.album }}</div>
+                                <div class="cell-track__sub">{{ row.artist }}</div>
+                                <div class="bar-list__track" style="margin-top:5px;">
+                                    <div class="bar-list__fill{{ loop.index0 is odd ? ' bar-list__fill--alt' : '' }}"
+                                         style="width: {{ alb_max > 0 ? (row.count / alb_max * 100)|round : 0 }}%"></div>
+                                </div>
+                            </td>
+                            <td class="num fw-600">{{ row.count|number_format(0, '.', ' ') }}</td>
+                            <td class="right nowrap">
+                                <a href="{{ path('app_navidrome_unmatched', {artist: row.artist}) }}" class="mono fs-11 t-teal">voir →</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            {% endif %}
+        </div>
+    </div>
+
+    {# Disparité Last.fm ↔ Navidrome — périodes les moins bien couvertes #}
+    <div class="col">
+        <div class="row between wrap">
+            <div class="card__title mb-0">Disparité Last.fm ↔ Navidrome</div>
+            {% if disparity.anchor_month %}
+                <p class="muted mono fs-11 mb-0">
+                    Comparaison depuis {{ disparity.anchor_month }} (premier scrobble Navidrome). Triés par écart de plays décroissant. Cliquez une période pour filtrer les non-matchés.
+                </p>
+            {% endif %}
+        </div>
+        {% if disparity.anchor_month is null %}
+            <div class="empty-state">Aucune écoute Navidrome encore — la disparité apparaîtra après le premier sync.</div>
+        {% elseif disparity.by_month is empty and disparity.by_year is empty %}
+            <div class="empty-state">Aucune disparité significative depuis {{ disparity.anchor_month }} 🎉</div>
+        {% else %}
+            <div class="grid grid--2">
+                {% for panel in [
+                    { title: 'Top mois', rows: disparity.by_month, label_key: 'month' },
+                    { title: 'Top années', rows: disparity.by_year, label_key: 'year' },
+                ] %}
+                    <div class="card" style="padding:0;">
+                        <div class="card__title" style="padding:16px 16px 0;">{{ panel.title }}</div>
+                        {% if panel.rows is empty %}
+                            <div class="empty-state" style="border:none;">—</div>
+                        {% else %}
+                            <table class="data-table data-table--in-card" style="margin-top:8px;">
+                                <thead>
+                                    <tr>
+                                        <th>Période</th>
+                                        <th class="num">Last.fm</th>
+                                        <th class="num">Navidrome</th>
+                                        <th class="num">Écart</th>
+                                        <th class="num">Couverture</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                {% for row in panel.rows %}
+                                    {% set tone = row.coverage_pct >= 80 ? 'success' : 'warning' %}
+                                    {% set period = attribute(row, panel.label_key) %}
+                                    <tr>
+                                        <td class="fw-600">
+                                            <a href="{{ path('app_navidrome_unmatched', {period: period}) }}" class="link" title="Voir les non-matchés de {{ period }}">{{ period }}</a>
+                                        </td>
+                                        <td class="num">{{ row.lastfm|number_format(0, '.', ' ') }}</td>
+                                        <td class="num">{{ row.navidrome|number_format(0, '.', ' ') }}</td>
+                                        <td class="num fw-600 {{ row.coverage_pct < 40 ? 't-orange' : '' }}">{{ row.gap|number_format(0, '.', ' ') }}</td>
+                                        <td class="num"><span class="badge badge--{{ tone }}">{{ row.coverage_pct }}%</span></td>
+                                    </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+    {% endif %}
+{% endblock %}

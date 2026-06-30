@@ -102,9 +102,105 @@ class ScrobbleSyncRepository extends ServiceEntityRepository
         );
     }
 
-    public function countUnmatchedForTarget(string $target): int
+    public function countUnmatchedForTarget(string $target, ?string $period = null): int
     {
-        return $this->countByTargetStatus($target, ScrobbleSync::STATUS_UNMATCHED);
+        [$expr] = self::periodClause($period);
+        if ($expr === null) {
+            return $this->countByTargetStatus($target, ScrobbleSync::STATUS_UNMATCHED);
+        }
+
+        return (int) $this->em->getConnection()->fetchOne(
+            'SELECT COUNT(*)
+             FROM scrobble_sync ss
+             JOIN scrobbles s ON s.id = ss.scrobble_id
+             WHERE ss.target = :target AND ss.status = :status AND ' . $expr,
+            ['target' => $target, 'status' => ScrobbleSync::STATUS_UNMATCHED, 'period' => $period],
+        );
+    }
+
+    /**
+     * SQL fragment for filtering scrobbles by a period string — `YYYY` (year)
+     * or `YYYY-MM` (month). `played_at` is a SQLite DATETIME string in the
+     * tools DB, so `strftime` works directly (no 'unixepoch'). Returns [null]
+     * when the period is empty/malformed.
+     *
+     * @return array{0: ?string}
+     */
+    private static function periodClause(?string $period): array
+    {
+        if ($period === null || $period === '') {
+            return [null];
+        }
+        if (preg_match('/^\d{4}-\d{2}$/', $period) === 1) {
+            return ["strftime('%Y-%m', s.played_at) = :period"];
+        }
+        if (preg_match('/^\d{4}$/', $period) === 1) {
+            return ["strftime('%Y', s.played_at) = :period"];
+        }
+
+        return [null];
+    }
+
+    /**
+     * Artists with the most UNMATCHED scrobbles for $target — « where to focus
+     * the matching effort ». Optionally scoped to a period (YYYY / YYYY-MM).
+     *
+     * @return list<array{artist: string, count: int}>
+     */
+    public function topUnmatchedArtists(string $target, int $limit = 15, ?string $period = null): array
+    {
+        $where = ['ss.target = :target', 'ss.status = :status', 's.artist IS NOT NULL', "s.artist != ''"];
+        $params = ['target' => $target, 'status' => ScrobbleSync::STATUS_UNMATCHED, 'lim' => $limit];
+        [$expr] = self::periodClause($period);
+        if ($expr !== null) {
+            $where[] = $expr;
+            $params['period'] = $period;
+        }
+
+        /** @var list<array{artist: string, count: int}> */
+        return $this->em->getConnection()->fetchAllAssociative(
+            'SELECT s.artist AS artist, COUNT(*) AS count
+             FROM scrobble_sync ss
+             JOIN scrobbles s ON s.id = ss.scrobble_id
+             WHERE ' . implode(' AND ', $where) . '
+             GROUP BY s.artist
+             ORDER BY count DESC, s.artist ASC
+             LIMIT :lim',
+            $params,
+            ['lim' => \Doctrine\DBAL\ParameterType::INTEGER],
+        );
+    }
+
+    /**
+     * Albums with the most UNMATCHED scrobbles for $target. The album's artist
+     * uses `album_artist` when set, else the track artist.
+     *
+     * @return list<array{album: string, artist: string, count: int}>
+     */
+    public function topUnmatchedAlbums(string $target, int $limit = 15, ?string $period = null): array
+    {
+        $where = ['ss.target = :target', 'ss.status = :status', 's.album IS NOT NULL', "s.album != ''"];
+        $params = ['target' => $target, 'status' => ScrobbleSync::STATUS_UNMATCHED, 'lim' => $limit];
+        [$expr] = self::periodClause($period);
+        if ($expr !== null) {
+            $where[] = $expr;
+            $params['period'] = $period;
+        }
+
+        /** @var list<array{album: string, artist: string, count: int}> */
+        return $this->em->getConnection()->fetchAllAssociative(
+            "SELECT s.album AS album,
+                    COALESCE(NULLIF(s.album_artist, ''), s.artist) AS artist,
+                    COUNT(*) AS count
+             FROM scrobble_sync ss
+             JOIN scrobbles s ON s.id = ss.scrobble_id
+             WHERE " . implode(' AND ', $where) . '
+             GROUP BY album, artist
+             ORDER BY count DESC, album ASC
+             LIMIT :lim',
+            $params,
+            ['lim' => \Doctrine\DBAL\ParameterType::INTEGER],
+        );
     }
 
     /**
@@ -203,6 +299,7 @@ class ScrobbleSyncRepository extends ServiceEntityRepository
         int $offset = 0,
         ?string $filterArtist = null,
         ?string $filterTitle = null,
+        ?string $period = null,
     ): array {
         $where = ['ss.target = :target', 'ss.status = :status'];
         $params = ['target' => $target, 'status' => ScrobbleSync::STATUS_UNMATCHED];
@@ -214,6 +311,11 @@ class ScrobbleSyncRepository extends ServiceEntityRepository
         if ($filterTitle !== null) {
             $where[] = 'LOWER(s.title) LIKE LOWER(:title)';
             $params['title'] = '%' . $filterTitle . '%';
+        }
+        [$periodExpr] = self::periodClause($period);
+        if ($periodExpr !== null) {
+            $where[] = $periodExpr;
+            $params['period'] = $period;
         }
 
         $params['lim'] = $limit;

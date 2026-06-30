@@ -7,6 +7,7 @@ use App\Message\RematchMessage;
 use App\Message\SuggestAliasesMusicBrainzMessage;
 use App\Message\SyncNavidromeMessage;
 use App\Repository\ScrobbleSyncRepository;
+use App\Service\DisparityStatsService;
 use App\Service\UnmatchedDiagnoser;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
@@ -111,6 +112,7 @@ class NavidromeSyncController extends AbstractController
         $perPage = 50;
         $filterArtist = trim((string) $request->query->get('artist', ''));
         $filterTitle = trim((string) $request->query->get('title', ''));
+        $filterPeriod = self::normalizePeriod((string) $request->query->get('period', ''));
 
         $rows = $syncRepo->aggregateUnmatched(
             target: ScrobbleSync::TARGET_NAVIDROME,
@@ -118,6 +120,7 @@ class NavidromeSyncController extends AbstractController
             offset: ($page - 1) * $perPage,
             filterArtist: $filterArtist !== '' ? $filterArtist : null,
             filterTitle: $filterTitle !== '' ? $filterTitle : null,
+            period: $filterPeriod,
         );
         // Per-row diagnosis is scoped to the current page (worst case 50
         // groups → a handful of cheap SQLite probes each). Cached in
@@ -130,7 +133,7 @@ class NavidromeSyncController extends AbstractController
             );
         }
         unset($row);
-        $total = $syncRepo->countUnmatchedForTarget(ScrobbleSync::TARGET_NAVIDROME);
+        $total = $syncRepo->countUnmatchedForTarget(ScrobbleSync::TARGET_NAVIDROME, $filterPeriod);
 
         return $this->render('navidrome/unmatched.html.twig', [
             'rows' => $rows,
@@ -139,6 +142,30 @@ class NavidromeSyncController extends AbstractController
             'pages' => max(1, (int) ceil($total / $perPage)),
             'filter_artist' => $filterArtist,
             'filter_title' => $filterTitle,
+            'filter_period' => $filterPeriod ?? '',
         ]);
+    }
+
+    #[Route('/navidrome/unmatched/stats', name: 'app_navidrome_unmatched_stats', methods: ['GET'])]
+    public function unmatchedStats(
+        ScrobbleSyncRepository $syncRepo,
+        DisparityStatsService $disparity,
+    ): Response {
+        return $this->render('navidrome/unmatched_stats.html.twig', [
+            'total' => $syncRepo->countUnmatchedForTarget(ScrobbleSync::TARGET_NAVIDROME),
+            'top_artists' => $syncRepo->topUnmatchedArtists(ScrobbleSync::TARGET_NAVIDROME, 15),
+            'top_albums' => $syncRepo->topUnmatchedAlbums(ScrobbleSync::TARGET_NAVIDROME, 15),
+            'disparity' => $disparity->compute(),
+        ]);
+    }
+
+    /**
+     * Validate a period query param to `YYYY` or `YYYY-MM`, else null.
+     */
+    private static function normalizePeriod(string $period): ?string
+    {
+        $period = trim($period);
+
+        return preg_match('/^\d{4}(-\d{2})?$/', $period) === 1 ? $period : null;
     }
 }

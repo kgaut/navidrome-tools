@@ -29,11 +29,19 @@
             <label>Titre</label>
             <input type="text" name="title" value="{{ filter_title }}" placeholder="Rechercher…" class="input">
         </div>
+        {% if filter_period %}<input type="hidden" name="period" value="{{ filter_period }}">{% endif %}
         <button type="submit" class="btn btn--primary btn--sm" style="align-self:flex-end;">Filtrer</button>
         <a href="{{ path('app_navidrome_unmatched') }}" class="btn btn--ghost btn--sm" style="align-self:flex-end;">Reset</a>
         <a href="{{ path('app_lastfm_alias_index') }}" class="link mono fs-12 ml-auto">Gérer les alias track →</a>
         <a href="{{ path('app_lastfm_artist_alias_index') }}" class="link mono fs-12">Alias artiste →</a>
     </form>
+
+    {% if filter_period %}
+        <div class="row gap-8">
+            <span class="badge badge--accent">période · {{ filter_period }}</span>
+            <a href="{{ path('app_navidrome_unmatched', {artist: filter_artist, title: filter_title}) }}" class="link mono fs-11">✕ retirer le filtre période</a>
+        </div>
+    {% endif %}
 
     {% if rows is empty %}
         <div class="empty-state">Aucun scrobble non matché 🎉</div>
@@ -98,10 +106,10 @@
     </div>
     {% if pages > 1 %}
     <div class="pagination">
-        {% if page > 1 %}<a href="{{ path('app_navidrome_unmatched', {page: page - 1, artist: filter_artist, title: filter_title}) }}">← Préc.</a>{% endif %}
+        {% if page > 1 %}<a href="{{ path('app_navidrome_unmatched', {page: page - 1, artist: filter_artist, title: filter_title, period: filter_period}) }}">← Préc.</a>{% endif %}
         <span class="current">{{ page }}</span>
         <span>/ {{ pages }}</span>
-        {% if page < pages %}<a href="{{ path('app_navidrome_unmatched', {page: page + 1, artist: filter_artist, title: filter_title}) }}">Suiv. →</a>{% endif %}
+        {% if page < pages %}<a href="{{ path('app_navidrome_unmatched', {page: page + 1, artist: filter_artist, title: filter_title, period: filter_period}) }}">Suiv. →</a>{% endif %}
     </div>
     {% endif %}
     {% endif %}
