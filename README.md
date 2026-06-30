@@ -135,8 +135,12 @@ Points d'attention (prod) :
 - Ne **pas** partager `APP_CACHE_DIR` entre les conteneurs web et worker.
 - `NAVIDROME_USER` doit correspondre au compte Navidrome réel (sinon les
   commandes de sync échouent avec « user not found »).
-- `scripts/navidrome-sync.sh.example` : wrapper bash pour orchestrer un cycle
-  complet en crontab.
+- `scripts/*.sh.example` : wrappers bash pour le crontab (à recopier sans le
+  suffixe `.example`, avec `navidrome-lib.sh` — config + helpers partagés — à
+  côté). Trois entrées indépendantes : `navidrome-sync.sh` (scrobbles + loves),
+  `navidrome-rematch.sh` (rematch seul, peut être long), `navidrome-backup.sh`
+  (snapshot + garde d'intégrité). Chacune arrête le conteneur, sauvegarde, et
+  ne rollback que sur corruption réelle (vers le backup sain le plus récent).
 
 ---
 
