@@ -291,6 +291,83 @@ class NavidromeSyncServiceTest extends TestCase
         $this->assertSame(3, $backupCalls, 'initial backup + 2 checkpoints');
     }
 
+    public function testTransientLastFmErrorSkipsScrobbleAndContinues(): void
+    {
+        // First scrobble's match() throws a transient Last.fm error → it's
+        // skipped (left pending), the run continues and the second scrobble
+        // still matches and is inserted.
+        $bad = $this->makeScrobble('Flaky Net', 'Timeout', '2024-01-01 12:00:00');
+        $good = $this->makeScrobble('Daft Punk', 'Get Lucky', '2024-02-01 12:00:00');
+        $syncBad = new ScrobbleSync($bad, ScrobbleSync::TARGET_NAVIDROME);
+        $syncGood = new ScrobbleSync($good, ScrobbleSync::TARGET_NAVIDROME);
+
+        $syncRepo = $this->createMock(ScrobbleSyncRepository::class);
+        $syncRepo->method('prepareForTarget')->willReturn(2);
+        $syncRepo->method('streamPending')->willReturnCallback(function () use ($syncBad, $syncGood): \Generator {
+            yield $syncBad;
+            yield $syncGood;
+        });
+
+        $ndRepo = new NavidromeRepository($this->ndDbPath, 'admin');
+        $matcher = $this->createMock(ScrobbleMatcher::class);
+        $matcher->method('match')->willReturnCallback(static function (\App\LastFm\LastFmScrobble $s): MatchResult {
+            if ($s->artist === 'Flaky Net') {
+                throw new \App\LastFm\LastFmRequestException('Response body is empty.');
+            }
+
+            return MatchResult::matched('mf-1', 'couple', null);
+        });
+
+        $backup = $this->createMock(NavidromeDbBackup::class);
+        $backup->method('backup')->willReturn(null);
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->method('contains')->willReturn(false);
+        $em->method('persist');
+        $em->method('flush');
+
+        $service = new NavidromeSyncService($syncRepo, $matcher, $ndRepo, $backup, $em);
+        $report = $service->process();
+
+        $this->assertSame(2, $report->considered);
+        $this->assertSame(1, $report->apiErrors);
+        $this->assertSame(1, $report->matched);
+        $this->assertFalse($report->abortedOnApiErrors);
+
+        $ndConn = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'path' => $this->ndDbPath]);
+        $this->assertSame(1, (int) $ndConn->fetchOne('SELECT COUNT(*) FROM scrobbles'));
+        $ndConn->close();
+    }
+
+    public function testRunAbortsGracefullyAfterTooManyConsecutiveApiErrors(): void
+    {
+        $s1 = $this->makeScrobble('A', 'x', '2024-01-01 12:00:00');
+        $s2 = $this->makeScrobble('B', 'y', '2024-01-02 12:00:00');
+        $s3 = $this->makeScrobble('C', 'z', '2024-01-03 12:00:00');
+        $syncs = array_map(static fn (Scrobble $s) => new ScrobbleSync($s, ScrobbleSync::TARGET_NAVIDROME), [$s1, $s2, $s3]);
+
+        $syncRepo = $this->createMock(ScrobbleSyncRepository::class);
+        $syncRepo->method('prepareForTarget')->willReturn(3);
+        $syncRepo->method('streamPending')->willReturnCallback(function () use ($syncs): \Generator {
+            yield from $syncs;
+        });
+
+        $ndRepo = new NavidromeRepository($this->ndDbPath, 'admin');
+        $matcher = $this->createMock(ScrobbleMatcher::class);
+        $matcher->method('match')->willThrowException(new \App\LastFm\LastFmApiException(29, 'Rate limit exceeded'));
+
+        $backup = $this->createMock(NavidromeDbBackup::class);
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->method('contains')->willReturn(false);
+
+        $service = new NavidromeSyncService($syncRepo, $matcher, $ndRepo, $backup, $em, maxConsecutiveApiErrors: 2);
+        $report = $service->process();
+
+        $this->assertTrue($report->abortedOnApiErrors);
+        $this->assertSame(2, $report->apiErrors);
+        $this->assertSame(2, $report->considered, 'stopped on the 2nd consecutive error, 3rd never reached');
+        $this->assertSame(0, $report->matched);
+    }
+
     private function makeScrobble(string $artist, string $title, string $playedAt): Scrobble
     {
         return new Scrobble(

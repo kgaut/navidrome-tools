@@ -360,7 +360,7 @@ class LastFmClient
                     }
                     continue;
                 }
-                throw new \RuntimeException(sprintf(
+                throw new LastFmRequestException(sprintf(
                     'Last.fm API call failed (method=%s page=%s) after %d attempt(s): %s',
                     $params['method'] ?? '?',
                     $params['page'] ?? '?',

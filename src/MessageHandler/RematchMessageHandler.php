@@ -57,7 +57,7 @@ class RematchMessageHandler
                 'considered' => $r->considered,
                 'matched' => $r->matched,
                 'unmatched' => $r->unmatched,
-            ],
+            ] + ($r instanceof NavidromeSyncReport && $r->apiErrors > 0 ? ['api_errors' => $r->apiErrors] : []),
         );
 
         if ($message->target === ScrobbleSync::TARGET_NAVIDROME && $message->autoStop && !$message->dryRun) {

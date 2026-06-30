@@ -4,6 +4,8 @@ namespace App\Navidrome;
 
 use App\Entity\RunHistory;
 use App\Entity\ScrobbleSync;
+use App\LastFm\LastFmApiException;
+use App\LastFm\LastFmRequestException;
 use App\LastFm\LastFmScrobble;
 use App\LastFm\MatchResult;
 use App\LastFm\ScrobbleMatcher;
@@ -41,6 +43,7 @@ class NavidromeSyncService
         private readonly EntityManagerInterface $em,
         private readonly int $backupIntervalSeconds = 600,
         private readonly int $batchSize = self::BATCH_SIZE,
+        private readonly int $maxConsecutiveApiErrors = 25,
     ) {
     }
 
@@ -64,6 +67,7 @@ class NavidromeSyncService
         $userId = $this->navidrome->resolveUserId();
         $backupTaken = false;
         $lastBackupAt = 0;
+        $consecutiveApiErrors = 0;
 
         /** @var list<array{sync: ScrobbleSync, matchedId: ?string, status: string, strategy: ?string, willInsert: bool}> $batch */
         $batch = [];
@@ -81,7 +85,22 @@ class NavidromeSyncService
                     playedAt: $scrobble->getPlayedAt(),
                 );
 
-                $result = $this->matcher->match($lfmScrobble);
+                try {
+                    $result = $this->matcher->match($lfmScrobble);
+                    $consecutiveApiErrors = 0;
+                } catch (LastFmRequestException | LastFmApiException $e) {
+                    // Transient Last.fm failure (timeout, empty body, rate
+                    // limit…). Don't poison the cache or abort the whole run:
+                    // leave this scrobble pending and move on — it'll be
+                    // retried next time. A burst of consecutive failures means
+                    // Last.fm is down, so stop gracefully (committed work kept).
+                    $report->apiErrors++;
+                    if (++$consecutiveApiErrors >= $this->maxConsecutiveApiErrors) {
+                        $report->abortedOnApiErrors = true;
+                        break;
+                    }
+                    continue;
+                }
 
                 [$status, $matchedId, $strategy, $willInsert] = $this->classify(
                     $result,
