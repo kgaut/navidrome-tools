@@ -7,37 +7,37 @@ use App\Playlist\PlaylistContext;
 use App\Playlist\PlaylistDefinitionInterface;
 
 /**
- * « Pépites oubliées » — tracks heavily played in the past (≥ minPlays)
- * but silent for at least `silenceMonths`. Reuses
- * {@see NavidromeRepository::getSongsLovedAndForgotten()} then shuffles the
- * result for a serendipitous random rediscovery.
+ * « Très vieilles pépites » — même logique que « Pépites oubliées » mais avec
+ * un silence bien plus long (par défaut 60 mois ≈ 5 ans) : des morceaux jadis
+ * écoutés (≥ minPlays) plus rejoués depuis des années. Mélangé en aléatoire.
  */
-final class PepitesOublieesDefinition implements PlaylistDefinitionInterface
+final class TresVieillesPepitesDefinition implements PlaylistDefinitionInterface
 {
     public function __construct(
         private readonly NavidromeRepository $navidrome,
         private readonly int $minPlays = 5,
-        private readonly int $silenceMonths = 12,
+        private readonly int $silenceMonths = 60,
         private readonly int $limit = 50,
     ) {
     }
 
     public function getSlug(): string
     {
-        return 'pepites-oubliees';
+        return 'tres-vieilles-pepites';
     }
 
     public function getName(): string
     {
-        return 'Pépites oubliées';
+        return 'Très vieilles pépites';
     }
 
     public function getDescription(): string
     {
         return sprintf(
-            'Morceaux écoutés au moins %d fois mais plus joués depuis %d mois, en aléatoire.',
+            'Morceaux écoutés au moins %d fois mais plus joués depuis %d mois (≈ %d ans), en aléatoire.',
             $this->minPlays,
             $this->silenceMonths,
+            (int) round($this->silenceMonths / 12),
         );
     }
 
