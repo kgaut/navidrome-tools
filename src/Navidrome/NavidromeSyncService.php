@@ -23,6 +23,11 @@ use Doctrine\ORM\EntityManagerInterface;
  * Navidrome commit, so a crash between the two steps leaves the scrobble_sync
  * row in `pending` and will be retried on the next run (dedup via
  * scrobbleExistsNear).
+ *
+ * Long runs additionally take periodic « checkpoint » backups every
+ * `$backupIntervalSeconds` (WAL checkpoint + fresh snapshot). A deployment
+ * whose wrapper restores the latest backup on failure then only loses the
+ * work since the last checkpoint instead of the whole run.
  */
 class NavidromeSyncService
 {
@@ -34,6 +39,8 @@ class NavidromeSyncService
         private readonly NavidromeRepository $navidrome,
         private readonly NavidromeDbBackup $backup,
         private readonly EntityManagerInterface $em,
+        private readonly int $backupIntervalSeconds = 600,
+        private readonly int $batchSize = self::BATCH_SIZE,
     ) {
     }
 
@@ -56,6 +63,7 @@ class NavidromeSyncService
 
         $userId = $this->navidrome->resolveUserId();
         $backupTaken = false;
+        $lastBackupAt = 0;
 
         /** @var list<array{sync: ScrobbleSync, matchedId: ?string, status: string, strategy: ?string, willInsert: bool}> $batch */
         $batch = [];
@@ -95,13 +103,15 @@ class NavidromeSyncService
                     ];
                 }
 
-                if (!$dryRun && count($batch) >= self::BATCH_SIZE) {
+                if (!$dryRun && count($batch) >= $this->batchSize) {
                     if (!$backupTaken) {
                         $report->backupPath = $this->backup->backup();
                         $backupTaken = true;
+                        $lastBackupAt = time();
                     }
                     $this->flushBatch($batch, $userId, $run);
                     $batch = [];
+                    $this->maybeIntermediateBackup($report, $lastBackupAt);
                 }
 
                 if ($progress !== null && $report->considered % 50 === 0) {
@@ -112,6 +122,7 @@ class NavidromeSyncService
             if (!$dryRun && $batch !== []) {
                 if (!$backupTaken) {
                     $report->backupPath = $this->backup->backup();
+                    $lastBackupAt = time();
                 }
                 $this->flushBatch($batch, $userId, $run);
             }
@@ -125,6 +136,31 @@ class NavidromeSyncService
         }
 
         return $report;
+    }
+
+    /**
+     * Take a « checkpoint » backup if at least `$backupIntervalSeconds` have
+     * elapsed since the last one. Called right after a committed batch flush,
+     * so the WAL is checkpoint-truncated into the main DB first to make the
+     * snapshot self-contained. A negative interval disables it; `0` backs up
+     * after every batch. Updates `$lastBackupAt` in place.
+     */
+    private function maybeIntermediateBackup(NavidromeSyncReport $report, int &$lastBackupAt): void
+    {
+        if ($this->backupIntervalSeconds < 0 || $lastBackupAt === 0) {
+            return;
+        }
+        if ((time() - $lastBackupAt) < $this->backupIntervalSeconds) {
+            return;
+        }
+
+        $this->navidrome->walCheckpointTruncate();
+        $path = $this->backup->backup();
+        if ($path !== null) {
+            $report->backupPath = $path;
+            $report->intermediateBackups++;
+        }
+        $lastBackupAt = time();
     }
 
     /**
