@@ -39,6 +39,7 @@ class SyncNavidromeMessageHandler
                 'duplicates' => $r->duplicates,
                 'unmatched' => $r->unmatched,
                 'skipped' => $r->skipped,
+                'api_errors' => $r->apiErrors,
                 'dry_run' => $r->dryRun,
             ],
         );

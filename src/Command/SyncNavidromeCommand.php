@@ -81,6 +81,7 @@ class SyncNavidromeCommand extends Command
                     'duplicates' => $r->duplicates,
                     'unmatched' => $r->unmatched,
                     'skipped' => $r->skipped,
+                    'api_errors' => $r->apiErrors,
                     'backup' => $r->backupPath,
                     'dry_run' => $r->dryRun,
                 ],

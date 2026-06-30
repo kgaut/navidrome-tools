@@ -109,6 +109,7 @@ class RematchCommand extends Command
                             'matched' => $r->matched,
                             'duplicates' => $r->duplicates,
                             'unmatched' => $r->unmatched,
+                            'api_errors' => $r->apiErrors,
                         ];
                     }
                     return [
@@ -136,6 +137,16 @@ class RematchCommand extends Command
             $matched,
             $unmatched,
         ));
+
+        if ($report instanceof NavidromeSyncReport && $report->apiErrors > 0) {
+            $io->warning(sprintf(
+                '%d scrobble(s) ignoré(s) sur erreur API Last.fm (laissés en pending, relancez pour réessayer).%s',
+                $report->apiErrors,
+                $report->abortedOnApiErrors
+                    ? ' Run interrompu : trop d\'erreurs consécutives (Last.fm indisponible ?).'
+                    : '',
+            ));
+        }
 
         return Command::SUCCESS;
     }
