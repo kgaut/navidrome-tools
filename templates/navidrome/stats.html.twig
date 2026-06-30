@@ -196,69 +196,12 @@
     </div>
     {% endif %}
 
-    {# Disparité Last.fm ↔ Navidrome — mois et années où la bibliothèque
-       couvre le moins bien les scrobbles Last.fm. #}
-    {% if data.disparity is defined %}
-    <div class="col">
-        <div class="row between wrap">
-            <div class="card__title mb-0">Disparité Last.fm ↔ Navidrome</div>
-            {% if data.disparity.anchor_month %}
-                <p class="muted mono fs-11 mb-0">
-                    Comparaison depuis {{ data.disparity.anchor_month }} (premier scrobble Navidrome). Triés par écart de plays décroissant.
-                </p>
-            {% endif %}
-        </div>
-        {% if data.disparity.anchor_month is null %}
-            <div class="empty-state">
-                Aucune écoute Navidrome encore — la disparité apparaîtra après le premier sync.
-            </div>
-        {% elseif data.disparity.by_month is empty and data.disparity.by_year is empty %}
-            <div class="empty-state">
-                Aucune disparité significative depuis {{ data.disparity.anchor_month }} 🎉
-            </div>
-        {% else %}
-            <div class="grid grid--2">
-                {% for panel in [
-                    { title: 'Top mois', rows: data.disparity.by_month, label_key: 'month' },
-                    { title: 'Top années', rows: data.disparity.by_year, label_key: 'year' },
-                ] %}
-                    <div class="card" style="padding:0;">
-                        <div class="card__title" style="padding:16px 16px 0;">{{ panel.title }}</div>
-                        {% if panel.rows is empty %}
-                            <div class="empty-state" style="border:none;">—</div>
-                        {% else %}
-                            <table class="data-table data-table--in-card" style="margin-top:8px;">
-                                <thead>
-                                    <tr>
-                                        <th>Période</th>
-                                        <th class="num">Last.fm</th>
-                                        <th class="num">Navidrome</th>
-                                        <th class="num">Écart</th>
-                                        <th class="num">Couverture</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                {% for row in panel.rows %}
-                                    {% set tone = row.coverage_pct >= 80 ? 'success' : (row.coverage_pct >= 40 ? 'warning' : 'warning') %}
-                                    <tr>
-                                        <td class="fw-600">{{ attribute(row, panel.label_key) }}</td>
-                                        <td class="num">{{ row.lastfm|number_format(0, '.', ' ') }}</td>
-                                        <td class="num">{{ row.navidrome|number_format(0, '.', ' ') }}</td>
-                                        <td class="num fw-600 {{ row.coverage_pct < 40 ? 't-orange' : '' }}">{{ row.gap|number_format(0, '.', ' ') }}</td>
-                                        <td class="num">
-                                            <span class="badge badge--{{ tone }}">{{ row.coverage_pct }}%</span>
-                                        </td>
-                                    </tr>
-                                {% endfor %}
-                                </tbody>
-                            </table>
-                        {% endif %}
-                    </div>
-                {% endfor %}
-            </div>
-        {% endif %}
+    {# La disparité Last.fm ↔ Navidrome et les priorités de matching ont leur
+       propre écran. #}
+    <div class="banner banner--info row between wrap">
+        <span>Disparité Last.fm ↔ Navidrome et priorités de matching</span>
+        <a href="{{ path('app_navidrome_unmatched_stats') }}" class="link mono fs-12">Stats non-matchés →</a>
     </div>
-    {% endif %}
 
     {# Lectures par mois / semaine / jour #}
     {% set unit = 'lectures' %}
