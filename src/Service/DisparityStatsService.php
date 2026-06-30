@@ -37,14 +37,15 @@ class DisparityStatsService
      * @return array{
      *     anchor_month: ?string,
      *     by_month: list<array{month: string, lastfm: int, navidrome: int, gap: int, coverage_pct: int}>,
-     *     by_year: list<array{year: string, lastfm: int, navidrome: int, gap: int, coverage_pct: int}>
+     *     by_year: list<array{year: string, lastfm: int, navidrome: int, gap: int, coverage_pct: int}>,
+     *     coverage_series: list<array{month: string, lastfm: int, navidrome: int, gap: int, coverage_pct: int}>
      * }
      */
     public function compute(?string $user = null): array
     {
         $anchor = $this->navidrome->getFirstScrobbleMonth();
         if ($anchor === null) {
-            return ['anchor_month' => null, 'by_month' => [], 'by_year' => []];
+            return ['anchor_month' => null, 'by_month' => [], 'by_year' => [], 'coverage_series' => []];
         }
 
         $resolvedUser = $user !== null && $user !== '' ? $user : ($this->defaultUser !== '' ? $this->defaultUser : null);
@@ -64,6 +65,9 @@ class DisparityStatsService
             'anchor_month' => $anchor,
             'by_month' => $byMonth,
             'by_year' => $this->aggregateByYear($months),
+            // Full chronological series (oldest → newest) for the coverage
+            // evolution chart — unlike by_month, not filtered/sorted by gap.
+            'coverage_series' => $months,
         ];
     }
 
