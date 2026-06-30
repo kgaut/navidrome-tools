@@ -35,6 +35,29 @@ class DisparityStatsServiceTest extends TestCase
         $this->assertSame([], $r['by_year']);
     }
 
+    public function testCoverageSeriesIsChronologicalAndFull(): void
+    {
+        $service = $this->makeService(
+            '2024-01',
+            [
+                ['month' => '2024-03', 'plays' => 300],
+                ['month' => '2024-01', 'plays' => 100],
+                ['month' => '2024-02', 'plays' => 500],
+            ],
+            [
+                ['month' => '2024-01', 'plays' => 100], // 100 % — kept in series (dropped from by_month)
+                ['month' => '2024-02', 'plays' => 50],  // 10 %
+                ['month' => '2024-03', 'plays' => 200], // 67 %
+            ],
+        );
+
+        $series = $service->compute()['coverage_series'];
+
+        // Chronological (oldest → newest) and includes the 100 %-covered month.
+        $this->assertSame(['2024-01', '2024-02', '2024-03'], array_column($series, 'month'));
+        $this->assertSame([100, 10, 67], array_column($series, 'coverage_pct'));
+    }
+
     public function testTopMonthsSortedByGapDesc(): void
     {
         $service = $this->makeService(

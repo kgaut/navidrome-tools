@@ -8,6 +8,37 @@
 {% endblock %}
 
 {% block body %}
+    {# Évolution du taux de couverture Last.fm → Navidrome (série chronologique) #}
+    {% set cov = disparity.coverage_series ?? [] %}
+    {% if cov|length >= 2 %}
+        <div class="card">
+            <div class="row between wrap mb-12">
+                <div class="card__title mb-0">Évolution du taux de couverture Last.fm → Navidrome</div>
+                <div class="mono fs-12 t-teal">actuel · {{ (cov|last).coverage_pct }} %</div>
+            </div>
+            {% set n = cov|length %}
+            {% set pad = 12 %}
+            {% set pts = '' %}
+            {% for row in cov %}
+                {% set x = (loop.index0 / (n - 1) * 600)|round(2) %}
+                {% set y = (pad + (1 - row.coverage_pct / 100) * (120 - 2 * pad))|round(2) %}
+                {% set pts = pts ~ x ~ ',' ~ y ~ ' ' %}
+            {% endfor %}
+            <svg viewBox="0 0 600 120" preserveAspectRatio="none" class="chart-area" style="height:160px;">
+                <line x1="0" y1="{{ pad }}" x2="600" y2="{{ pad }}" stroke="var(--surface-3)"></line>
+                <line x1="0" y1="60" x2="600" y2="60" stroke="var(--surface-3)"></line>
+                <line x1="0" y1="{{ 120 - pad }}" x2="600" y2="{{ 120 - pad }}" stroke="var(--surface-3)"></line>
+                <polyline fill="none" stroke="var(--teal)" stroke-width="2" vector-effect="non-scaling-stroke"
+                          stroke-linejoin="round" stroke-linecap="round" points="{{ pts|trim }}"></polyline>
+            </svg>
+            <div class="axis">
+                <span>{{ (cov|first).month }}</span>
+                <span class="faint">100 % en haut · 0 % en bas</span>
+                <span>{{ (cov|last).month }}</span>
+            </div>
+        </div>
+    {% endif %}
+
     {% if total == 0 %}
         <div class="empty-state">Aucun scrobble non matché 🎉</div>
     {% else %}
