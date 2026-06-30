@@ -10,6 +10,7 @@ use App\Playlist\Definition\HappyBirthdayDefinition;
 use App\Playlist\Definition\HitParadeDefinition;
 use App\Playlist\Definition\KickstartDefinition;
 use App\Playlist\Definition\PepitesOublieesDefinition;
+use App\Playlist\Definition\TresVieillesPepitesDefinition;
 use App\Playlist\Definition\TopAllTimeDefinition;
 use App\Playlist\Definition\TopDeLanneeDefinition;
 use App\Playlist\Definition\TopDuMoisDefinition;
@@ -63,6 +64,25 @@ class DefinitionsTest extends TestCase
 
         $def = new PepitesOublieesDefinition($navidrome, minPlays: 5, silenceMonths: 12, limit: 50);
         $this->assertSame(['mf-old'], $def->build($this->ctx('2026-06-27')));
+    }
+
+    public function testTresVieillesPepitesUsesLongerSilenceCutoff(): void
+    {
+        $navidrome = $this->createMock(NavidromeRepository::class);
+        $navidrome->expects($this->once())
+            ->method('getSongsLovedAndForgotten')
+            ->with(
+                5,
+                // 60 months before 2026-06-27 → 2021-06-27.
+                $this->callback(static fn (\DateTimeInterface $d): bool => $d->format('Y-m-d') === '2021-06-27'),
+                50,
+            )
+            ->willReturn(['mf-ancient']);
+
+        $def = new TresVieillesPepitesDefinition($navidrome, minPlays: 5, silenceMonths: 60, limit: 50);
+
+        $this->assertSame('tres-vieilles-pepites', $def->getSlug());
+        $this->assertSame(['mf-ancient'], $def->build($this->ctx('2026-06-27')));
     }
 
     public function testCoupsDeCoeurCollectsStarredAndCapsAtLimit(): void
