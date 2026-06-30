@@ -17,6 +17,19 @@ class NavidromeRepository
     /** @var array<string>|null */
     private ?array $annotationColumnsCache = null;
 
+    /**
+     * Cached, request-scoped library index for the unmatched diagnoser. Built
+     * once from a single plain scan (normalization done in PHP) so per-row
+     * diagnosis doesn't trigger a full `np_normalize` table scan each time.
+     *
+     * @var array{
+     *     artistNorms: array<string, true>,
+     *     artistColByPrefix: array<string, list<array{name: string, norm: string}>>,
+     *     byArtistNorm: array<string, list<array{titleNorm: string, title: string, id: string, isArtist: bool}>>
+     * }|null
+     */
+    private ?array $diagnosisIndexCache = null;
+
     public function __construct(
         private readonly string $dbPath,
         private readonly string $userName,
@@ -2578,14 +2591,7 @@ class NavidromeRepository
             return false;
         }
 
-        $row = $this->connection()->fetchOne(
-            'SELECT 1 FROM media_file
-             WHERE np_normalize(artist) = :a OR np_normalize(album_artist) = :a
-             LIMIT 1',
-            ['a' => $artistN],
-        );
-
-        return $row !== false;
+        return isset($this->diagnosisIndex()['artistNorms'][$artistN]);
     }
 
     /**
@@ -2610,7 +2616,24 @@ class NavidromeRepository
             return null;
         }
 
-        return $this->lookupExactArtistOrAlbumArtistTitle($artistN, $titleN);
+        // In-memory equivalent of lookupExactArtistOrAlbumArtistTitle, served
+        // from the cached diagnosis index: prefer an `artist`-column match
+        // over an `album_artist`-only one, then the lowest id.
+        $best = null;
+        foreach ($this->diagnosisIndex()['byArtistNorm'][$artistN] ?? [] as $entry) {
+            if ($entry['titleNorm'] !== $titleN) {
+                continue;
+            }
+            if (
+                $best === null
+                || ($entry['isArtist'] && !$best['isArtist'])
+                || ($entry['isArtist'] === $best['isArtist'] && strcmp($entry['id'], $best['id']) < 0)
+            ) {
+                $best = $entry;
+            }
+        }
+
+        return $best['id'] ?? null;
     }
 
     /**
@@ -2640,31 +2663,17 @@ class NavidromeRepository
             return [];
         }
 
-        $rows = $this->connection()->fetchAllAssociative(
-            "SELECT DISTINCT artist FROM media_file
-             WHERE artist != '' AND substr(np_normalize(artist), 1, 1) = :p",
-            ['p' => $prefix],
-        );
-
-        $seen = [];
         $matches = [];
-        foreach ($rows as $row) {
-            $name = (string) ($row['artist'] ?? '');
-            if ($name === '' || isset($seen[$name])) {
+        foreach ($this->diagnosisIndex()['artistColByPrefix'][$prefix] ?? [] as $cand) {
+            $candN = $cand['norm'];
+            if ($candN === $artistN || strlen($candN) > 255) {
                 continue;
             }
-            $seen[$name] = true;
-
-            $candN = self::normalize($name);
-            if ($candN === '' || $candN === $artistN || strlen($candN) > 255) {
-                continue;
-            }
-
             $score = levenshtein($candN, $artistN);
             if ($score > $maxDistance) {
                 continue;
             }
-            $matches[] = ['name' => $name, 'distance' => $score];
+            $matches[] = ['name' => $cand['name'], 'distance' => $score];
         }
 
         usort($matches, static fn (array $a, array $b) => $a['distance'] <=> $b['distance']);
@@ -2695,33 +2704,89 @@ class NavidromeRepository
             return [];
         }
 
-        $rows = $this->connection()->fetchAllAssociative(
-            "SELECT DISTINCT title FROM media_file
-             WHERE title != ''
-               AND (np_normalize(artist) = :a OR np_normalize(album_artist) = :a)",
-            ['a' => $artistN],
-        );
-
+        $seen = [];
         $matches = [];
-        foreach ($rows as $row) {
-            $name = (string) ($row['title'] ?? '');
-            if ($name === '') {
+        foreach ($this->diagnosisIndex()['byArtistNorm'][$artistN] ?? [] as $entry) {
+            $candN = $entry['titleNorm'];
+            if ($candN === $titleN || strlen($candN) > 255 || isset($seen[$candN])) {
                 continue;
             }
-            $candN = self::normalize($name);
-            if ($candN === '' || $candN === $titleN || strlen($candN) > 255) {
-                continue;
-            }
+            $seen[$candN] = true;
             $score = levenshtein($candN, $titleN);
             if ($score > $maxDistance) {
                 continue;
             }
-            $matches[] = ['title' => $name, 'distance' => $score];
+            $matches[] = ['title' => $entry['title'], 'distance' => $score];
         }
 
         usort($matches, static fn (array $a, array $b) => $a['distance'] <=> $b['distance']);
 
         return array_slice($matches, 0, $limit);
+    }
+
+    /**
+     * Build (once, request-scoped) the in-memory library index backing the
+     * unmatched diagnoser. A single plain scan of `media_file` — normalization
+     * happens in PHP — replaces the per-row `np_normalize(...)` full-table
+     * scans that made `/navidrome/unmatched` time out on large libraries.
+     *
+     * @return array{
+     *     artistNorms: array<string, true>,
+     *     artistColByPrefix: array<string, list<array{name: string, norm: string}>>,
+     *     byArtistNorm: array<string, list<array{titleNorm: string, title: string, id: string, isArtist: bool}>>
+     * }
+     */
+    private function diagnosisIndex(): array
+    {
+        if ($this->diagnosisIndexCache !== null) {
+            return $this->diagnosisIndexCache;
+        }
+
+        $rows = $this->connection()->fetchAllAssociative(
+            "SELECT id, artist, album_artist, title FROM media_file WHERE artist != '' OR album_artist != ''",
+        );
+
+        $artistNorms = [];
+        $artistColByPrefix = [];
+        $byArtistNorm = [];
+        $seenArtistCol = [];
+
+        foreach ($rows as $row) {
+            $id = (string) ($row['id'] ?? '');
+            $artist = (string) ($row['artist'] ?? '');
+            $albumArtist = (string) ($row['album_artist'] ?? '');
+            $title = (string) ($row['title'] ?? '');
+
+            $artistN = $artist !== '' ? self::normalize($artist) : '';
+            $albumArtistN = $albumArtist !== '' ? self::normalize($albumArtist) : '';
+            $titleN = $title !== '' ? self::normalize($title) : '';
+
+            if ($artistN !== '') {
+                $artistNorms[$artistN] = true;
+                if (!isset($seenArtistCol[$artistN])) {
+                    $seenArtistCol[$artistN] = true;
+                    $prefix = mb_substr($artistN, 0, 1);
+                    $artistColByPrefix[$prefix][] = ['name' => $artist, 'norm' => $artistN];
+                }
+            }
+            if ($albumArtistN !== '') {
+                $artistNorms[$albumArtistN] = true;
+            }
+            if ($titleN !== '' && $id !== '') {
+                if ($artistN !== '') {
+                    $byArtistNorm[$artistN][] = ['titleNorm' => $titleN, 'title' => $title, 'id' => $id, 'isArtist' => true];
+                }
+                if ($albumArtistN !== '' && $albumArtistN !== $artistN) {
+                    $byArtistNorm[$albumArtistN][] = ['titleNorm' => $titleN, 'title' => $title, 'id' => $id, 'isArtist' => false];
+                }
+            }
+        }
+
+        return $this->diagnosisIndexCache = [
+            'artistNorms' => $artistNorms,
+            'artistColByPrefix' => $artistColByPrefix,
+            'byArtistNorm' => $byArtistNorm,
+        ];
     }
 
     /**
