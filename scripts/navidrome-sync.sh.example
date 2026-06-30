@@ -9,16 +9,28 @@
 #   1. stop conteneur Navidrome (docker compose)
 #   2. backup horodaté de la DB (+ WAL/SHM si présents)
 #   3. sync scrobbles + sync loves Last.fm → Navidrome
-#   4. PRAGMA quick_check ; rollback + notif si KO
+#   4. PRAGMA quick_check ; rollback (backup sain le + récent) + notif si KO
 #   5. start conteneur Navidrome
 #   6. purge des backups au-delà de BACKUP_RETENTION_DAYS
+#
+# Politique de rollback (depuis navidrome-tools ≥ refonte sync) :
+#   - Les commandes de sync committent par lots (BEGIN IMMEDIATE → COMMIT) et
+#     tolèrent les erreurs Last.fm transitoires (le scrobble fautif est laissé
+#     en pending, le run continue puis se termine en code 0). Elles prennent
+#     aussi des backups « checkpoint » intermédiaires pendant les longs runs.
+#   - Conséquence : un échec de commande ne corrompt PAS la DB. On ne fait donc
+#     PLUS de rollback systématique (qui jetterait des heures de travail déjà
+#     committé). On rollback UNIQUEMENT si `quick_check` détecte une vraie
+#     corruption — et on restaure alors le backup SAIN le plus récent (y
+#     compris un checkpoint intermédiaire), pas le backup de début de run.
 #
 # Codes de sortie :
 #   0  succès
 #   1  erreur de configuration (DB / compose introuvable, sqlite3 absent)
 #   2  docker compose stop a échoué
-#   3  une commande de sync a échoué (DB rollback OK, conteneur relancé)
-#   4  quick_check KO          (DB rollback OK, conteneur relancé)
+#   3  une commande de sync a échoué (DB intègre → travail conservé ; sinon
+#                                      rollback vers le backup sain le + récent)
+#   4  quick_check KO          (rollback vers le backup sain le + récent)
 #   5  docker compose start a échoué après une sync OK
 # -----------------------------------------------------------------------------
 
@@ -98,20 +110,47 @@ start_container_if_stopped() {
     fi
 }
 
+# Backup SAIN le plus récent, parmi : les backups de ce wrapper
+# ($BACKUP_DIR/navidrome-*.db) ET les checkpoints intermédiaires écrits par
+# l'app à côté de la DB (${NAVIDROME_DB_PATH}.backup-*). On les trie par date
+# décroissante et on renvoie le premier qui passe quick_check.
+latest_sound_backup() {
+    local files=() f sorted
+    shopt -s nullglob
+    for f in "${BACKUP_DIR}"/navidrome-*.db "${NAVIDROME_DB_PATH}".backup-*; do
+        [[ "$f" == *-wal || "$f" == *-shm ]] && continue
+        [[ -f "$f" ]] && files+=("$f")
+    done
+    shopt -u nullglob
+    [[ ${#files[@]} -eq 0 ]] && return 1
+
+    sorted="$(stat --format='%Y	%n' "${files[@]}" 2>/dev/null | sort -rn | cut -f2-)"
+    while IFS= read -r f; do
+        [[ -z "$f" || ! -f "$f" ]] && continue
+        if [[ "$(sqlite3 "$f" 'PRAGMA quick_check;' 2>/dev/null)" == "ok" ]]; then
+            printf '%s\n' "$f"
+            return 0
+        fi
+    done <<< "$sorted"
+    return 1
+}
+
 rollback_db() {
-    if [[ -z "$BACKUP_PATH" || ! -f "$BACKUP_PATH" ]]; then
-        log "Aucun backup à restaurer ($BACKUP_PATH absent)."
+    local src
+    src="$(latest_sound_backup || true)"
+    if [[ -z "$src" || ! -f "$src" ]]; then
+        log "Aucun backup sain à restaurer."
         return 1
     fi
-    log "Rollback DB depuis $BACKUP_PATH…"
-    cp -p "$BACKUP_PATH" "$NAVIDROME_DB_PATH"
-    if [[ -f "${BACKUP_PATH}-wal" ]]; then
-        cp -p "${BACKUP_PATH}-wal" "${NAVIDROME_DB_PATH}-wal"
+    log "Rollback DB depuis $src…"
+    cp -p "$src" "$NAVIDROME_DB_PATH"
+    if [[ -f "${src}-wal" ]]; then
+        cp -p "${src}-wal" "${NAVIDROME_DB_PATH}-wal"
     else
         rm -f "${NAVIDROME_DB_PATH}-wal"
     fi
-    if [[ -f "${BACKUP_PATH}-shm" ]]; then
-        cp -p "${BACKUP_PATH}-shm" "${NAVIDROME_DB_PATH}-shm"
+    if [[ -f "${src}-shm" ]]; then
+        cp -p "${src}-shm" "${NAVIDROME_DB_PATH}-shm"
     else
         rm -f "${NAVIDROME_DB_PATH}-shm"
     fi
@@ -183,9 +222,20 @@ run_sync() {
     if ! "$@"; then
         local msg="Échec de la commande ${label}."
         log "$msg"
+        # Les écritures sont committées par lots et atomiques : un échec laisse
+        # une DB cohérente avec le travail déjà fait. On NE rollback PAS si la
+        # DB est intègre — les scrobbles restants repasseront au prochain run.
+        # Rollback seulement en cas de vraie corruption.
+        if [[ "$(sqlite3 "$NAVIDROME_DB_PATH" 'PRAGMA quick_check;' 2>/dev/null)" == "ok" ]]; then
+            log "DB intègre — travail partiel conservé (pas de rollback)."
+            start_container_if_stopped || true
+            notify_failure "$msg Travail partiel conservé (DB intègre, restants au prochain run)."
+            exit 3
+        fi
+        log "DB corrompue — rollback vers le backup sain le plus récent."
         rollback_db || true
         start_container_if_stopped || true
-        notify_failure "$msg DB restaurée depuis $BACKUP_PATH."
+        notify_failure "$msg DB corrompue → restaurée depuis un backup sain."
         exit 3
     fi
 }
@@ -203,7 +253,7 @@ if ! check_output="$(sqlite3 "$NAVIDROME_DB_PATH" 'PRAGMA quick_check;' 2>&1)"; 
     log "$msg"
     rollback_db || true
     start_container_if_stopped || true
-    notify_failure "$msg DB restaurée depuis $BACKUP_PATH."
+    notify_failure "$msg DB restaurée depuis le backup sain le plus récent."
     exit 4
 fi
 if [[ "$check_output" != "ok" ]]; then
@@ -211,7 +261,7 @@ if [[ "$check_output" != "ok" ]]; then
     log "$msg"
     rollback_db || true
     start_container_if_stopped || true
-    notify_failure "$msg DB restaurée depuis $BACKUP_PATH."
+    notify_failure "$msg DB restaurée depuis le backup sain le plus récent."
     exit 4
 fi
 log "quick_check OK."
