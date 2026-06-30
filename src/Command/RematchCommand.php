@@ -8,6 +8,7 @@ use App\Entity\RunHistory;
 use App\Entity\ScrobbleSync;
 use App\Navidrome\NavidromeSyncReport;
 use App\Navidrome\NavidromeSyncService;
+use App\Repository\LastFmMatchCacheRepository;
 use App\Repository\ScrobbleSyncRepository;
 use App\Service\RunHistoryRecorder;
 use App\Strawberry\StrawberrySyncReport;
@@ -37,6 +38,7 @@ class RematchCommand extends Command
         private readonly StrawberrySyncService $strawberrySync,
         private readonly RunHistoryRecorder $recorder,
         private readonly NavidromeContainerManager $container,
+        private readonly LastFmMatchCacheRepository $matchCache,
     ) {
         parent::__construct();
     }
@@ -86,8 +88,15 @@ class RematchCommand extends Command
                 reference: 'unmatched',
                 label: $label,
                 action: function (RunHistory $entry) use ($target, $limit, $dryRun): NavidromeSyncReport|StrawberrySyncReport {
-                    $reset = $this->syncRepo->resetUnmatchedToPending($target);
-                    $io = null; // logger only available in progress callback
+                    // Bust the Last.fm match-cache negatives for the couples
+                    // we're about to retry — otherwise the matcher hits its
+                    // own fresh negative entries (TTL 30d) and the rematch is
+                    // a no-op. Positives are preserved. Mirrors
+                    // RematchMessageHandler (the web/async path).
+                    if ($target === ScrobbleSync::TARGET_NAVIDROME) {
+                        $this->matchCache->purgeUnmatchedNegatives($target);
+                    }
+                    $this->syncRepo->resetUnmatchedToPending($target);
                     if ($target === ScrobbleSync::TARGET_NAVIDROME) {
                         return $this->navidromeSync->process(limit: $limit, dryRun: $dryRun, run: $entry);
                     }
