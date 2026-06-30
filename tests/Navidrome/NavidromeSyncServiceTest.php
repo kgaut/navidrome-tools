@@ -243,6 +243,54 @@ class NavidromeSyncServiceTest extends TestCase
         $this->assertTrue(isset($detached[$scrobble]), 'Scrobble must be detached (otherwise toIterable() leaks them on long runs)');
     }
 
+    public function testIntermediateCheckpointBackupsAreTakenDuringLongRuns(): void
+    {
+        // Two matched scrobbles, batchSize 1 → two in-loop flushes; interval 0
+        // → a checkpoint backup after every flush. Expect the initial backup
+        // plus one checkpoint per flush.
+        $s1 = $this->makeScrobble('Daft Punk', 'Get Lucky', '2024-01-01 12:00:00');
+        $s2 = $this->makeScrobble('Daft Punk', 'Get Lucky', '2024-02-15 09:00:00');
+        $sync1 = new ScrobbleSync($s1, ScrobbleSync::TARGET_NAVIDROME);
+        $sync2 = new ScrobbleSync($s2, ScrobbleSync::TARGET_NAVIDROME);
+
+        $syncRepo = $this->createMock(ScrobbleSyncRepository::class);
+        $syncRepo->method('prepareForTarget')->willReturn(2);
+        $syncRepo->method('streamPending')->willReturnCallback(function () use ($sync1, $sync2): \Generator {
+            yield $sync1;
+            yield $sync2;
+        });
+
+        $ndRepo = new NavidromeRepository($this->ndDbPath, 'admin');
+        $matcher = $this->createMock(ScrobbleMatcher::class);
+        $matcher->method('match')->willReturn(MatchResult::matched('mf-1', 'couple', null));
+
+        $backupCalls = 0;
+        $backup = $this->createMock(NavidromeDbBackup::class);
+        $backup->method('backup')->willReturnCallback(function () use (&$backupCalls): string {
+            return '/tmp/fake.backup-' . (++$backupCalls);
+        });
+
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->method('contains')->willReturn(false);
+        $em->method('persist');
+        $em->method('flush');
+
+        $service = new NavidromeSyncService(
+            $syncRepo,
+            $matcher,
+            $ndRepo,
+            $backup,
+            $em,
+            backupIntervalSeconds: 0,
+            batchSize: 1,
+        );
+        $report = $service->process();
+
+        $this->assertSame(2, $report->matched);
+        $this->assertSame(2, $report->intermediateBackups, 'one checkpoint backup per flush');
+        $this->assertSame(3, $backupCalls, 'initial backup + 2 checkpoints');
+    }
+
     private function makeScrobble(string $artist, string $title, string $playedAt): Scrobble
     {
         return new Scrobble(

@@ -11,6 +11,9 @@ parameters:
     env(PLAYLIST_PEPITES_MIN_PLAYS): '5'
     env(PLAYLIST_PEPITES_SILENCE_MONTHS): '12'
     env(PLAYLIST_TRES_VIEILLES_PEPITES_SILENCE_MONTHS): '60'
+    # Sync/rematch : intervalle (s) entre deux backups « checkpoint » pendant
+    # un run long. 0 = à chaque batch, négatif = désactivé. Défaut 10 min.
+    env(NAVIDROME_SYNC_BACKUP_INTERVAL_SECONDS): '600'
     env(PLAYLIST_BIRTHDAY_MONTH): '5'
     env(PLAYLIST_BIRTHDAY_DAY): '22'
     env(PLAYLIST_HITPARADE_WEEKS): '52'
@@ -53,6 +56,7 @@ parameters:
     navidrome.container_name: '%env(NAVIDROME_CONTAINER_NAME)%'
     navidrome.container_stop_timeout: '%env(int:NAVIDROME_STOP_TIMEOUT_SECONDS)%'
     navidrome.container_stop_wait_ceiling: '%env(int:NAVIDROME_STOP_WAIT_CEILING_SECONDS)%'
+    navidrome.sync.backup_interval_seconds: '%env(int:NAVIDROME_SYNC_BACKUP_INTERVAL_SECONDS)%'
     lastfm.user: '%env(LASTFM_USER)%'
     lastfm.api_key: '%env(LASTFM_API_KEY)%'
     lastfm.api_secret: '%env(LASTFM_API_SECRET)%'
@@ -250,6 +254,10 @@ services:
         arguments:
             $dbPath: '%navidrome.db_path%'
             $userName: '%navidrome.user%'
+
+    App\Navidrome\NavidromeSyncService:
+        arguments:
+            $backupIntervalSeconds: '%navidrome.sync.backup_interval_seconds%'
 
     App\Subsonic\SubsonicClient:
         arguments:

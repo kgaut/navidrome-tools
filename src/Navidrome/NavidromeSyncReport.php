@@ -12,4 +12,6 @@ final class NavidromeSyncReport
     public int $skipped = 0;
     public bool $dryRun = false;
     public ?string $backupPath = null;
+    /** Number of intermediate (checkpoint) backups taken during the run. */
+    public int $intermediateBackups = 0;
 }
