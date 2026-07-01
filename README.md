@@ -151,6 +151,9 @@ Points d'attention (prod) :
   - `navidrome-playlists.sh` — (re)génère les playlists via l'API Subsonic
     (conteneur DÉMARRÉ requis, n'arrête rien) ; à lancer après le rematch pour
     refléter les écoutes fraîchement insérées ;
+  - `navidrome-stats.sh` — recalcule et met en cache les stats (locales, Last.fm,
+    Navidrome) ; lecture seule, n'arrête rien → cronnable souvent, même en
+    journée ;
   - `navidrome-backup.sh` — snapshot + garde d'intégrité.
 
   Les scripts qui écrivent dans Navidrome arrêtent le conteneur, sauvegardent, et

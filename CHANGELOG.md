@@ -9,6 +9,16 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+## [1.1.0] - 2026-07-01
+
+### Ajouté
+
+- **`scripts/navidrome-stats.sh`** — wrapper cron dédié au recalcul des stats
+  (`app:stats:compute`, `app:lastfm:stats:compute`, `app:navidrome:stats:compute`).
+  Lecture seule, n'arrête pas Navidrome et ne fait pas de backup → cronnable
+  fréquemment, y compris en journée. Best-effort (un échec n'interrompt pas les
+  autres).
+
 ## [1.0.0] - 2026-07-01
 
 Première version taguée de la réécriture v2 (Symfony 7 / PHP 8.4 / FrankenPHP).
@@ -57,5 +67,6 @@ L'ancienne POC reste accessible via le tag `poc-v0`.
   `BackupService`, sessions persistantes ; CI (phpcs, PHPStan, PHPUnit, lint
   Twig, build Docker).
 
-[Non publié]: https://github.com/kgaut/navidrome-tools/compare/1.0.0...HEAD
+[Non publié]: https://github.com/kgaut/navidrome-tools/compare/1.1.0...HEAD
+[1.1.0]: https://github.com/kgaut/navidrome-tools/compare/1.0.0...1.1.0
 [1.0.0]: https://github.com/kgaut/navidrome-tools/releases/tag/1.0.0
