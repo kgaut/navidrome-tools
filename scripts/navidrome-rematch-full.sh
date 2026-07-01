@@ -2,14 +2,16 @@
 # -----------------------------------------------------------------------------
 # navidrome-rematch-full.sh — REMATCH COMPLET.
 #
-# Re-queue TOUS les non-matchés (reset unmatched → pending + purge des négatifs
-# du cache) puis relance la cascade sur l'ensemble. Lourd : à cronner rarement
-# (ex. après avoir ajouté des morceaux / créé des alias, ou déployé un matcher
-# amélioré). Pour éplucher le backlog par lots ensuite, voir navidrome-rematch.sh.
+# Re-queue TOUS les non-matchés (requeue-unmatched : reset unmatched → pending +
+# purge des négatifs du cache) puis relance la cascade sur l'ensemble (rematch,
+# qui ne reset plus de lui-même). Lourd : à cronner rarement (ex. après avoir
+# ajouté des morceaux / créé des alias, ou déployé un matcher amélioré). Pour
+# éplucher le backlog par lots ensuite, voir navidrome-rematch.sh.
 #
-# Flow : stop → backup baseline → app:scrobbles:rematch → quick_check → start →
-#        purge. Résilient aux erreurs Last.fm transitoires ; checkpoints
-#        intermédiaires côté app pendant le run.
+# Flow : stop → backup baseline → app:scrobbles:requeue-unmatched →
+#        app:scrobbles:rematch → quick_check → start → purge. Résilient aux
+#        erreurs Last.fm transitoires ; checkpoints intermédiaires côté app
+#        pendant le run.
 #
 # Codes de sortie : 0 OK · 1 config · 2 stop KO · 3 commande KO (DB intègre →
 #                   conservé ; sinon rollback) · 4 quick_check KO · 5 start KO.
@@ -30,7 +32,13 @@ nd_register_trap
 nd_stop
 take_backup   # baseline ; l'app prend aussi des checkpoints pendant le run
 
-log "Rematch complet ${REMATCH_TARGET} (re-queue de tous les non-matchés)…"
+log "Re-queue de tous les non-matchés (${REMATCH_TARGET})…"
+# DB outils uniquement (reset → pending + purge du cache) : sûr conteneur arrêté.
+if ! "${PHP_BIN[@]}" bin/console app:scrobbles:requeue-unmatched --target "$REMATCH_TARGET" --no-interaction; then
+    on_command_failure "Échec du re-queue des non-matchés ${REMATCH_TARGET}."
+fi
+
+log "Rematch complet ${REMATCH_TARGET} (cascade sur l'ensemble)…"
 # Pas de --auto-stop (conteneur déjà arrêté). Ajouter --force si l'app ne peut
 # pas vérifier l'état du conteneur (socket Docker indisponible côté outils).
 if ! "${PHP_BIN[@]}" bin/console app:scrobbles:rematch --target "$REMATCH_TARGET" --no-interaction; then
