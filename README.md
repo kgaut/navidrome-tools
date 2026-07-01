@@ -135,12 +135,18 @@ Points d'attention (prod) :
 - Ne **pas** partager `APP_CACHE_DIR` entre les conteneurs web et worker.
 - `NAVIDROME_USER` doit correspondre au compte Navidrome réel (sinon les
   commandes de sync échouent avec « user not found »).
-- `scripts/*.sh.example` : wrappers bash pour le crontab (à recopier sans le
-  suffixe `.example`, avec `navidrome-lib.sh` — config + helpers partagés — à
-  côté). Trois entrées indépendantes : `navidrome-sync.sh` (scrobbles + loves),
-  `navidrome-rematch.sh` (rematch seul, peut être long), `navidrome-backup.sh`
-  (snapshot + garde d'intégrité). Chacune arrête le conteneur, sauvegarde, et
-  ne rollback que sur corruption réelle (vers le backup sain le plus récent).
+- `scripts/*.sh` : wrappers bash pour le crontab, partageant `navidrome-lib.sh`
+  (config + helpers). La notif Gotify est lue depuis le `.env` du projet (pas de
+  secret dans les scripts) ; les chemins hôte se règlent en tête de la lib.
+  Entrées indépendantes :
+  - `navidrome-sync.sh` — sync scrobbles + loves ;
+  - `navidrome-rematch.sh` — rematch par lots (traite ≤ `REMATCH_LIMIT`, défaut
+    5000, morceaux en attente, sans re-queue) ;
+  - `navidrome-rematch-full.sh` — rematch complet (re-queue TOUS les non-matchés) ;
+  - `navidrome-backup.sh` — snapshot + garde d'intégrité.
+
+  Chacune arrête le conteneur, sauvegarde, et ne rollback que sur corruption
+  réelle (vers le backup sain le plus récent, checkpoints de l'app inclus).
 
 ---
 

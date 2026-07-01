@@ -52,6 +52,3 @@ docker-compose.override.yml
 /.env.dev
 /.env.test
 ###< flex-generated ###
-
-# Personal copies of example shell wrappers — keep .example versioned only.
-/scripts/navidrome-sync.sh

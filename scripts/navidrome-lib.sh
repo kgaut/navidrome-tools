@@ -1,32 +1,51 @@
 #!/usr/bin/env bash
 # -----------------------------------------------------------------------------
 # navidrome-lib.sh — config + helpers partagés par les wrappers crontab
-# (navidrome-backup.sh, navidrome-rematch.sh, navidrome-sync.sh).
+# (navidrome-backup.sh, navidrome-sync.sh, navidrome-rematch.sh,
+#  navidrome-rematch-full.sh). Ce fichier ne FAIT rien seul : il est `source`-é.
 #
-# Recopier en `navidrome-lib.sh` (gitignoré), adapter la config ci-dessous,
-# puis `source` depuis chaque point d'entrée. Ce fichier ne FAIT rien tout
-# seul : il ne définit que des variables et des fonctions.
+# La notif (Gotify) est lue depuis le `.env` du projet (un niveau au-dessus de
+# scripts/) — pas de secret stocké ici. Les chemins CÔTÉ HÔTE restent en config
+# ci-dessous : ils diffèrent des chemins conteneur du .env.
 # -----------------------------------------------------------------------------
 
-# === Config (override possible via variables d'env avant le source) =========
-: "${PROJECT_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-# Chemin du fichier SQLite Navidrome — la VRAIE DB, pas un montage read-only.
-: "${NAVIDROME_DB_PATH:=${PROJECT_DIR}/var/navidrome.db}"
+PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+ENV_FILE="${ENV_FILE:-${PROJECT_DIR}/.env}"
+
+# Lit une clé simple `KEY=value` du .env (dernière occurrence ; guillemets et
+# CR retirés). Renvoie vide si absente. On ne `source` PAS le .env (syntaxe
+# Symfony : interpolations, etc.).
+env_get() {
+    local key="$1" line val
+    [[ -f "$ENV_FILE" ]] || return 0
+    line="$(grep -E "^[[:space:]]*${key}=" "$ENV_FILE" 2>/dev/null | grep -vE '^[[:space:]]*#' | tail -n1)"
+    [[ -z "$line" ]] && return 0
+    val="${line#*=}"
+    val="${val%$'\r'}"
+    if [[ "$val" == \"*\" ]]; then val="${val#\"}"; val="${val%\"}"
+    elif [[ "$val" == \'*\' ]]; then val="${val#\'}"; val="${val%\'}"; fi
+    printf '%s' "$val"
+}
+
+# === Config HÔTE (adapter si besoin ; surchargeable par variable d'env) ======
+# Chemin SQLite Navidrome côté hôte (le wrapper fait cp / quick_check dessus).
+: "${NAVIDROME_DB_PATH:=${PROJECT_DIR}/data/navidrome/navidrome.db}"
 # Où stocker les backups du wrapper (créé si absent).
 : "${BACKUP_DIR:=${PROJECT_DIR}/backups}"
 # Rétention en jours (find -mtime) pour la purge des backups du wrapper.
 : "${BACKUP_RETENTION_DAYS:=7}"
-# Docker compose : fichier + nom du service Navidrome.
-: "${COMPOSE_FILE:=${PROJECT_DIR}/docker-compose.yml}"
+# Docker compose : fichier + service Navidrome.
+: "${COMPOSE_FILE:=${PROJECT_DIR}/compose.yml}"
 : "${COMPOSE_SERVICE:=navidrome}"
-# Binaire PHP pour bin/console (chemin absolu si php n'est pas dans le PATH cron).
-: "${PHP_BIN:=php}"
-# Notification d'échec — laisser GOTIFY_URL vide pour désactiver.
-: "${GOTIFY_URL:=}"
-: "${GOTIFY_TOKEN:=}"
-: "${GOTIFY_PRIORITY:=8}"
+# Commande pour lancer bin/console — tableau (exécution dans le conteneur outils).
+if [[ -z "${PHP_BIN+x}" ]]; then PHP_BIN=(docker compose -f "$COMPOSE_FILE" exec -T navidrome-tools-web); fi
 
-# Préfixe affiché dans les logs / notifs (chaque entrée peut le surcharger).
+# === Notif : lue depuis le .env (aucun secret ici) ===========================
+: "${GOTIFY_URL:=$(env_get NOTIFY_GOTIFY_URL)}"
+: "${GOTIFY_TOKEN:=$(env_get NOTIFY_GOTIFY_TOKEN)}"
+GOTIFY_PRIORITY="${GOTIFY_PRIORITY:-$(env_get NOTIFY_GOTIFY_PRIORITY)}"; : "${GOTIFY_PRIORITY:=8}"
+
+# Préfixe affiché dans les logs / notifs (chaque entrée le surcharge).
 : "${NOTIFY_TITLE:=navidrome}"
 
 # === État partagé ============================================================
@@ -44,21 +63,14 @@ notify_failure() {
     if [[ -z "$GOTIFY_URL" || -z "$GOTIFY_TOKEN" ]]; then
         return 0
     fi
-    # Best-effort : ne pas masquer l'erreur d'origine si la notif rate.
     curl --silent --show-error --max-time 10 \
         --data "title=${NOTIFY_TITLE}" \
         --data "message=${message}" \
         --data "priority=${GOTIFY_PRIORITY}" \
         "${GOTIFY_URL%/}/message?token=${GOTIFY_TOKEN}" \
         >/dev/null 2>&1 || true
-
-    # Exemples — décommenter et remplir pour un autre canal :
-    # curl -X POST -H 'Content-type: application/json' --max-time 10 \
-    #     --data "{\"text\": \"${NOTIFY_TITLE}: ${message}\"}" \
-    #     "$SLACK_WEBHOOK_URL" >/dev/null 2>&1 || true
 }
 
-# Pré-flight commun. Appeler en début de chaque entrée.
 nd_preflight() {
     if [[ ! -f "$NAVIDROME_DB_PATH" ]]; then
         log "NAVIDROME_DB_PATH introuvable : $NAVIDROME_DB_PATH"; exit 1
@@ -112,8 +124,8 @@ quick_check_ok() {
     [[ "$(sqlite3 "$1" 'PRAGMA quick_check;' 2>/dev/null)" == "ok" ]]
 }
 
-# Backup horodaté de la DB (+ WAL/SHM si présents) dans BACKUP_DIR.
-# Renseigne BACKUP_PATH.
+# Backup horodaté de la DB (+ WAL/SHM si présents) dans BACKUP_DIR. Renseigne
+# BACKUP_PATH.
 take_backup() {
     local ts
     ts="$(date +%Y%m%d_%H%M%S)"
@@ -124,10 +136,10 @@ take_backup() {
     cp -p "${NAVIDROME_DB_PATH}-shm" "${BACKUP_PATH}-shm" 2>/dev/null || true
 }
 
-# Backup SAIN le plus récent, parmi : les backups du wrapper
-# ($BACKUP_DIR/navidrome-*.db) ET les checkpoints intermédiaires écrits par
-# l'app à côté de la DB (${NAVIDROME_DB_PATH}.backup-*). Trié par date
-# décroissante ; renvoie le premier qui passe quick_check.
+# Backup SAIN le plus récent, parmi les backups du wrapper ($BACKUP_DIR) ET les
+# checkpoints intermédiaires écrits par l'app à côté de la DB
+# (${NAVIDROME_DB_PATH}.backup-*). Trié par date décroissante ; renvoie le
+# premier qui passe quick_check.
 latest_sound_backup() {
     local files=() f sorted
     shopt -s nullglob
@@ -160,9 +172,9 @@ rollback_db() {
     if [[ -f "${src}-shm" ]]; then cp -p "${src}-shm" "${NAVIDROME_DB_PATH}-shm"; else rm -f "${NAVIDROME_DB_PATH}-shm"; fi
 }
 
-# Politique sur échec d'une commande de write (sync / rematch) : les écritures
-# sont committées par lots et atomiques, donc un échec laisse une DB cohérente.
-# On conserve le travail si la DB est intègre ; rollback seulement si corrompue.
+# Politique sur échec d'une commande de write : les écritures sont committées
+# par lots et atomiques → un échec laisse une DB cohérente. On conserve le
+# travail si la DB est intègre ; rollback seulement si corrompue.
 on_command_failure() {
     local msg="$1"
     log "$msg"

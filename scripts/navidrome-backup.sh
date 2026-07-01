@@ -2,8 +2,6 @@
 # -----------------------------------------------------------------------------
 # navidrome-backup.sh — snapshot horodaté de la DB Navidrome (rien d'autre).
 #
-# Recopier en `navidrome-backup.sh` (gitignoré), avec `navidrome-lib.sh` à côté.
-#
 # Flow : stop conteneur → quick_check → backup (si DB saine) → start → purge.
 # Si la DB live est déjà corrompue : restaure le backup sain le plus récent.
 #

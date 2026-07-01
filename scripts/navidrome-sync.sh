@@ -2,9 +2,8 @@
 # -----------------------------------------------------------------------------
 # navidrome-sync.sh — sync Last.fm → Navidrome (scrobbles + loves).
 #
-# Recopier en `navidrome-sync.sh` (gitignoré), avec `navidrome-lib.sh` à côté.
-# Le rematch a son propre script (navidrome-rematch.sh), à cronner séparément
-# — il n'est PLUS inclus ici.
+# Le rematch a ses propres scripts (navidrome-rematch.sh /
+# navidrome-rematch-full.sh) — il n'est PAS inclus ici.
 #
 # Flow : stop conteneur → backup → sync scrobbles + loves → quick_check →
 #        start → purge.
@@ -33,8 +32,8 @@ run_step() {
     "$@" || on_command_failure "Échec de la commande ${label}."
 }
 
-run_step "scrobbles → Navidrome" "$PHP_BIN" bin/console app:scrobbles:sync-navidrome --no-interaction
-run_step "loves Last.fm → Navidrome" "$PHP_BIN" bin/console app:loves:lastfm-to-navidrome --no-interaction
+run_step "scrobbles → Navidrome" "${PHP_BIN[@]}" bin/console app:scrobbles:sync-navidrome --no-interaction
+run_step "loves Last.fm → Navidrome" "${PHP_BIN[@]}" bin/console app:loves:lastfm-to-navidrome --no-interaction
 
 if ! quick_check_ok "$NAVIDROME_DB_PATH"; then
     msg="quick_check KO après sync."
