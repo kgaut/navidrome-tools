@@ -148,6 +148,9 @@ Points d'attention (prod) :
     5000, morceaux en attente, sans re-queue) ;
   - `navidrome-rematch-full.sh` — rematch complet (re-queue TOUS les non-matchés
     puis cascade sur l'ensemble) ;
+  - `navidrome-playlists.sh` — (re)génère les playlists via l'API Subsonic
+    (conteneur DÉMARRÉ requis, n'arrête rien) ; à lancer après le rematch pour
+    refléter les écoutes fraîchement insérées ;
   - `navidrome-backup.sh` — snapshot + garde d'intégrité.
 
   Les scripts qui écrivent dans Navidrome arrêtent le conteneur, sauvegardent, et

@@ -29,6 +29,9 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  * Flux type : `app:scrobbles:requeue-unmatched` (une fois, après avoir ajouté
  * des morceaux / créé des alias / déployé un matcher amélioré) puis `rematch`
  * (autant de fois que nécessaire, éventuellement par lots via --limit).
+ *
+ * Affiche l'avancement (compteurs) tous les 50 scrobbles ; en mode verbeux
+ * (-v), liste en plus chaque match résolu (✓ matched / ≈ doublon + stratégie).
  */
 #[AsCommand(
     name: 'app:scrobbles:rematch',
@@ -84,19 +87,38 @@ class RematchCommand extends Command
             ? RunHistory::TYPE_NAVIDROME_REMATCH
             : RunHistory::TYPE_STRAWBERRY_REMATCH;
 
+        // Avancement (compteurs) affiché tous les 50 scrobbles — toujours visible.
+        $progress = function (int $c, int $m, int $d, int $u) use ($io): void {
+            $io->writeln(sprintf('  considered=%d matched=%d duplicates=%d unmatched=%d', $c, $m, $d, $u));
+        };
+        // Détail des matchs résolus au fil de l'eau — visible seulement en mode
+        // verbeux (-v) pour ne pas noyer les logs cron lors des gros rematch.
+        $onMatch = function (ScrobbleSync $sync, string $status, ?string $strategy) use ($io): void {
+            $scrobble = $sync->getScrobble();
+            $io->writeln(sprintf(
+                '  %s %s — %s%s',
+                $status === ScrobbleSync::STATUS_DUPLICATE ? '≈' : '✓',
+                $scrobble->getArtist(),
+                $scrobble->getTitle(),
+                $strategy !== null ? sprintf('  [%s]', $strategy) : '',
+            ), OutputInterface::VERBOSITY_VERBOSE);
+        };
+
         try {
             $runProcess = fn () => $this->recorder->record(
                 type: $type,
                 reference: 'unmatched',
                 label: $label,
-                action: function (RunHistory $entry) use ($target, $limit, $dryRun): NavidromeSyncReport|StrawberrySyncReport {
+                action: function (RunHistory $entry) use ($target, $limit, $dryRun, $progress, $onMatch): NavidromeSyncReport|StrawberrySyncReport {
                     // Ne reset PLUS les non-matchés ni ne purge le cache : on
                     // ne fait que ré-jouer la cascade sur les lignes déjà en
                     // attente. Pour re-queuer les non-matchés,
                     // `app:scrobbles:requeue-unmatched`.
                     if ($target === ScrobbleSync::TARGET_NAVIDROME) {
-                        return $this->navidromeSync->process(limit: $limit, dryRun: $dryRun, run: $entry);
+                        return $this->navidromeSync->process(limit: $limit, dryRun: $dryRun, run: $entry, progress: $progress, onMatch: $onMatch);
                     }
+                    // Strawberry : progression à 3 compteurs (sans doublons),
+                    // signature différente — pas d'affichage détaillé ici.
                     return $this->strawberrySync->process(limit: $limit, dryRun: $dryRun, run: $entry);
                 },
                 extractMetrics: static function (NavidromeSyncReport|StrawberrySyncReport $r): array {
