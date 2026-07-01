@@ -51,3 +51,22 @@ src/
 - Conventional Commits : `feat(scope):`, `fix(scope):`, `refactor(scope):`, etc.
 - Tests : un par méthode publique non triviale, fixtures SQLite en mémoire
 - Migrations : une par feature, nommée `VersionYYYYMMDDHHMMSS`
+
+## Processus de release (par tag)
+
+Le développement se fait sur `develop` (via PR). Une **release** = un tag
+sémantique (`MAJOR.MINOR.PATCH`) sur `main`. `main` suit l'état publié de
+`develop` ; l'ancienne POC reste figée sous le tag `poc-v0`.
+
+À **chaque nouvelle feature / release** :
+
+1. **Amender `CHANGELOG.md`** — décrire le changement sous la section
+   `## [Non publié]` (rubriques *Ajouté / Modifié / Corrigé / Supprimé*).
+2. Au moment de publier : renommer `[Non publié]` en `[X.Y.Z] - AAAA-MM-JJ`,
+   recréer une section `[Non publié]` vide, mettre à jour les liens de comparaison
+   en bas de fichier.
+3. **Merger sur `main`** (`main` = état de `develop`).
+4. **Créer le tag** `X.Y.Z` sur `main` et le pousser.
+
+Versionnage sémantique : `MAJOR` = rupture, `MINOR` = ajout rétrocompatible,
+`PATCH` = correctif.
