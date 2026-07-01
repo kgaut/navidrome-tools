@@ -139,14 +139,20 @@ Points d'attention (prod) :
   (config + helpers). La notif Gotify est lue depuis le `.env` du projet (pas de
   secret dans les scripts) ; les chemins hôte se règlent en tête de la lib.
   Entrées indépendantes :
-  - `navidrome-sync.sh` — sync scrobbles + loves ;
+  - `navidrome-sync.sh` — cycle de maintenance complet (loves, fetch, alias,
+    stats, playlists, reco, purge) — SAUF rematch et sync des scrobbles ;
+  - `navidrome-unmatched-requeue.sh` — re-queue les non-matchés (reset → pending
+    + purge des négatifs du cache) SANS traitement ; DB outils uniquement, donc
+    pas d'arrêt du conteneur ni de backup ;
   - `navidrome-rematch.sh` — rematch par lots (traite ≤ `REMATCH_LIMIT`, défaut
     5000, morceaux en attente, sans re-queue) ;
-  - `navidrome-rematch-full.sh` — rematch complet (re-queue TOUS les non-matchés) ;
+  - `navidrome-rematch-full.sh` — rematch complet (re-queue TOUS les non-matchés
+    puis cascade sur l'ensemble) ;
   - `navidrome-backup.sh` — snapshot + garde d'intégrité.
 
-  Chacune arrête le conteneur, sauvegarde, et ne rollback que sur corruption
-  réelle (vers le backup sain le plus récent, checkpoints de l'app inclus).
+  Les scripts qui écrivent dans Navidrome arrêtent le conteneur, sauvegardent, et
+  ne rollback que sur corruption réelle (vers le backup sain le plus récent,
+  checkpoints de l'app inclus).
 
 ---
 
@@ -285,15 +291,27 @@ arrêté).
 | `--force` | outrepasse le pré-vol conteneur Navidrome |
 | `--auto-stop` | arrête puis redémarre automatiquement le conteneur Navidrome |
 
-#### `app:scrobbles:rematch`
-Re-tente le matching des scrobbles **non-matchés** (remet `unmatched` → `pending`
-puis relance le sync). Utile après ajout de pistes, création d'alias, ou
-amélioration des heuristiques.
+#### `app:scrobbles:requeue-unmatched`
+Re-queue les scrobbles **non-matchés** : remet `unmatched` → `pending` et purge
+les négatifs du cache de matching (cible `navidrome`), **sans lancer la
+cascade**. Ne touche QUE la DB outils (`scrobble_sync` + `lastfm_match_cache`),
+jamais navidrome.db → aucun arrêt de conteneur ni backup. À lancer après ajout
+de pistes / création d'alias, puis laisser `rematch` (ou `sync-navidrome`)
+traiter le backlog.
 
 | Option | Description |
 |---|---|
 | `--target` / `-t` | `navidrome` (défaut) ou `strawberry` |
-| `--dry-run` | reset + match sans écrire |
+
+#### `app:scrobbles:rematch`
+Re-joue la cascade de matching sur les scrobbles **déjà en attente** (`pending`).
+**Ne reset plus** les non-matchés (c'est le rôle de `requeue-unmatched`) :
+non destructif, relançable sans risque, éventuellement par lots via `--limit`.
+
+| Option | Description |
+|---|---|
+| `--target` / `-t` | `navidrome` (défaut) ou `strawberry` |
+| `--dry-run` | matche sans écrire |
 | `--limit` | nombre max de lignes (`0` = illimité) |
 | `--force` | outrepasse le pré-vol conteneur Navidrome |
 | `--auto-stop` | arrête/redémarre Navidrome automatiquement |
@@ -303,8 +321,8 @@ amélioration des heuristiques.
 les scrobbles non-matchés. Lit Navidrome en lecture seule, n'écrit que les
 tables d'alias (`lastfm_alias` / `lastfm_artist_alias`) et purge le cache de
 matching concerné. **Idempotente.** Écarte les couples qu'un simple rematch
-résoudrait déjà (statut périmé). Lancer `app:scrobbles:rematch` ensuite pour
-appliquer.
+résoudrait déjà (statut périmé). Lancer `app:scrobbles:requeue-unmatched` puis
+`app:scrobbles:rematch` ensuite pour appliquer.
 
 Stratégies (chaque alias par la première qui aboutit) :
 
@@ -347,7 +365,8 @@ Stratégie :
 
 Throttle obligatoire (MB exige ≈ 1 req/s par UA) ; UA contact-bearing
 **requis** dans `MUSICBRAINZ_USER_AGENT` (cf. section *MusicBrainz* plus haut).
-Lancer `app:scrobbles:rematch` ensuite pour appliquer les alias créés.
+Lancer `app:scrobbles:requeue-unmatched` puis `app:scrobbles:rematch` ensuite
+pour appliquer les alias créés.
 
 | Option | Description |
 |---|---|
@@ -435,7 +454,9 @@ php bin/console app:aliases:musicbrainz               # applique les unique-matc
 # 3. Matcher + insérer dans Navidrome (Navidrome arrêté, ou --auto-stop)
 php bin/console app:scrobbles:sync-navidrome --auto-stop
 
-# 4. Re-tenter les non-matchés (après ajout de pistes / alias)
+# 4. Re-tenter les non-matchés (après ajout de pistes / alias) :
+#    requeue-unmatched les remet en attente, rematch les traite.
+php bin/console app:scrobbles:requeue-unmatched --target navidrome
 php bin/console app:scrobbles:rematch --target navidrome --auto-stop
 
 # 5. Synchroniser les favoris
@@ -443,10 +464,11 @@ php bin/console app:loves:lastfm-to-navidrome --auto-stop
 ```
 
 Ordre recommandé pour les alias : **`app:aliases:generate` →
-`app:aliases:musicbrainz` → `app:scrobbles:rematch`** (les deux générateurs
-n'écrivent pas dans Navidrome — l'offline d'abord puisqu'il ne coûte rien et
-épuise les cas faciles, l'online ensuite pour ce qui reste ; le rematch
-applique les alias et insère les écoutes nouvellement résolues).
+`app:aliases:musicbrainz` → `app:scrobbles:requeue-unmatched` →
+`app:scrobbles:rematch`** (les deux générateurs n'écrivent pas dans Navidrome —
+l'offline d'abord puisqu'il ne coûte rien et épuise les cas faciles, l'online
+ensuite pour ce qui reste ; `requeue-unmatched` remet les non-matchés en attente,
+puis le rematch applique les alias et insère les écoutes nouvellement résolues).
 
 ### Note sur le compteur de lecture Navidrome
 

@@ -20,8 +20,9 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  * per-strategy rules.
  *
  * Reads Navidrome read-only (no need to stop the container); writes only the
- * tools DB (alias + match-cache tables). Run `app:scrobbles:rematch` afterwards
- * to actually re-resolve the unmatched scrobbles through the new aliases.
+ * tools DB (alias + match-cache tables). Run `app:scrobbles:requeue-unmatched`
+ * then `app:scrobbles:rematch` afterwards to actually re-resolve the unmatched
+ * scrobbles through the new aliases.
  */
 #[AsCommand(
     name: 'app:aliases:generate',
@@ -134,7 +135,7 @@ class GenerateAliasesCommand extends Command
             $report->artistAliasesCreated,
             $report->trackAliasesCreated(),
             $report->playsCoveredArtist + $report->playsCoveredTrack,
-            $report->dryRun ? ' Re-run without --dry-run to persist.' : ' Run app:scrobbles:rematch to apply them.',
+            $report->dryRun ? ' Re-run without --dry-run to persist.' : ' Run app:scrobbles:requeue-unmatched then app:scrobbles:rematch to apply them.',
         ));
 
         return Command::SUCCESS;

@@ -8,8 +8,6 @@ use App\Entity\RunHistory;
 use App\Entity\ScrobbleSync;
 use App\Navidrome\NavidromeSyncReport;
 use App\Navidrome\NavidromeSyncService;
-use App\Repository\LastFmMatchCacheRepository;
-use App\Repository\ScrobbleSyncRepository;
 use App\Service\RunHistoryRecorder;
 use App\Strawberry\StrawberrySyncReport;
 use App\Strawberry\StrawberrySyncService;
@@ -21,10 +19,16 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 /**
- * Re-attempt matching for unmatched scrobbles of a given target.
- * Resets unmatched → pending then runs the sync service.
- * Useful after adding tracks to the library, creating aliases, or
- * deploying improved matching heuristics.
+ * Re-attempt matching for the scrobbles left PENDING of a given target.
+ *
+ * Ne (re-)remet PLUS les non-matchés en attente : c'est désormais le rôle de
+ * `app:scrobbles:requeue-unmatched` (reset unmatched → pending + purge des
+ * négatifs du cache). Cette commande ne fait que RE-JOUER la cascade sur les
+ * lignes déjà en attente — non destructive, relançable sans risque.
+ *
+ * Flux type : `app:scrobbles:requeue-unmatched` (une fois, après avoir ajouté
+ * des morceaux / créé des alias / déployé un matcher amélioré) puis `rematch`
+ * (autant de fois que nécessaire, éventuellement par lots via --limit).
  */
 #[AsCommand(
     name: 'app:scrobbles:rematch',
@@ -33,12 +37,10 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 class RematchCommand extends Command
 {
     public function __construct(
-        private readonly ScrobbleSyncRepository $syncRepo,
         private readonly NavidromeSyncService $navidromeSync,
         private readonly StrawberrySyncService $strawberrySync,
         private readonly RunHistoryRecorder $recorder,
         private readonly NavidromeContainerManager $container,
-        private readonly LastFmMatchCacheRepository $matchCache,
     ) {
         parent::__construct();
     }
@@ -47,7 +49,7 @@ class RematchCommand extends Command
     {
         $this
             ->addOption('target', 't', InputOption::VALUE_REQUIRED, 'Target: navidrome or strawberry.', 'navidrome')
-            ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Reset and match without writing.')
+            ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Match pending rows without writing.')
             ->addOption('limit', null, InputOption::VALUE_REQUIRED, 'Max rows to process (0 = no limit).', '0')
             ->addOption('force', 'f', InputOption::VALUE_NONE, 'Bypass Navidrome container pre-flight.')
             ->addOption('auto-stop', null, InputOption::VALUE_NONE, 'Auto-stop Navidrome (only relevant for navidrome target).');
@@ -88,15 +90,10 @@ class RematchCommand extends Command
                 reference: 'unmatched',
                 label: $label,
                 action: function (RunHistory $entry) use ($target, $limit, $dryRun): NavidromeSyncReport|StrawberrySyncReport {
-                    // Bust the Last.fm match-cache negatives for the couples
-                    // we're about to retry — otherwise the matcher hits its
-                    // own fresh negative entries (TTL 30d) and the rematch is
-                    // a no-op. Positives are preserved. Mirrors
-                    // RematchMessageHandler (the web/async path).
-                    if ($target === ScrobbleSync::TARGET_NAVIDROME) {
-                        $this->matchCache->purgeUnmatchedNegatives($target);
-                    }
-                    $this->syncRepo->resetUnmatchedToPending($target);
+                    // Ne reset PLUS les non-matchés ni ne purge le cache : on
+                    // ne fait que ré-jouer la cascade sur les lignes déjà en
+                    // attente. Pour re-queuer les non-matchés,
+                    // `app:scrobbles:requeue-unmatched`.
                     if ($target === ScrobbleSync::TARGET_NAVIDROME) {
                         return $this->navidromeSync->process(limit: $limit, dryRun: $dryRun, run: $entry);
                     }

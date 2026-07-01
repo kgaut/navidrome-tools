@@ -28,8 +28,8 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  * everything without writing.
  *
  * Reads Navidrome read-only (no need to stop the container); writes only the
- * tools DB. Run `app:scrobbles:rematch` afterwards to re-resolve the
- * unmatched scrobbles through the new aliases.
+ * tools DB. Run `app:scrobbles:requeue-unmatched` then `app:scrobbles:rematch`
+ * afterwards to re-resolve the unmatched scrobbles through the new aliases.
  */
 #[AsCommand(
     name: 'app:aliases:musicbrainz',
@@ -168,7 +168,7 @@ class SuggestAliasesMusicBrainzCommand extends Command
             ucfirst($verb),
             $report->aliasesCreated,
             $report->playsCovered,
-            $report->dryRun ? ' Re-run without --dry-run to persist.' : ' Run app:scrobbles:rematch to apply them.',
+            $report->dryRun ? ' Re-run without --dry-run to persist.' : ' Run app:scrobbles:requeue-unmatched then app:scrobbles:rematch to apply them.',
         ));
     }
 }
