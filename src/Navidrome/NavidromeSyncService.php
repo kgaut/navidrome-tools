@@ -53,6 +53,7 @@ class NavidromeSyncService
         int $toleranceSeconds = 60,
         ?RunHistory $run = null,
         ?callable $progress = null,
+        ?callable $onMatch = null,
     ): NavidromeSyncReport {
         if (!$this->navidrome->hasScrobblesTable()) {
             throw new \RuntimeException('Navidrome scrobbles table not found. Upgrade Navidrome to >= 0.55.');
@@ -111,6 +112,13 @@ class NavidromeSyncService
                     $dryRun,
                     $report,
                 );
+
+                // Signale les matchs résolus (matched / doublon) au fil de l'eau,
+                // pour un affichage détaillé côté commande. Les non-matchés et
+                // ignorés ne sont pas remontés ici.
+                if ($onMatch !== null && ($status === ScrobbleSync::STATUS_MATCHED || $status === ScrobbleSync::STATUS_DUPLICATE)) {
+                    $onMatch($sync, $status, $strategy);
+                }
 
                 if (!$dryRun) {
                     $batch[] = [
