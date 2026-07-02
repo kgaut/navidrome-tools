@@ -3,9 +3,14 @@
 namespace App\Controller;
 
 use App\Entity\ScrobbleSync;
+use App\LastFm\LastFmScrobble;
+use App\LastFm\MatchResult;
+use App\LastFm\ScrobbleMatcher;
 use App\Message\RematchMessage;
 use App\Message\SuggestAliasesMusicBrainzMessage;
 use App\Message\SyncNavidromeMessage;
+use App\Navidrome\NavidromeRepository;
+use App\Repository\LastFmMatchCacheRepository;
 use App\Repository\ScrobbleSyncRepository;
 use App\Service\DisparityStatsService;
 use App\Service\UnmatchedDiagnoser;
@@ -100,6 +105,81 @@ class NavidromeSyncController extends AbstractController
             . 'Les alias uniques haute-confiance sont appliqués automatiquement ; relancez un rematch ensuite.',
         );
         return $this->redirectToRoute('app_history');
+    }
+
+    /**
+     * Per-track « retry match » (debug case-by-case). Purges the negative
+     * cache for the couple, re-runs the matching cascade once on a synthetic
+     * scrobble built from the aggregated row, then reports the outcome. On a
+     * hit, the couple's unmatched rows are re-queued to pending (the actual
+     * write into navidrome.db happens on the next sync/rematch). On a miss,
+     * the diagnostic reason is surfaced. Reads Navidrome read-only → no
+     * container stop.
+     */
+    #[Route('/navidrome/unmatched/retry', name: 'app_navidrome_unmatched_retry', methods: ['POST'])]
+    public function retryMatch(
+        Request $request,
+        ScrobbleMatcher $matcher,
+        ScrobbleSyncRepository $syncRepo,
+        LastFmMatchCacheRepository $cache,
+        UnmatchedDiagnoser $diagnoser,
+        NavidromeRepository $navidrome,
+    ): Response {
+        if (!$this->isCsrfTokenValid('navidrome_unmatched_retry', (string) $request->request->get('_token'))) {
+            throw $this->createAccessDeniedException();
+        }
+
+        $artist = trim((string) $request->request->get('artist', ''));
+        $title = trim((string) $request->request->get('title', ''));
+        $album = trim((string) $request->request->get('album', ''));
+
+        $back = $request->headers->get('referer') ?: $this->generateUrl('app_navidrome_unmatched');
+
+        if ($artist === '' || $title === '') {
+            $this->addFlash('error', 'Artiste ou titre manquant.');
+            return $this->redirect($back);
+        }
+
+        // Purge the negative cache entry so the cascade actually re-runs
+        // instead of short-circuiting on its own memoized miss.
+        $cache->purgeByCouple($artist, $title);
+
+        $result = $matcher->match(new LastFmScrobble(
+            artist: $artist,
+            title: $title,
+            album: $album,
+            mbid: null,
+            playedAt: new \DateTimeImmutable(),
+        ));
+
+        if ($result->status === MatchResult::STATUS_MATCHED && $result->mediaFileId !== null) {
+            $meta = $navidrome->getMediaFileMetadata([$result->mediaFileId]);
+            $label = $meta !== []
+                ? sprintf('%s — %s', $meta[0]['artist'], $meta[0]['album'] !== '' ? $meta[0]['album'] : '?')
+                : $result->mediaFileId;
+            $reset = $syncRepo->resetCoupleToPending(ScrobbleSync::TARGET_NAVIDROME, $artist, $title);
+            $this->addFlash('success', sprintf(
+                '« %s — %s » matché (stratégie %s → %s). %d scrobble(s) remis en pending : lancez un sync pour les insérer dans Navidrome.',
+                $artist,
+                $title,
+                $result->strategy ?? '?',
+                $label,
+                $reset,
+            ));
+        } else {
+            $diag = $diagnoser->diagnose($artist, $title);
+            $reason = match ($diag['reason'] ?? '') {
+                'artist_unknown' => 'artiste inconnu de la bibliothèque',
+                'artist_near_match' => 'artiste proche (voir suggestions d’alias)',
+                'title_near_match' => 'titre proche (voir suggestions d’alias)',
+                'track_missing' => 'artiste présent mais titre absent de la bibliothèque',
+                'matcher_gap' => 'track présente mais ratée par la cascade',
+                default => 'inconnue',
+            };
+            $this->addFlash('warning', sprintf('« %s — %s » toujours non-matché. Raison : %s.', $artist, $title, $reason));
+        }
+
+        return $this->redirect($back);
     }
 
     #[Route('/navidrome/unmatched', name: 'app_navidrome_unmatched', methods: ['GET'])]

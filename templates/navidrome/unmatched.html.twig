@@ -94,6 +94,14 @@
                     <td class="num">{{ row.count }}</td>
                     <td class="num mono">{{ row.last_played_at|date('d/m/Y') }}</td>
                     <td class="right nowrap">
+                        <form method="post" action="{{ path('app_navidrome_unmatched_retry') }}" class="inline">
+                            <input type="hidden" name="_token" value="{{ csrf_token('navidrome_unmatched_retry') }}">
+                            <input type="hidden" name="artist" value="{{ row.artist }}">
+                            <input type="hidden" name="title" value="{{ row.title }}">
+                            <input type="hidden" name="album" value="{{ row.album ?? '' }}">
+                            <button type="submit" class="mono fs-11 t-teal" style="background:none;border:0;padding:0;cursor:pointer;"
+                                    title="Purger le cache négatif et relancer une tentative de matching sur ce couple">↻ Rematcher</button>
+                        </form>
                         {% if lidarr %}
                             <a href="{{ lidarr }}" target="_blank" rel="noopener" class="mono fs-11 muted" title="Chercher dans Lidarr">⇗ Lidarr</a>
                         {% endif %}
