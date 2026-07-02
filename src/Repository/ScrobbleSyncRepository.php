@@ -220,6 +220,29 @@ class ScrobbleSyncRepository extends ServiceEntityRepository
     }
 
     /**
+     * Reset the unmatched rows of a single (artist, title) couple back to
+     * pending — used by the per-track « retry match » button on
+     * /navidrome/unmatched. Exact match on the raw scrobble artist/title
+     * (as displayed in the aggregated list). Returns the number of rows
+     * re-queued.
+     */
+    public function resetCoupleToPending(string $target, string $artist, string $title): int
+    {
+        return (int) $this->em->getConnection()->executeStatement(
+            'UPDATE scrobble_sync SET status = :pending, attempted_at = NULL, synced_at = NULL, run_id = NULL
+             WHERE target = :target AND status = :unmatched
+               AND scrobble_id IN (SELECT id FROM scrobbles WHERE artist = :artist AND title = :title)',
+            [
+                'pending' => ScrobbleSync::STATUS_PENDING,
+                'target' => $target,
+                'unmatched' => ScrobbleSync::STATUS_UNMATCHED,
+                'artist' => $artist,
+                'title' => $title,
+            ],
+        );
+    }
+
+    /**
      * Reset every non-pending row for $target back to pending. Wipes
      * target_id and strategy too so the next sync starts from a clean
      * slate (they will be re-resolved by the matching cascade anyway).
