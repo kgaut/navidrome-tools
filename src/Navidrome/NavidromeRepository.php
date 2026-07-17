@@ -555,6 +555,64 @@ class NavidromeRepository
     }
 
     /**
+     * « Pépites redécouvertes » : tracks played again in the last month after
+     * a silence of ~12 months, having been listened to BEFORE that silence
+     * (within the 24-month window) — a genuine re-discovery, not a fresh find.
+     *
+     * Three epoch windows over per-play scrobbles:
+     *   - [recent, now)          : ≥1 play (the rediscovery),
+     *   - [silence, recent)      : 0 play (the ~12-month silence),
+     *   - [window, silence)      : ≥1 play (known before the silence).
+     * Deterministic order (most recent rediscovery first); the shuffle for
+     * serendipity is done caller-side. Requires the scrobbles table (per-play
+     * history) — returns [] on Navidrome < 0.55.
+     *
+     * @return string[] media_file ids
+     */
+    public function findRediscoveredGems(
+        \DateTimeInterface $windowStart,
+        \DateTimeInterface $silenceStart,
+        \DateTimeInterface $recentSince,
+        int $limit,
+    ): array {
+        if (!$this->hasScrobblesTable()) {
+            return [];
+        }
+
+        $userId = $this->resolveUserId();
+        $sql = <<<'SQL'
+            SELECT s.media_file_id AS id
+            FROM scrobbles s
+            WHERE s.user_id = :uid
+            GROUP BY s.media_file_id
+            HAVING SUM(CASE WHEN s.submission_time >= :recent THEN 1 ELSE 0 END) > 0
+               AND SUM(CASE WHEN s.submission_time >= :silence AND s.submission_time < :recent THEN 1 ELSE 0 END) = 0
+               AND SUM(CASE WHEN s.submission_time >= :window AND s.submission_time < :silence THEN 1 ELSE 0 END) > 0
+            ORDER BY MAX(s.submission_time) DESC
+            LIMIT :lim
+        SQL;
+
+        $rows = $this->connection()->fetchAllAssociative(
+            $sql,
+            [
+                'uid' => $userId,
+                'recent' => $recentSince->getTimestamp(),
+                'silence' => $silenceStart->getTimestamp(),
+                'window' => $windowStart->getTimestamp(),
+                'lim' => $limit,
+            ],
+            [
+                'recent' => \Doctrine\DBAL\ParameterType::INTEGER,
+                'silence' => \Doctrine\DBAL\ParameterType::INTEGER,
+                'window' => \Doctrine\DBAL\ParameterType::INTEGER,
+                'lim' => \Doctrine\DBAL\ParameterType::INTEGER,
+            ],
+        );
+
+        return array_map(static fn (array $r): string => (string) $r['id'], $rows);
+    }
+
+    /**
      * « Fidèles compagnons » : tracks played across the MOST DISTINCT days
      * (regularity, not raw volume — a track heard once a week for a year
      * beats one binged 50× in a day). Requires the scrobbles table; returns

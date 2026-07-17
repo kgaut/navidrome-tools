@@ -9,6 +9,18 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+## [1.3.0] - 2026-07-17
+
+### Ajouté
+
+- **Playlist « Pépites redécouvertes »** — morceaux rejoués dans le dernier mois
+  après ~12 mois de silence, et déjà écoutés avant ce silence (fenêtre de 24
+  mois) : de vraies re-découvertes, en aléatoire. Nouvelle
+  `PepitesRedecouvertesDefinition` +
+  `NavidromeRepository::findRediscoveredGems()` (requête sur l'historique par
+  écoute `scrobbles`). Fenêtres configurables via
+  `PLAYLIST_PEPITES_REDECOUVERTES_{WINDOW,SILENCE,RECENT}_MONTHS`.
+
 ## [1.2.0] - 2026-07-01
 
 ### Ajouté
@@ -79,7 +91,8 @@ L'ancienne POC reste accessible via le tag `poc-v0`.
   `BackupService`, sessions persistantes ; CI (phpcs, PHPStan, PHPUnit, lint
   Twig, build Docker).
 
-[Non publié]: https://github.com/kgaut/navidrome-tools/compare/1.2.0...HEAD
+[Non publié]: https://github.com/kgaut/navidrome-tools/compare/1.3.0...HEAD
+[1.3.0]: https://github.com/kgaut/navidrome-tools/compare/1.2.0...1.3.0
 [1.2.0]: https://github.com/kgaut/navidrome-tools/compare/1.1.0...1.2.0
 [1.1.0]: https://github.com/kgaut/navidrome-tools/compare/1.0.0...1.1.0
 [1.0.0]: https://github.com/kgaut/navidrome-tools/releases/tag/1.0.0
