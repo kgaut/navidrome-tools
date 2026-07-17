@@ -10,6 +10,7 @@ use App\Playlist\Definition\HappyBirthdayDefinition;
 use App\Playlist\Definition\HitParadeDefinition;
 use App\Playlist\Definition\KickstartDefinition;
 use App\Playlist\Definition\PepitesOublieesDefinition;
+use App\Playlist\Definition\PepitesRedecouvertesDefinition;
 use App\Playlist\Definition\TresVieillesPepitesDefinition;
 use App\Playlist\Definition\TopAllTimeDefinition;
 use App\Playlist\Definition\TopDeLanneeDefinition;
@@ -83,6 +84,31 @@ class DefinitionsTest extends TestCase
 
         $this->assertSame('tres-vieilles-pepites', $def->getSlug());
         $this->assertSame(['mf-ancient'], $def->build($this->ctx('2026-06-27')));
+    }
+
+    public function testPepitesRedecouvertesUsesThreeWindows(): void
+    {
+        $navidrome = $this->createMock(NavidromeRepository::class);
+        // now = 2026-06-27, recent=1mo, silence=12mo, window=24mo →
+        //   recentSince  = 2026-05-27
+        //   silenceStart = 2025-05-27 (now - 13 months)
+        //   windowStart  = 2024-06-27 (now - 24 months)
+        $navidrome->expects($this->once())
+            ->method('findRediscoveredGems')
+            ->with(
+                $this->callback(static fn (\DateTimeInterface $d): bool => $d->format('Y-m-d') === '2024-06-27'),
+                $this->callback(static fn (\DateTimeInterface $d): bool => $d->format('Y-m-d') === '2025-05-27'),
+                $this->callback(static fn (\DateTimeInterface $d): bool => $d->format('Y-m-d') === '2026-05-27'),
+                50,
+            )
+            ->willReturn(['mf-x', 'mf-y']);
+
+        $def = new PepitesRedecouvertesDefinition($navidrome, windowMonths: 24, silenceMonths: 12, recentMonths: 1, limit: 50);
+
+        $this->assertSame('pepites-redecouvertes', $def->getSlug());
+        $ids = $def->build($this->ctx('2026-06-27'));
+        sort($ids); // shuffled → assert the set.
+        $this->assertSame(['mf-x', 'mf-y'], $ids);
     }
 
     public function testCoupsDeCoeurCollectsStarredAndCapsAtLimit(): void
