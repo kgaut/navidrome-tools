@@ -320,7 +320,7 @@ Importe l'historique de scrobbles Last.fm dans la table locale `scrobbles`
 | `user` (argument) | utilisateur Last.fm (défaut : `LASTFM_USER`) |
 | `--api-key` | surcharge `LASTFM_API_KEY` |
 | `--date-min` / `--date-max` | borne la fenêtre `YYYY-MM-DD` (date-max inclut tout le jour) |
-| `--max-scrobbles` | plafond de scrobbles récupérés |
+| `--max-scrobbles` | plafond de scrobbles récupérés (`0` = pas de limite) |
 | `--dry-run` | n'écrit rien |
 
 #### `app:lastfm:auth [user]`
