@@ -9,6 +9,16 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+### Corrigé
+
+- **`app:lastfm:fetch --max-scrobbles=0` ne récupérait plus rien** (issue #253).
+  Documentée comme « pas de limite », la valeur `0` était lue comme un plafond
+  à zéro : la boucle s'arrêtait avant le premier scrobble, le run finissait en
+  `success` avec `fetched=0` et le curseur smart-date ne bougeait pas. Le
+  `navidrome-sync.sh` versionné passant cette option, **plus aucun scrobble
+  n'était importé** par le cycle nocturne. `0` (ou négatif) = pas de limite ;
+  l'option est retirée du script.
+
 ## [1.4.0] - 2026-08-23
 
 ### Ajouté

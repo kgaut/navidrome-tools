@@ -109,6 +109,20 @@ class LastFmFetcherTest extends TestCase
         $this->assertSame(2, $report->fetched);
     }
 
+    public function testMaxScrobblesZeroMeansNoLimit(): void
+    {
+        $client = $this->makeClient([
+            $this->makeScrobble('A', 'T1', '2024-01-01 10:00:00'),
+            $this->makeScrobble('A', 'T2', '2024-01-01 11:00:00'),
+            $this->makeScrobble('A', 'T3', '2024-01-01 12:00:00'),
+        ]);
+        $fetcher = new LastFmFetcher($client, $this->makeRepo());
+        $report = $fetcher->fetch('key', 'alice', maxScrobbles: 0);
+
+        $this->assertSame(3, $report->fetched);
+        $this->assertSame(3, $report->inserted);
+    }
+
     /** @param list<LastFmScrobble> $scrobbles */
     private function makeClient(array $scrobbles): LastFmClient
     {

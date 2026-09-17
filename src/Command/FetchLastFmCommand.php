@@ -45,7 +45,7 @@ class FetchLastFmCommand extends Command
             ->addOption('api-key', null, InputOption::VALUE_REQUIRED, 'Last.fm API key (defaults to LASTFM_API_KEY env).')
             ->addOption('date-min', null, InputOption::VALUE_REQUIRED, 'Fetch from this date (YYYY-MM-DD). Overrides smart date.')
             ->addOption('date-max', null, InputOption::VALUE_REQUIRED, 'Fetch until this date (YYYY-MM-DD).')
-            ->addOption('max-scrobbles', null, InputOption::VALUE_REQUIRED, 'Stop after N scrobbles.')
+            ->addOption('max-scrobbles', null, InputOption::VALUE_REQUIRED, 'Stop after N scrobbles (0 = no limit).')
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Count without writing to DB.');
     }
 

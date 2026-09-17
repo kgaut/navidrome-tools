@@ -73,7 +73,7 @@ if ! nd_start_if_stopped; then
 fi
 
 # === 3. Reste du cycle (conteneur relancé, best-effort) ======================
-run_aux "fetch Last.fm"              "${PHP_BIN[@]}" bin/console app:lastfm:fetch --max-scrobbles=0 --no-interaction
+run_aux "fetch Last.fm"              "${PHP_BIN[@]}" bin/console app:lastfm:fetch --no-interaction
 run_aux "sync loved Last.fm"         "${PHP_BIN[@]}" bin/console app:lastfm:loved:sync --no-interaction
 run_aux "loves Navidrome → Last.fm"  "${PHP_BIN[@]}" bin/console app:loves:navidrome-to-lastfm --no-interaction
 run_aux "alias resolubles"           "${PHP_BIN[@]}" bin/console app:aliases:generate --no-interaction

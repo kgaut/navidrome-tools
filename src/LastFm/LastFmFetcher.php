@@ -37,7 +37,9 @@ class LastFmFetcher
         $fetchedAt = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('Y-m-d H:i:s');
 
         foreach ($this->client->streamRecentTracks($apiKey, $lastFmUser, $dateMin, $dateMax) as $scrobble) {
-            if ($maxScrobbles !== null && $report->fetched >= $maxScrobbles) {
+            // 0 (or negative) means no cap — `--max-scrobbles=0` is documented
+            // as « pas de limite » (#253).
+            if ($maxScrobbles !== null && $maxScrobbles > 0 && $report->fetched >= $maxScrobbles) {
                 break;
             }
             $report->fetched++;
