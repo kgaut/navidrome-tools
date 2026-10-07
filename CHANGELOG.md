@@ -9,6 +9,8 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+## [1.4.1] - 2026-10-07
+
 ### Corrigé
 
 - **« Mix de la semaine » ne contenait plus aucune découverte** (issue #255).
@@ -132,7 +134,8 @@ L'ancienne POC reste accessible via le tag `poc-v0`.
   `BackupService`, sessions persistantes ; CI (phpcs, PHPStan, PHPUnit, lint
   Twig, build Docker).
 
-[Non publié]: https://github.com/kgaut/navidrome-tools/compare/1.4.0...HEAD
+[Non publié]: https://github.com/kgaut/navidrome-tools/compare/1.4.1...HEAD
+[1.4.1]: https://github.com/kgaut/navidrome-tools/compare/1.4.0...1.4.1
 [1.4.0]: https://github.com/kgaut/navidrome-tools/compare/1.3.0...1.4.0
 [1.3.0]: https://github.com/kgaut/navidrome-tools/compare/1.2.0...1.3.0
 [1.2.0]: https://github.com/kgaut/navidrome-tools/compare/1.1.0...1.2.0
