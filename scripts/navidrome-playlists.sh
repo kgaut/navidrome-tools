@@ -27,6 +27,15 @@ if [[ ! -f "$COMPOSE_FILE" ]]; then
 fi
 cd "$PROJECT_DIR"
 
+# Caractéristiques audio d'AudioMuse (tempo, énergie, ambiances) : import
+# incrémental juste avant la génération. Un échec n'empêche pas de générer
+# (les playlists concernées utilisent alors les données déjà importées).
+log "Import des caractéristiques AudioMuse…"
+if ! "${PHP_BIN[@]}" bin/console app:audiomuse:sync --no-interaction; then
+    msg="Échec de l'import AudioMuse (app:audiomuse:sync) : génération avec les données existantes."
+    log "$msg"; notify_failure "$msg"
+fi
+
 log "Génération des playlists…"
 if ! "${PHP_BIN[@]}" bin/console app:playlists:generate --all --no-interaction; then
     msg="Échec de la génération des playlists (conteneur Navidrome démarré ?)."

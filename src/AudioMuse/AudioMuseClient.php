@@ -15,6 +15,8 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  *       → {"path": [{item_id, …}], "total_distance": float}
  *   POST /api/clap/search {"query": …, "limit": …}
  *       → {"query": …, "results": [{item_id, …, similarity}], "count": int}
+ *   GET /api/sync?fields=index&page=…   → {"tracks": [{id, fp}], "has_more": bool}
+ *   GET /api/sync?ids=a,b&include_embeddings=false → {"tracks": [{id, tempo, …, fp}]}
  *
  * Recent versions (≥ 3.6) return the list at the JSON root; older ones
  * wrapped it as {"similar_songs": […]}. Both shapes are accepted.
@@ -150,6 +152,67 @@ class AudioMuseClient
             $id = is_array($song) ? trim((string) ($song['item_id'] ?? '')) : '';
             if ($id !== '') {
                 $out[] = ['item_id' => $id, 'similarity' => (float) ($song['similarity'] ?? 0)];
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * One page of the analysed-library manifest: id => fingerprint. The
+     * fingerprint changes whenever a track is re-analysed.
+     *
+     * @return array{tracks: array<string, string>, has_more: bool}
+     */
+    public function syncManifest(int $page, int $limit = 1000): array
+    {
+        if (!$this->isConfigured()) {
+            throw new AudioMuseException('AudioMuse base URL is not set (AUDIOMUSE_BASE_URL).');
+        }
+
+        $payload = $this->get('/api/sync', ['fields' => 'index', 'page' => max(1, $page), 'limit' => min(1000, max(1, $limit))]);
+        $rows = is_array($payload['tracks'] ?? null) ? $payload['tracks'] : null;
+        if ($rows === null) {
+            throw new AudioMuseException('AudioMuse GET /api/sync: no "tracks" list in the manifest.');
+        }
+
+        $tracks = [];
+        foreach ($rows as $row) {
+            $id = is_array($row) ? trim((string) ($row['id'] ?? '')) : '';
+            if ($id !== '') {
+                $tracks[$id] = (string) ($row['fp'] ?? '');
+            }
+        }
+
+        return ['tracks' => $tracks, 'has_more' => (bool) ($payload['has_more'] ?? false)];
+    }
+
+    /**
+     * Full audio features for up to 500 tracks, without embeddings.
+     *
+     * @param list<string> $ids
+     *
+     * @return list<TrackFeatures>
+     */
+    public function syncTracks(array $ids): array
+    {
+        if (!$this->isConfigured()) {
+            throw new AudioMuseException('AudioMuse base URL is not set (AUDIOMUSE_BASE_URL).');
+        }
+        if ($ids === []) {
+            return [];
+        }
+        if (count($ids) > 500) {
+            throw new \InvalidArgumentException('AudioMuse /api/sync accepts at most 500 ids per call.');
+        }
+
+        $payload = $this->get('/api/sync', ['ids' => implode(',', $ids), 'include_embeddings' => 'false']);
+
+        $out = [];
+        foreach (is_array($payload['tracks'] ?? null) ? $payload['tracks'] : [] as $row) {
+            $track = is_array($row) ? TrackFeatures::fromSyncRow($row) : null;
+            if ($track !== null) {
+                $out[] = $track;
             }
         }
 

@@ -11,6 +11,20 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 ### Ajouté
 
+- **Caractéristiques audio d'AudioMuse-AI importées + 3 playlists « soniques »**
+  (issue #257). `app:audiomuse:sync` importe tempo, tonalité, énergie, ambiances
+  et genres pondérés dans la table `audio_feature` (migration
+  `Version20261008080000`), de façon incrémentale : manifeste `GET /api/sync?fields=index`,
+  puis détail (sans embeddings) des seuls morceaux nouveaux ou réanalysés, par
+  lots de 500 ; les morceaux disparus sont retirés, mais un manifeste vide
+  n'efface jamais la table. Run `audiomuse-sync` dans l'historique ;
+  `navidrome-playlists.sh` le lance avant la génération (un échec n'empêche pas
+  de générer). Nouvelles playlists : **« Course »** (morceaux écoutés entre
+  `PLAYLIST_COURSE_BPM_MIN` et `_MAX` BPM, demi-tempo toléré),
+  **« Calmes et peu écoutés »** (ambiance « relaxed », ≤ `PLAYLIST_CALMES_MAX_PLAYS`
+  écoutes) et **« Énergiques oubliées »** (les plus énergiques des pépites
+  oubliées). `NavidromeRepository::getPlayCountsByMediaFileId()` découpe
+  désormais ses requêtes par lots de 500.
 - **Playlists décrites en texte** (issue #258) — sur `/playlists`, une phrase
   (« piano calme, pluie ») + un nombre de morceaux (+ un plafond d'écoutes
   facultatif) crée une playlist Navidrome à partir de la recherche texte CLAP

@@ -2371,29 +2371,33 @@ class NavidromeRepository
         }
 
         $userId = $this->resolveUserId();
-        $idList = array_keys($counts);
-        $placeholders = implode(',', array_fill(0, count($idList), '?'));
+        $useScrobbles = $this->hasScrobblesTable();
 
-        if ($this->hasScrobblesTable()) {
-            $sql = sprintf(
-                'SELECT media_file_id AS id, COUNT(*) AS plays
-                 FROM scrobbles
-                 WHERE user_id = ? AND media_file_id IN (%s)
-                 GROUP BY media_file_id',
-                $placeholders,
-            );
-        } else {
-            $sql = sprintf(
-                "SELECT item_id AS id, play_count AS plays
-                 FROM annotation
-                 WHERE user_id = ? AND item_type = 'media_file' AND item_id IN (%s)",
-                $placeholders,
-            );
-        }
+        // Chunked: callers may pass thousands of ids (audio-feature
+        // playlists), beyond SQLite's bound-parameter limit.
+        foreach (array_chunk(array_map('strval', array_keys($counts)), 500) as $idList) {
+            $placeholders = implode(',', array_fill(0, count($idList), '?'));
+            if ($useScrobbles) {
+                $sql = sprintf(
+                    'SELECT media_file_id AS id, COUNT(*) AS plays
+                     FROM scrobbles
+                     WHERE user_id = ? AND media_file_id IN (%s)
+                     GROUP BY media_file_id',
+                    $placeholders,
+                );
+            } else {
+                $sql = sprintf(
+                    "SELECT item_id AS id, play_count AS plays
+                     FROM annotation
+                     WHERE user_id = ? AND item_type = 'media_file' AND item_id IN (%s)",
+                    $placeholders,
+                );
+            }
 
-        $rows = $this->connection()->fetchAllAssociative($sql, [$userId, ...$idList]);
-        foreach ($rows as $r) {
-            $counts[(string) $r['id']] = (int) $r['plays'];
+            $rows = $this->connection()->fetchAllAssociative($sql, [$userId, ...$idList]);
+            foreach ($rows as $r) {
+                $counts[(string) $r['id']] = (int) $r['plays'];
+            }
         }
 
         return $counts;

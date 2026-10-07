@@ -30,6 +30,7 @@ class RunHistory
     public const TYPE_RECOMMENDATIONS = 'recommendations';
     public const TYPE_BACKUP_PURGE = 'backup-purge';
     public const TYPE_HISTORY_PURGE = 'history-purge';
+    public const TYPE_AUDIOMUSE_SYNC = 'audiomuse-sync';
 
     public const STATUS_SUCCESS = 'success';
     public const STATUS_ERROR = 'error';
