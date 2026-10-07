@@ -2,11 +2,15 @@
 
 namespace App\Playlist\Definition;
 
+use App\AudioMuse\AudioMuseAuthException;
 use App\AudioMuse\AudioMuseClient;
 use App\AudioMuse\AudioMuseException;
+use App\AudioMuse\AudioMuseNotFoundException;
 use App\Navidrome\NavidromeRepository;
 use App\Playlist\PlaylistContext;
 use App\Playlist\PlaylistDefinitionInterface;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 
 /**
  * « Mix de la semaine » — une playlist façon Discover Weekly de Spotify,
@@ -18,7 +22,10 @@ use App\Playlist\PlaylistDefinitionInterface;
  * mélange seeds et découvertes à parts ~égales.
  *
  * Inactive (playlist vide) tant qu'AudioMuse n'est pas configuré ; un seed
- * qu'AudioMuse n'a pas (encore) analysé est simplement ignoré.
+ * qu'AudioMuse n'a pas (encore) analysé (404) est simplement ignoré. Un refus
+ * d'authentification (401/403) fait échouer la génération, comme l'absence
+ * totale de découverte : un mix sans découverte n'est qu'une copie des seeds,
+ * on garde alors la playlist existante plutôt que de l'écraser.
  */
 final class MixSemaineDefinition implements PlaylistDefinitionInterface
 {
@@ -30,6 +37,7 @@ final class MixSemaineDefinition implements PlaylistDefinitionInterface
         private readonly int $perSeed = 20,
         private readonly int $maxFamiliarPlays = 5,
         private readonly int $limit = 50,
+        private readonly LoggerInterface $logger = new NullLogger(),
     ) {
     }
 
@@ -74,8 +82,16 @@ final class MixSemaineDefinition implements PlaylistDefinitionInterface
         foreach ($seeds as $seedId) {
             try {
                 $similar = $this->audioMuse->similarTracks($seedId, $this->perSeed);
-            } catch (AudioMuseException) {
-                // Seed not analysed / transient error — skip it, keep the rest.
+            } catch (AudioMuseAuthException $e) {
+                throw $e; // misconfiguration: fail loudly, never an empty mix
+            } catch (AudioMuseNotFoundException) {
+                continue; // seed not analysed (yet) by AudioMuse
+            } catch (AudioMuseException $e) {
+                // Transient error — skip this seed, keep the rest.
+                $this->logger->warning('Mix de la semaine : seed {seed} ignoré ({error}).', [
+                    'seed' => $seedId,
+                    'error' => $e->getMessage(),
+                ]);
                 continue;
             }
             foreach ($similar as $row) {
@@ -89,6 +105,14 @@ final class MixSemaineDefinition implements PlaylistDefinitionInterface
                 $candidates[$id]['count']++;
                 $candidates[$id]['distance'] = min($candidates[$id]['distance'], $row['distance']);
             }
+        }
+
+        if ($candidates === []) {
+            throw new AudioMuseException(sprintf(
+                'Mix de la semaine : AudioMuse n\'a renvoyé aucun morceau similaire pour les %d seeds '
+                . '(morceaux non analysés, ou réponse illisible).',
+                count($seeds),
+            ));
         }
 
         // Familiarity filter: keep only little/never-played candidates.

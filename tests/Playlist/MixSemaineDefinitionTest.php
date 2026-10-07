@@ -2,8 +2,10 @@
 
 namespace App\Tests\Playlist;
 
+use App\AudioMuse\AudioMuseAuthException;
 use App\AudioMuse\AudioMuseClient;
 use App\AudioMuse\AudioMuseException;
+use App\AudioMuse\AudioMuseNotFoundException;
 use App\Navidrome\NavidromeRepository;
 use App\Playlist\Definition\MixSemaineDefinition;
 use App\Playlist\PlaylistContext;
@@ -109,5 +111,58 @@ class MixSemaineDefinitionTest extends TestCase
         $def = new MixSemaineDefinition($navidrome, $audioMuse);
 
         $this->assertSame([], $def->build($this->ctx()));
+    }
+
+    public function testUnanalysedSeedIsSkipped(): void
+    {
+        $audioMuse = $this->createMock(AudioMuseClient::class);
+        $audioMuse->method('isConfigured')->willReturn(true);
+        $audioMuse->method('similarTracks')->willReturnCallback(
+            static function (string $itemId): array {
+                if ($itemId === 'new') {
+                    throw new AudioMuseNotFoundException('HTTP 404');
+                }
+
+                return [['item_id' => 'd1', 'distance' => 0.1]];
+            },
+        );
+
+        $navidrome = $this->createMock(NavidromeRepository::class);
+        $navidrome->method('topTracksInWindow')->willReturn(['new', 'ok']);
+        $navidrome->method('getPlayCountsByMediaFileId')->willReturn(['d1' => 0]);
+        $navidrome->method('filterMissingMediaFileIds')->willReturn([]);
+
+        $ids = (new MixSemaineDefinition($navidrome, $audioMuse, limit: 10))->build($this->ctx());
+
+        $this->assertContains('d1', $ids);
+    }
+
+    public function testAuthFailureAbortsTheBuild(): void
+    {
+        $audioMuse = $this->createMock(AudioMuseClient::class);
+        $audioMuse->method('isConfigured')->willReturn(true);
+        $audioMuse->expects($this->once())->method('similarTracks')
+            ->willThrowException(new AudioMuseAuthException('HTTP 401'));
+
+        $navidrome = $this->createMock(NavidromeRepository::class);
+        $navidrome->method('topTracksInWindow')->willReturn(['s1', 's2']);
+
+        $this->expectException(AudioMuseAuthException::class);
+        (new MixSemaineDefinition($navidrome, $audioMuse))->build($this->ctx());
+    }
+
+    public function testNoDiscoveryAtAllFailsInsteadOfReturningSeedsOnly(): void
+    {
+        $audioMuse = $this->createMock(AudioMuseClient::class);
+        $audioMuse->method('isConfigured')->willReturn(true);
+        $audioMuse->method('similarTracks')->willReturn([]);
+
+        $navidrome = $this->createMock(NavidromeRepository::class);
+        $navidrome->method('topTracksInWindow')->willReturn(['s1', 's2']);
+        $navidrome->expects($this->never())->method('filterMissingMediaFileIds');
+
+        $this->expectException(AudioMuseException::class);
+        $this->expectExceptionMessage('aucun morceau similaire pour les 2 seeds');
+        (new MixSemaineDefinition($navidrome, $audioMuse))->build($this->ctx());
     }
 }

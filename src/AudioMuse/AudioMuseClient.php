@@ -10,15 +10,23 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  * analysis of the library and can return sonically similar tracks.
  *
  * We only use the « instant mix » endpoint:
- *   GET /api/similar_tracks?item_id=…&n=… → {"similar_songs":[{item_id, …, distance}]}
+ *   GET /api/similar_tracks?item_id=…&n=… → [{item_id, …, distance}]
+ *
+ * Recent versions (≥ 3.6) return the list at the JSON root; older ones
+ * wrapped it as {"similar_songs": […]}. Both shapes are accepted.
  *
  * Crucially, AudioMuse-AI indexes the library through the Navidrome/Subsonic
  * API, so the `item_id` it returns IS the Navidrome media_file id — usable
  * directly as a playlist song id, no remapping needed.
  *
- * The optional API key is sent as `X-API-Key` only when set (some AudioMuse
- * deployments are unauthenticated). `isConfigured()` is true as soon as a
- * base URL is provided.
+ * The optional API key is AudioMuse's `API_TOKEN`, sent as
+ * `Authorization: Bearer …` only when set (AudioMuse runs unauthenticated
+ * while `AUTH_ENABLED` is off). `isConfigured()` is true as soon as a base
+ * URL is provided.
+ *
+ * Errors: HTTP 404 (unknown / not analysed track) raises
+ * AudioMuseNotFoundException, 401/403 AudioMuseAuthException, anything else
+ * AudioMuseException.
  */
 class AudioMuseClient
 {
@@ -54,7 +62,7 @@ class AudioMuseClient
             'eliminate_duplicates' => 'true',
         ]);
 
-        $songs = $payload['similar_songs'] ?? [];
+        $songs = array_is_list($payload) ? $payload : ($payload['similar_songs'] ?? []);
         if (!is_array($songs)) {
             return [];
         }
@@ -83,7 +91,7 @@ class AudioMuseClient
     {
         $headers = ['Accept' => 'application/json'];
         if (trim($this->apiKey) !== '') {
-            $headers['X-API-Key'] = $this->apiKey;
+            $headers['Authorization'] = 'Bearer ' . $this->apiKey;
         }
 
         $url = rtrim($this->baseUrl, '/') . $path;
@@ -95,6 +103,16 @@ class AudioMuseClient
                 'timeout' => 30,
             ]);
             $status = $response->getStatusCode();
+            if ($status === 401 || $status === 403) {
+                throw new AudioMuseAuthException(sprintf(
+                    'AudioMuse GET %s returned HTTP %d: check AUDIOMUSE_API_KEY (AudioMuse API_TOKEN).',
+                    $path,
+                    $status,
+                ));
+            }
+            if ($status === 404) {
+                throw new AudioMuseNotFoundException(sprintf('AudioMuse GET %s returned HTTP 404.', $path));
+            }
             if ($status >= 400) {
                 throw new AudioMuseException(sprintf('AudioMuse GET %s returned HTTP %d.', $path, $status));
             }

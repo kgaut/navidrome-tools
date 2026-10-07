@@ -9,8 +9,21 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+## [1.4.1] - 2026-10-07
+
 ### Corrigé
 
+- **« Mix de la semaine » ne contenait plus aucune découverte** (issue #255).
+  AudioMuse-AI (≥ 3.6) renvoie la réponse de `/api/similar_tracks` en liste à
+  la racine du JSON, et non plus sous `similar_songs` : chaque seed revenait
+  vide, sans erreur, et la playlist ne contenait que ses seeds. Les deux formes
+  sont désormais lues. Si **aucun** seed ne ramène de similaire, la génération
+  échoue au lieu d'écraser la playlist par les seuls seeds.
+- **AudioMuse : clé envoyée dans le mauvais en-tête** (issue #256). La clé
+  part maintenant en `Authorization: Bearer` (l'`API_TOKEN` d'AudioMuse), au
+  lieu de `X-API-Key` qu'AudioMuse n'a jamais lu. Un 401/403 fait échouer la
+  génération du mix (`AudioMuseAuthException`) au lieu d'être avalé ; un 404
+  (morceau non analysé) reste ignoré. `.env.dist` précise la valeur attendue.
 - **`app:lastfm:fetch --max-scrobbles=0` ne récupérait plus rien** (issue #253).
   Documentée comme « pas de limite », la valeur `0` était lue comme un plafond
   à zéro : la boucle s'arrêtait avant le premier scrobble, le run finissait en
@@ -121,7 +134,8 @@ L'ancienne POC reste accessible via le tag `poc-v0`.
   `BackupService`, sessions persistantes ; CI (phpcs, PHPStan, PHPUnit, lint
   Twig, build Docker).
 
-[Non publié]: https://github.com/kgaut/navidrome-tools/compare/1.4.0...HEAD
+[Non publié]: https://github.com/kgaut/navidrome-tools/compare/1.4.1...HEAD
+[1.4.1]: https://github.com/kgaut/navidrome-tools/compare/1.4.0...1.4.1
 [1.4.0]: https://github.com/kgaut/navidrome-tools/compare/1.3.0...1.4.0
 [1.3.0]: https://github.com/kgaut/navidrome-tools/compare/1.2.0...1.3.0
 [1.2.0]: https://github.com/kgaut/navidrome-tools/compare/1.1.0...1.2.0
