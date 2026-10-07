@@ -38,7 +38,8 @@ parameters:
     env(LISTENBRAINZ_BASE_URL): 'https://api.listenbrainz.org'
     env(LISTENBRAINZ_TOKEN): ''
     # AudioMuse-AI (analyse sonique) — playlist « Mix de la semaine ».
-    # Inactive tant que AUDIOMUSE_BASE_URL est vide ; clé API optionnelle.
+    # Inactive tant que AUDIOMUSE_BASE_URL est vide ; clé = API_TOKEN AudioMuse
+    # (Bearer), requise si AUTH_ENABLED=true côté AudioMuse.
     env(AUDIOMUSE_BASE_URL): ''
     env(AUDIOMUSE_API_KEY): ''
     env(PLAYLIST_MIX_SEED_DAYS): '7'

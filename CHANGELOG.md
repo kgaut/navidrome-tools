@@ -11,6 +11,17 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 ### Corrigé
 
+- **« Mix de la semaine » ne contenait plus aucune découverte** (issue #255).
+  AudioMuse-AI (≥ 3.6) renvoie la réponse de `/api/similar_tracks` en liste à
+  la racine du JSON, et non plus sous `similar_songs` : chaque seed revenait
+  vide, sans erreur, et la playlist ne contenait que ses seeds. Les deux formes
+  sont désormais lues. Si **aucun** seed ne ramène de similaire, la génération
+  échoue au lieu d'écraser la playlist par les seuls seeds.
+- **AudioMuse : clé envoyée dans le mauvais en-tête** (issue #256). La clé
+  part maintenant en `Authorization: Bearer` (l'`API_TOKEN` d'AudioMuse), au
+  lieu de `X-API-Key` qu'AudioMuse n'a jamais lu. Un 401/403 fait échouer la
+  génération du mix (`AudioMuseAuthException`) au lieu d'être avalé ; un 404
+  (morceau non analysé) reste ignoré. `.env.dist` précise la valeur attendue.
 - **`app:lastfm:fetch --max-scrobbles=0` ne récupérait plus rien** (issue #253).
   Documentée comme « pas de limite », la valeur `0` était lue comme un plafond
   à zéro : la boucle s'arrêtait avant le premier scrobble, le run finissait en
