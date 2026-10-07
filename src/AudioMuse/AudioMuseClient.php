@@ -13,6 +13,8 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  *   GET /api/similar_tracks?item_id=…&n=… → [{item_id, …, distance}]
  *   GET /api/find_path?start_song_id=…&end_song_id=…&max_steps=…
  *       → {"path": [{item_id, …}], "total_distance": float}
+ *   POST /api/clap/search {"query": …, "limit": …}
+ *       → {"query": …, "results": [{item_id, …, similarity}], "count": int}
  *
  * Recent versions (≥ 3.6) return the list at the JSON root; older ones
  * wrapped it as {"similar_songs": […]}. Both shapes are accepted.
@@ -124,11 +126,62 @@ class AudioMuseClient
     }
 
     /**
+     * Free-text search over the library (CLAP text-to-audio model), best
+     * match first: « piano calme, pluie », « rock énervé années 90 »…
+     * The text model loads on demand, so the first call can be slow.
+     *
+     * @return list<array{item_id: string, similarity: float}>
+     */
+    public function textSearch(string $query, int $limit): array
+    {
+        if (!$this->isConfigured()) {
+            throw new AudioMuseException('AudioMuse base URL is not set (AUDIOMUSE_BASE_URL).');
+        }
+
+        $payload = $this->post('/api/clap/search', ['query' => $query, 'limit' => max(1, $limit)], 120);
+
+        $results = $payload['results'] ?? [];
+        if (!is_array($results)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($results as $song) {
+            $id = is_array($song) ? trim((string) ($song['item_id'] ?? '')) : '';
+            if ($id !== '') {
+                $out[] = ['item_id' => $id, 'similarity' => (float) ($song['similarity'] ?? 0)];
+            }
+        }
+
+        return $out;
+    }
+
+    /**
      * @param array<string, scalar> $query
      *
      * @return array<mixed>
      */
     private function get(string $path, array $query): array
+    {
+        return $this->request('GET', $path, ['query' => $query]);
+    }
+
+    /**
+     * @param array<string, mixed> $json
+     *
+     * @return array<mixed>
+     */
+    private function post(string $path, array $json, int $timeout): array
+    {
+        return $this->request('POST', $path, ['json' => $json, 'timeout' => $timeout]);
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     *
+     * @return array<mixed>
+     */
+    private function request(string $method, string $path, array $options): array
     {
         $headers = ['Accept' => 'application/json'];
         if (trim($this->apiKey) !== '') {
@@ -138,24 +191,26 @@ class AudioMuseClient
         $url = rtrim($this->baseUrl, '/') . $path;
 
         try {
-            $response = $this->httpClient->request('GET', $url, [
-                'query' => $query,
+            $response = $this->httpClient->request($method, $url, $options + [
                 'headers' => $headers,
                 'timeout' => 60,
             ]);
             $status = $response->getStatusCode();
             if ($status === 401 || $status === 403) {
                 throw new AudioMuseAuthException(sprintf(
-                    'AudioMuse GET %s returned HTTP %d: check AUDIOMUSE_API_KEY (AudioMuse API_TOKEN).',
+                    'AudioMuse %s %s returned HTTP %d: check AUDIOMUSE_API_KEY (AudioMuse API_TOKEN).',
+                    $method,
                     $path,
                     $status,
                 ));
             }
-            if ($status === 404) {
-                throw new AudioMuseNotFoundException(sprintf('AudioMuse GET %s returned HTTP 404.', $path));
-            }
             if ($status >= 400) {
-                throw new AudioMuseException(sprintf('AudioMuse GET %s returned HTTP %d.', $path, $status));
+                $message = sprintf('AudioMuse %s %s returned HTTP %d', $method, $path, $status);
+                $error = $this->errorMessage($response->getContent(false));
+                if ($error !== null) {
+                    $message .= ': ' . $error;
+                }
+                throw $status === 404 ? new AudioMuseNotFoundException($message . '.') : new AudioMuseException($message . '.');
             }
 
             /** @var array<mixed> $body */
@@ -163,9 +218,18 @@ class AudioMuseClient
         } catch (AudioMuseException $e) {
             throw $e;
         } catch (ExceptionInterface $e) {
-            throw new AudioMuseException(sprintf('AudioMuse GET %s failed: %s', $path, $e->getMessage()), 0, $e);
+            throw new AudioMuseException(sprintf('AudioMuse %s %s failed: %s', $method, $path, $e->getMessage()), 0, $e);
         }
 
         return $body;
+    }
+
+    /** AudioMuse error bodies carry a readable `error_message`; anything else is ignored. */
+    private function errorMessage(string $body): ?string
+    {
+        $decoded = json_decode($body, true);
+        $message = is_array($decoded) ? ($decoded['error_message'] ?? null) : null;
+
+        return is_string($message) && trim($message) !== '' ? trim($message) : null;
     }
 }

@@ -24,8 +24,12 @@ class PlaylistGenerator
     /** @var list<PlaylistDefinitionInterface> */
     private readonly array $definitions;
 
+    /** @var list<PlaylistDefinitionProviderInterface> */
+    private readonly array $providers;
+
     /**
-     * @param iterable<PlaylistDefinitionInterface> $definitions
+     * @param iterable<PlaylistDefinitionInterface>         $definitions code definitions (tagged services)
+     * @param iterable<PlaylistDefinitionProviderInterface> $providers   data-backed definitions, resolved per call
      */
     public function __construct(
         iterable $definitions,
@@ -33,8 +37,10 @@ class PlaylistGenerator
         private readonly PlaylistEnablement $enablement,
         private readonly int $defaultLimit = 50,
         private readonly LoggerInterface $logger = new NullLogger(),
+        iterable $providers = [],
     ) {
         $this->definitions = is_array($definitions) ? array_values($definitions) : iterator_to_array($definitions, false);
+        $this->providers = is_array($providers) ? array_values($providers) : iterator_to_array($providers, false);
     }
 
     /**
@@ -43,7 +49,7 @@ class PlaylistGenerator
     public function listDefinitions(): array
     {
         $out = [];
-        foreach ($this->definitions as $def) {
+        foreach ($this->allDefinitions() as $def) {
             $out[] = [
                 'slug' => $def->getSlug(),
                 'name' => $def->getName(),
@@ -147,17 +153,34 @@ class PlaylistGenerator
     {
         if ($slug === null) {
             return array_values(array_filter(
-                $this->definitions,
+                $this->allDefinitions(),
                 fn (PlaylistDefinitionInterface $d): bool => $this->enablement->isEnabled($d->getSlug()),
             ));
         }
 
-        foreach ($this->definitions as $def) {
+        foreach ($this->allDefinitions() as $def) {
             if ($def->getSlug() === $slug) {
                 return [$def];
             }
         }
 
         throw new \InvalidArgumentException(sprintf('Unknown playlist definition "%s".', $slug));
+    }
+
+    /**
+     * Code definitions first, then those supplied by providers.
+     *
+     * @return list<PlaylistDefinitionInterface>
+     */
+    private function allDefinitions(): array
+    {
+        $all = $this->definitions;
+        foreach ($this->providers as $provider) {
+            foreach ($provider->getDefinitions() as $def) {
+                $all[] = $def;
+            }
+        }
+
+        return $all;
     }
 }
