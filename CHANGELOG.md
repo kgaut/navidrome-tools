@@ -9,6 +9,8 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+## [1.5.2] - 2026-10-08
+
 ### Sécurité
 
 - **Dépendances vulnérables mises à jour** (issue #252). Symfony passe de 7.2
@@ -206,7 +208,8 @@ L'ancienne POC reste accessible via le tag `poc-v0`.
   `BackupService`, sessions persistantes ; CI (phpcs, PHPStan, PHPUnit, lint
   Twig, build Docker).
 
-[Non publié]: https://github.com/kgaut/navidrome-tools/compare/1.5.1...HEAD
+[Non publié]: https://github.com/kgaut/navidrome-tools/compare/1.5.2...HEAD
+[1.5.2]: https://github.com/kgaut/navidrome-tools/compare/1.5.1...1.5.2
 [1.5.1]: https://github.com/kgaut/navidrome-tools/compare/1.5.0...1.5.1
 [1.5.0]: https://github.com/kgaut/navidrome-tools/compare/1.4.1...1.5.0
 [1.4.1]: https://github.com/kgaut/navidrome-tools/compare/1.4.0...1.4.1
