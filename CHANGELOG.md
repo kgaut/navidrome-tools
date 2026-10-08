@@ -9,6 +9,20 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+## [1.6.1] - 2026-10-08
+
+### Corrigé
+
+- **Images Docker versionnées et `latest` fiable** (issue #261). Les tags de
+  release (`1.6.0`, sans `v`) ne déclenchaient pas la CI : aucune image `X.Y.Z`
+  n'était publiée et `APP_VERSION` valait `main-<sha>`. La CI réagit désormais
+  aux tags `X.Y.Z` et publie `X.Y.Z`, `X.Y`, `X` et `latest`. `latest` désigne
+  la dernière release au lieu de suivre `develop` (branche par défaut du dépôt).
+  Un groupe `concurrency` annule le run précédent d'une même branche, pour qu'un
+  build plus ancien ne puisse plus écraser `:develop`, et la notification ne
+  signale plus ces runs annulés comme des échecs. Tags d'image documentés dans
+  le README.
+
 ## [1.6.0] - 2026-10-08
 
 ### Ajouté
@@ -222,7 +236,8 @@ L'ancienne POC reste accessible via le tag `poc-v0`.
   `BackupService`, sessions persistantes ; CI (phpcs, PHPStan, PHPUnit, lint
   Twig, build Docker).
 
-[Non publié]: https://github.com/kgaut/navidrome-tools/compare/1.6.0...HEAD
+[Non publié]: https://github.com/kgaut/navidrome-tools/compare/1.6.1...HEAD
+[1.6.1]: https://github.com/kgaut/navidrome-tools/compare/1.6.0...1.6.1
 [1.6.0]: https://github.com/kgaut/navidrome-tools/compare/1.5.2...1.6.0
 [1.5.2]: https://github.com/kgaut/navidrome-tools/compare/1.5.1...1.5.2
 [1.5.1]: https://github.com/kgaut/navidrome-tools/compare/1.5.0...1.5.1

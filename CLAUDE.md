@@ -66,7 +66,19 @@ sémantique (`MAJOR.MINOR.PATCH`) sur `main`. `main` suit l'état publié de
    recréer une section `[Non publié]` vide, mettre à jour les liens de comparaison
    en bas de fichier.
 3. **Merger sur `main`** (`main` = état de `develop`).
-4. **Créer le tag** `X.Y.Z` sur `main` et le pousser.
+4. **Créer le tag** `X.Y.Z` sur `main` et le pousser (sans préfixe `v`).
+
+Images publiées par la CI (`ghcr.io/kgaut/navidrome-tools`) :
+
+| Événement | Tags d'image |
+|---|---|
+| tag `X.Y.Z` | `X.Y.Z`, `X.Y`, `X`, `latest` (`APP_VERSION=X.Y.Z`) |
+| push `main` | `main`, `main-<sha>` |
+| push `develop` | `develop`, `develop-<sha>` |
+
+`latest` = la dernière release taguée, jamais une branche. Un push plus récent
+sur une même branche annule le run précédent (`concurrency`), donc l'image
+mobile (`:develop`, `:main`) suit toujours le dernier commit.
 
 Versionnage sémantique : `MAJOR` = rupture, `MINOR` = ajout rétrocompatible,
 `PATCH` = correctif.

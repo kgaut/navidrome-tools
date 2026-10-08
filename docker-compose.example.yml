@@ -2,6 +2,9 @@
 # Copiez ce fichier en docker-compose.yml et adaptez les valeurs.
 # Les variables d'environnement peuvent aussi être passées via un .env.
 
+# Image : `latest` (ou `X.Y.Z`) = dernière release, `develop` = développement
+# non publié. Cf. README « Déploiement (prod) ».
+
 services:
   navidrome-tools-web:
     image: ghcr.io/kgaut/navidrome-tools:develop
