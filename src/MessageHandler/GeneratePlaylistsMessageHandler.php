@@ -45,6 +45,7 @@ class GeneratePlaylistsMessageHandler
 
                 return ['playlists' => count($results), 'tracks' => $tracks] + $byAction;
             },
+            extractFailure: static fn (array $results): ?string => PlaylistRunResult::failureSummary($results),
         );
     }
 }

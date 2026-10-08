@@ -222,4 +222,21 @@ class PlaylistGeneratorTest extends TestCase
             }
         };
     }
+
+    public function testFailureSummaryListsOnlyErroredPlaylists(): void
+    {
+        $this->assertNull(PlaylistRunResult::failureSummary([
+            new PlaylistRunResult('a', 'A', PlaylistRunResult::ACTION_CREATED, ['mf-1']),
+            new PlaylistRunResult('b', 'B', PlaylistRunResult::ACTION_EMPTY),
+        ]));
+
+        $this->assertSame(
+            '2 playlist(s) en erreur — empreinte-sonore : vide | mix : erreur inconnue',
+            PlaylistRunResult::failureSummary([
+                new PlaylistRunResult('a', 'A', PlaylistRunResult::ACTION_CREATED, ['mf-1']),
+                new PlaylistRunResult('empreinte-sonore', 'E', PlaylistRunResult::ACTION_ERROR, error: 'vide'),
+                new PlaylistRunResult('mix', 'M', PlaylistRunResult::ACTION_ERROR),
+            ]),
+        );
+    }
 }

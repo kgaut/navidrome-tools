@@ -3,6 +3,7 @@
 namespace App\Playlist\Definition;
 
 use App\AudioMuse\AudioMuseClient;
+use App\AudioMuse\AudioMuseException;
 use App\Navidrome\NavidromeRepository;
 use App\Playlist\PlaylistContext;
 use App\Playlist\PlaylistDefinitionInterface;
@@ -16,6 +17,11 @@ use App\Playlist\PlaylistDefinitionInterface;
  * Calculée sur le compte Navidrome configuré dans AudioMuse (aucun
  * identifiant n'est envoyé). Ordre d'AudioMuse (les plus proches d'abord).
  * Inactive (vide) tant qu'AudioMuse n'est pas configuré.
+ *
+ * Une empreinte vide est une erreur, pas un résultat (issue #273) : AudioMuse
+ * répond `[]` en HTTP 200 quand il ne peut pas lire le top de l'utilisateur,
+ * typiquement des identifiants Navidrome périmés dans son registre. Sans ce
+ * contrôle, la playlist restait figée sans que rien ne le signale.
  */
 final class EmpreinteSonoreDefinition implements PlaylistDefinitionInterface
 {
@@ -49,6 +55,13 @@ final class EmpreinteSonoreDefinition implements PlaylistDefinitionInterface
         }
 
         $ids = array_values(array_unique($this->audioMuse->sonicFingerprint($this->limit)));
+        if ($ids === []) {
+            throw new AudioMuseException(
+                'Empreinte sonore : AudioMuse a renvoyé une empreinte vide. Il ne lit probablement pas le top '
+                . 'du compte Navidrome : vérifier les identifiants Navidrome de son registre de serveurs '
+                . '(après un changement de mot de passe, redémarrer aussi son flask et son worker).',
+            );
+        }
 
         return PlaylistIds::dropMissing($this->navidrome, $ids, $this->limit);
     }

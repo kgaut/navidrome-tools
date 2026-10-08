@@ -49,4 +49,28 @@ class GeneratePlaylistsMessageHandlerTest extends TestCase
 
         (new GeneratePlaylistsMessageHandler($generator, $recorder))(new GeneratePlaylistsMessage(null));
     }
+
+    public function testHandlerReportsAFailedPlaylistAsRunFailure(): void
+    {
+        $generator = $this->createMock(PlaylistGenerator::class);
+        $generator->method('generate')->willReturn([
+            new PlaylistRunResult('kickstart', 'Kickstart', PlaylistRunResult::ACTION_REPLACED, ['mf-1']),
+            new PlaylistRunResult('empreinte-sonore', 'Empreinte sonore', PlaylistRunResult::ACTION_ERROR, error: 'empreinte vide'),
+        ]);
+
+        $failure = 'not called';
+        $recorder = $this->createMock(RunHistoryRecorder::class);
+        $recorder->expects($this->once())->method('record')->willReturnCallback(
+            function (string $t, string $r, string $l, callable $action, ?callable $metrics = null, ?callable $extractFailure = null) use (&$failure): mixed {
+                $result = $action();
+                $failure = $extractFailure !== null ? $extractFailure($result) : 'no extractFailure';
+
+                return $result;
+            },
+        );
+
+        (new GeneratePlaylistsMessageHandler($generator, $recorder))(new GeneratePlaylistsMessage(null));
+
+        $this->assertSame('1 playlist(s) en erreur — empreinte-sonore : empreinte vide', $failure);
+    }
 }

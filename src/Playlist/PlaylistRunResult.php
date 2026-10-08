@@ -31,4 +31,26 @@ final class PlaylistRunResult
     {
         return count($this->trackIds);
     }
+
+    /**
+     * One line per failed playlist (« slug : error »), or null when none
+     * failed. Used to mark the generation run as failed in the history and
+     * notify, since the generator isolates errors per definition (#273).
+     *
+     * @param iterable<PlaylistRunResult> $results
+     */
+    public static function failureSummary(iterable $results): ?string
+    {
+        $lines = [];
+        foreach ($results as $r) {
+            if ($r->action === self::ACTION_ERROR) {
+                $lines[] = sprintf('%s : %s', $r->slug, $r->error ?? 'erreur inconnue');
+            }
+        }
+        if ($lines === []) {
+            return null;
+        }
+
+        return sprintf('%d playlist(s) en erreur — ', count($lines)) . implode(' | ', $lines);
+    }
 }

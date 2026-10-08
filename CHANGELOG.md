@@ -9,6 +9,22 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+### Corrigé
+
+- **Les playlists en erreur passaient inaperçues** (issue #273). Le générateur
+  isole chaque playlist : une définition en échec ne bloque pas les autres, mais
+  son erreur n'apparaissait que dans le tableau de la commande. Le run de
+  génération restait en `success` dans l'historique, sans message ni
+  notification. Le run passe désormais en `error`, avec un message par playlist
+  en échec (secrets masqués), et la notification part. `app:playlists:generate`
+  sort aussi en erreur, pour que `navidrome-playlists.sh` alerte. Nouveau
+  paramètre `extractFailure` de `RunHistoryRecorder::record()`.
+- **« Empreinte sonore » vide sans erreur** (issue #273). AudioMuse répond `[]`
+  en HTTP 200 quand il ne lit pas le top de l'utilisateur (identifiants
+  Navidrome périmés dans son registre, ou flask et worker non redémarrés après
+  un changement de mot de passe). Une empreinte vide est maintenant une erreur,
+  avec un message qui indique où regarder.
+
 ## [1.6.1] - 2026-10-08
 
 ### Corrigé
