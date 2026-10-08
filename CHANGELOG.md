@@ -9,6 +9,18 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+### Ajouté
+
+- **Playlist « Du connu vers l'oubli »** (issue #259) — un parcours sonore
+  d'AudioMuse-AI (`/api/find_path`) qui glisse d'un morceau du top des 30
+  derniers jours vers une pépite oubliée, par des titres soniquement proches,
+  dans l'ordre du chemin. Extrémités tirées au hasard à chaque génération ;
+  jusqu'à 3 paires tentées si AudioMuse ne trouve pas de chemin, puis échec
+  (la playlist existante est conservée). Réglages `PLAYLIST_PARCOURS_LENGTH`
+  (25) et `PLAYLIST_PARCOURS_START_DAYS` (30), seuils `PLAYLIST_PEPITES_*`
+  pour l'arrivée. Nouvelle `AudioMuseClient::findPath()` ; délai des appels
+  AudioMuse porté de 30 à 60 s.
+
 ## [1.4.1] - 2026-10-07
 
 ### Corrigé

@@ -9,8 +9,10 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  * Thin client for a self-hosted AudioMuse-AI instance, which performs sonic
  * analysis of the library and can return sonically similar tracks.
  *
- * We only use the « instant mix » endpoint:
+ * Endpoints used:
  *   GET /api/similar_tracks?item_id=…&n=… → [{item_id, …, distance}]
+ *   GET /api/find_path?start_song_id=…&end_song_id=…&max_steps=…
+ *       → {"path": [{item_id, …}], "total_distance": float}
  *
  * Recent versions (≥ 3.6) return the list at the JSON root; older ones
  * wrapped it as {"similar_songs": […]}. Both shapes are accepted.
@@ -83,6 +85,45 @@ class AudioMuseClient
     }
 
     /**
+     * A smooth sequence of tracks gliding from `$startId` to `$endId`
+     * through sonically close songs, in path order. `$fixSize` asks
+     * AudioMuse for exactly `$maxSteps` songs instead of « at most ».
+     *
+     * A 404 (no path within `$maxSteps`, or unknown track) raises
+     * AudioMuseNotFoundException.
+     *
+     * @return list<string> media_file ids, start to end
+     */
+    public function findPath(string $startId, string $endId, int $maxSteps, bool $fixSize = true): array
+    {
+        if (!$this->isConfigured()) {
+            throw new AudioMuseException('AudioMuse base URL is not set (AUDIOMUSE_BASE_URL).');
+        }
+
+        $payload = $this->get('/api/find_path', [
+            'start_song_id' => $startId,
+            'end_song_id' => $endId,
+            'max_steps' => max(2, $maxSteps),
+            'path_fix_size' => $fixSize ? 'true' : 'false',
+        ]);
+
+        $path = $payload['path'] ?? [];
+        if (!is_array($path)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($path as $song) {
+            $id = is_array($song) ? trim((string) ($song['item_id'] ?? '')) : '';
+            if ($id !== '') {
+                $out[] = $id;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
      * @param array<string, scalar> $query
      *
      * @return array<mixed>
@@ -100,7 +141,7 @@ class AudioMuseClient
             $response = $this->httpClient->request('GET', $url, [
                 'query' => $query,
                 'headers' => $headers,
-                'timeout' => 30,
+                'timeout' => 60,
             ]);
             $status = $response->getStatusCode();
             if ($status === 401 || $status === 403) {

@@ -46,6 +46,9 @@ parameters:
     env(PLAYLIST_MIX_SEED_COUNT): '15'
     env(PLAYLIST_MIX_PER_SEED): '20'
     env(PLAYLIST_MIX_MAX_PLAYS): '5'
+    # « Du connu vers l'oubli » (issue #259) : parcours AudioMuse.
+    env(PLAYLIST_PARCOURS_LENGTH): '25'
+    env(PLAYLIST_PARCOURS_START_DAYS): '30'
     # API JSON (issue #250) : token Bearer statique (vide = API désactivée,
     # fail-closed) et fuseau de découpage des jours.
     env(APP_API_TOKEN): ''
@@ -112,6 +115,8 @@ parameters:
     playlist.mix.seed_count: '%env(int:PLAYLIST_MIX_SEED_COUNT)%'
     playlist.mix.per_seed: '%env(int:PLAYLIST_MIX_PER_SEED)%'
     playlist.mix.max_plays: '%env(int:PLAYLIST_MIX_MAX_PLAYS)%'
+    playlist.parcours.length: '%env(int:PLAYLIST_PARCOURS_LENGTH)%'
+    playlist.parcours.start_days: '%env(int:PLAYLIST_PARCOURS_START_DAYS)%'
     notify.drivers: '%env(NOTIFY_DRIVERS)%'
     notify.on: '%env(NOTIFY_ON)%'
     notify.gotify.url: '%env(NOTIFY_GOTIFY_URL)%'
@@ -241,6 +246,13 @@ services:
             $perSeed: '%playlist.mix.per_seed%'
             $maxFamiliarPlays: '%playlist.mix.max_plays%'
             $limit: '%playlists.default_limit%'
+
+    App\Playlist\Definition\DuConnuVersLOubliDefinition:
+        arguments:
+            $length: '%playlist.parcours.length%'
+            $startDays: '%playlist.parcours.start_days%'
+            $minPlays: '%playlist.pepites.min_plays%'
+            $silenceMonths: '%playlist.pepites.silence_months%'
 
     App\Service\BackupService:
         arguments:

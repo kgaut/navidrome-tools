@@ -134,4 +134,39 @@ class AudioMuseClientTest extends TestCase
         $this->expectExceptionMessage('HTTP 500');
         $client->similarTracks('mf-a', 5);
     }
+
+    public function testFindPathSendsParamsAndReturnsIdsInOrder(): void
+    {
+        $captured = '';
+        $http = new MockHttpClient(function (string $method, string $url) use (&$captured): MockResponse {
+            $captured = $url;
+
+            return new MockResponse(json_encode([
+                'path' => [
+                    ['item_id' => 'start', 'title' => 'S', 'embedding_vector' => []],
+                    ['item_id' => 'mid'],
+                    ['title' => 'no id'], // skipped
+                    ['item_id' => 'end'],
+                ],
+                'total_distance' => 1.5,
+            ], \JSON_THROW_ON_ERROR));
+        });
+
+        $path = (new AudioMuseClient($http, 'http://am:8000'))->findPath('start', 'end', 25);
+
+        $this->assertSame(['start', 'mid', 'end'], $path);
+        $this->assertStringContainsString('/api/find_path', $captured);
+        $this->assertStringContainsString('start_song_id=start', $captured);
+        $this->assertStringContainsString('end_song_id=end', $captured);
+        $this->assertStringContainsString('max_steps=25', $captured);
+        $this->assertStringContainsString('path_fix_size=true', $captured);
+    }
+
+    public function testFindPathNoPathIsNotFound(): void
+    {
+        $http = new MockHttpClient([new MockResponse('{"error":"No path found"}', ['http_code' => 404])]);
+
+        $this->expectException(AudioMuseNotFoundException::class);
+        (new AudioMuseClient($http, 'http://am:8000'))->findPath('a', 'b', 10);
+    }
 }
