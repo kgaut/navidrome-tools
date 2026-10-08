@@ -212,4 +212,41 @@ class AudioMuseClientTest extends TestCase
         $this->expectExceptionMessage('HTTP 400: Invalid request. CLAP text search is disabled.');
         (new AudioMuseClient($http, 'http://am:8000'))->textSearch('x', 5);
     }
+
+    public function testSyncManifestAndTracks(): void
+    {
+        $urls = [];
+        $http = new MockHttpClient(function (string $method, string $url) use (&$urls): MockResponse {
+            $urls[] = $url;
+            if (str_contains($url, 'fields=index')) {
+                return new MockResponse(json_encode([
+                    'tracks' => [['id' => 'a', 'fp' => 'f1'], ['id' => 'b', 'fp' => 'f2'], ['fp' => 'no id']],
+                    'total_tracks' => 3, 'has_more' => true, 'next_page' => 2,
+                ], \JSON_THROW_ON_ERROR));
+            }
+
+            return new MockResponse(json_encode(['tracks' => [
+                ['id' => 'a', 'fp' => 'f1', 'tempo' => 128.0, 'energy' => 0.6, 'mood_vector' => 'pop:0.6', 'other_features' => 'happy:0.7'],
+            ]], \JSON_THROW_ON_ERROR));
+        });
+        $client = new AudioMuseClient($http, 'http://am:8000');
+
+        $this->assertSame(['tracks' => ['a' => 'f1', 'b' => 'f2'], 'has_more' => true], $client->syncManifest(1));
+        $tracks = $client->syncTracks(['a', 'b']);
+
+        $this->assertCount(1, $tracks);
+        $this->assertSame(128.0, $tracks[0]->tempo);
+        $this->assertSame(['happy' => 0.7], $tracks[0]->moods);
+        $this->assertStringContainsString('limit=1000', $urls[0]);
+        $this->assertStringContainsString('ids=a%2Cb', $urls[1]);
+        $this->assertStringContainsString('include_embeddings=false', $urls[1]);
+    }
+
+    public function testSyncManifestWithoutTracksListIsAnError(): void
+    {
+        $http = new MockHttpClient([new MockResponse('{"unexpected":true}')]);
+
+        $this->expectException(AudioMuseException::class);
+        (new AudioMuseClient($http, 'http://am:8000'))->syncManifest(1);
+    }
 }

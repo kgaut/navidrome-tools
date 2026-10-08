@@ -49,6 +49,12 @@ parameters:
     # « Du connu vers l'oubli » (issue #259) : parcours AudioMuse.
     env(PLAYLIST_PARCOURS_LENGTH): '25'
     env(PLAYLIST_PARCOURS_START_DAYS): '30'
+    # Playlists sur les caractéristiques AudioMuse (issue #257).
+    env(PLAYLIST_COURSE_BPM_MIN): '160'
+    env(PLAYLIST_COURSE_BPM_MAX): '180'
+    env(PLAYLIST_COURSE_HALF_TEMPO): '1'
+    env(PLAYLIST_COURSE_MIN_PLAYS): '1'
+    env(PLAYLIST_CALMES_MAX_PLAYS): '2'
     # API JSON (issue #250) : token Bearer statique (vide = API désactivée,
     # fail-closed) et fuseau de découpage des jours.
     env(APP_API_TOKEN): ''
@@ -117,6 +123,11 @@ parameters:
     playlist.mix.max_plays: '%env(int:PLAYLIST_MIX_MAX_PLAYS)%'
     playlist.parcours.length: '%env(int:PLAYLIST_PARCOURS_LENGTH)%'
     playlist.parcours.start_days: '%env(int:PLAYLIST_PARCOURS_START_DAYS)%'
+    playlist.course.bpm_min: '%env(int:PLAYLIST_COURSE_BPM_MIN)%'
+    playlist.course.bpm_max: '%env(int:PLAYLIST_COURSE_BPM_MAX)%'
+    playlist.course.half_tempo: '%env(bool:PLAYLIST_COURSE_HALF_TEMPO)%'
+    playlist.course.min_plays: '%env(int:PLAYLIST_COURSE_MIN_PLAYS)%'
+    playlist.calmes.max_plays: '%env(int:PLAYLIST_CALMES_MAX_PLAYS)%'
     notify.drivers: '%env(NOTIFY_DRIVERS)%'
     notify.on: '%env(NOTIFY_ON)%'
     notify.gotify.url: '%env(NOTIFY_GOTIFY_URL)%'
@@ -258,6 +269,25 @@ services:
             $startDays: '%playlist.parcours.start_days%'
             $minPlays: '%playlist.pepites.min_plays%'
             $silenceMonths: '%playlist.pepites.silence_months%'
+
+    App\Playlist\Definition\CourseDefinition:
+        arguments:
+            $bpmMin: '%playlist.course.bpm_min%'
+            $bpmMax: '%playlist.course.bpm_max%'
+            $halfTempo: '%playlist.course.half_tempo%'
+            $minPlays: '%playlist.course.min_plays%'
+            $limit: '%playlists.default_limit%'
+
+    App\Playlist\Definition\CalmesPeuEcouteesDefinition:
+        arguments:
+            $maxPlays: '%playlist.calmes.max_plays%'
+            $limit: '%playlists.default_limit%'
+
+    App\Playlist\Definition\EnergiquesOublieesDefinition:
+        arguments:
+            $minPlays: '%playlist.pepites.min_plays%'
+            $silenceMonths: '%playlist.pepites.silence_months%'
+            $limit: '%playlists.default_limit%'
 
     App\Service\BackupService:
         arguments:
