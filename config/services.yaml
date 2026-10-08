@@ -141,6 +141,8 @@ services:
             tags: ['app.notifier_driver']
         App\Playlist\PlaylistDefinitionInterface:
             tags: ['app.playlist_definition']
+        App\Playlist\PlaylistDefinitionProviderInterface:
+            tags: ['app.playlist_definition_provider']
         App\Recommendation\RecommendationSourceInterface:
             tags: ['app.recommendation_source']
 
@@ -150,6 +152,8 @@ services:
             - '../src/DependencyInjection/'
             - '../src/Entity/'
             - '../src/Kernel.php'
+            # One instance per row, built by DescribedPlaylistProvider (not a service).
+            - '../src/Playlist/Definition/DescribedPlaylistDefinition.php'
 
     App\Security\EnvUserProvider:
         arguments:
@@ -172,6 +176,7 @@ services:
     App\Playlist\PlaylistGenerator:
         arguments:
             $definitions: !tagged_iterator app.playlist_definition
+            $providers: !tagged_iterator app.playlist_definition_provider
             $defaultLimit: '%playlists.default_limit%'
 
     App\Playlist\Definition\RetourEnArriereDefinition:

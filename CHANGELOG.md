@@ -11,6 +11,18 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 ### Ajouté
 
+- **Playlists décrites en texte** (issue #258) — sur `/playlists`, une phrase
+  (« piano calme, pluie ») + un nombre de morceaux (+ un plafond d'écoutes
+  facultatif) crée une playlist Navidrome à partir de la recherche texte CLAP
+  d'AudioMuse-AI (`POST /api/clap/search`), dans l'ordre de pertinence.
+  Enregistrée (table `described_playlist`, migration
+  `Version20261007220000`), elle apparaît dans « Playlists générées » (slug
+  `decrite-<id>`) et se régénère avec les autres ; « Retirer » arrête sa
+  régénération sans supprimer la playlist Navidrome. `PlaylistGenerator`
+  accepte des fournisseurs de définitions issues des données
+  (`PlaylistDefinitionProviderInterface`, tag
+  `app.playlist_definition_provider`). Les erreurs d'AudioMuse remontent avec
+  leur `error_message` (ex. CLAP désactivé).
 - **Playlist « Du connu vers l'oubli »** (issue #259) — un parcours sonore
   d'AudioMuse-AI (`/api/find_path`) qui glisse d'un morceau du top des 30
   derniers jours vers une pépite oubliée, par des titres soniquement proches,

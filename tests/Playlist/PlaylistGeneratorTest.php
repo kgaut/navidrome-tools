@@ -4,6 +4,7 @@ namespace App\Tests\Playlist;
 
 use App\Playlist\PlaylistContext;
 use App\Playlist\PlaylistDefinitionInterface;
+use App\Playlist\PlaylistDefinitionProviderInterface;
 use App\Playlist\PlaylistEnablement;
 use App\Playlist\PlaylistGenerator;
 use App\Playlist\PlaylistRunResult;
@@ -45,6 +46,28 @@ class PlaylistGeneratorTest extends TestCase
         $this->assertCount(1, $results);
         $this->assertSame('b', $results[0]->slug);
         $this->assertSame(PlaylistRunResult::ACTION_CREATED, $results[0]->action);
+    }
+
+    public function testProviderDefinitionsAreListedAndGeneratedFreshOnEachCall(): void
+    {
+        $rows = [$this->def('decrite-1', 'Piano', ['mf-9'])];
+        $provider = $this->createMock(PlaylistDefinitionProviderInterface::class);
+        $provider->method('getDefinitions')->willReturnCallback(static function () use (&$rows): array {
+            return $rows;
+        });
+
+        $subsonic = $this->createMock(SubsonicClient::class);
+        $subsonic->method('findPlaylistByName')->willReturn(null);
+        $subsonic->expects($this->once())->method('createPlaylist')->with('Piano', ['mf-9'])->willReturn('pl-9');
+
+        $gen = new PlaylistGenerator([$this->def('a', 'A', ['mf-1'])], $subsonic, $this->enablement(), providers: [$provider]);
+
+        $this->assertSame(['a', 'decrite-1'], array_column($gen->listDefinitions(), 'slug'));
+        $this->assertSame('decrite-1', $gen->generate('decrite-1', dryRun: false)[0]->slug);
+
+        // A row removed afterwards disappears without rebuilding the generator.
+        $rows = [];
+        $this->assertSame(['a'], array_column($gen->listDefinitions(), 'slug'));
     }
 
     public function testUnknownSlugThrows(): void

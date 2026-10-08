@@ -169,4 +169,47 @@ class AudioMuseClientTest extends TestCase
         $this->expectException(AudioMuseNotFoundException::class);
         (new AudioMuseClient($http, 'http://am:8000'))->findPath('a', 'b', 10);
     }
+
+    public function testTextSearchPostsQueryAndReturnsResultsInOrder(): void
+    {
+        $captured = [];
+        $http = new MockHttpClient(function (string $method, string $url, array $options) use (&$captured): MockResponse {
+            $captured = [$method, $url, $options];
+
+            return new MockResponse(json_encode([
+                'query' => 'piano calme',
+                'count' => 2,
+                'results' => [
+                    ['item_id' => 'mf-1', 'similarity' => 0.31, 'title' => 'A', 'top_mood' => 'relaxed'],
+                    ['item_id' => 'mf-2', 'similarity' => 0.29],
+                    ['title' => 'no id'], // skipped
+                ],
+            ], \JSON_THROW_ON_ERROR));
+        });
+
+        $results = (new AudioMuseClient($http, 'http://am:8000', 'k'))->textSearch('piano calme', 30);
+
+        $this->assertSame([
+            ['item_id' => 'mf-1', 'similarity' => 0.31],
+            ['item_id' => 'mf-2', 'similarity' => 0.29],
+        ], $results);
+        [$method, $url, $options] = $captured;
+        $this->assertSame('POST', $method);
+        $this->assertStringEndsWith('/api/clap/search', $url);
+        $this->assertSame(['query' => 'piano calme', 'limit' => 30], json_decode($options['body'], true));
+        $this->assertContains('Authorization: Bearer k', $options['headers']);
+        $this->assertSame(120.0, (float) $options['timeout']);
+    }
+
+    public function testErrorMessageFromAudioMuseIsSurfaced(): void
+    {
+        $http = new MockHttpClient([new MockResponse(
+            '{"error_code":1001,"error_message":"Invalid request. CLAP text search is disabled."}',
+            ['http_code' => 400],
+        )]);
+
+        $this->expectException(AudioMuseException::class);
+        $this->expectExceptionMessage('HTTP 400: Invalid request. CLAP text search is disabled.');
+        (new AudioMuseClient($http, 'http://am:8000'))->textSearch('x', 5);
+    }
 }

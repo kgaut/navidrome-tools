@@ -2,10 +2,15 @@
 
 namespace App\Controller;
 
+use App\AudioMuse\AudioMuseClient;
+use App\Entity\DescribedPlaylist;
 use App\Message\GeneratePlaylistsMessage;
+use App\Playlist\Definition\DescribedPlaylistDefinition;
 use App\Playlist\PlaylistEnablement;
 use App\Playlist\PlaylistGenerator;
+use App\Repository\DescribedPlaylistRepository;
 use App\Subsonic\SubsonicClient;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -26,8 +31,12 @@ use Symfony\Component\Routing\Attribute\Route;
 class PlaylistController extends AbstractController
 {
     #[Route('/playlists', name: 'app_playlists_index', methods: ['GET'])]
-    public function index(SubsonicClient $subsonic, PlaylistGenerator $generator): Response
-    {
+    public function index(
+        SubsonicClient $subsonic,
+        PlaylistGenerator $generator,
+        DescribedPlaylistRepository $described,
+        AudioMuseClient $audioMuse,
+    ): Response {
         try {
             $playlists = $subsonic->getPlaylists();
             $error = null;
@@ -48,7 +57,85 @@ class PlaylistController extends AbstractController
             'playlists' => $playlists,
             'error' => $error,
             'definitions' => $generator->listDefinitions(),
+            'described' => $described->findAllOrdered(),
+            'described_prefix' => DescribedPlaylistDefinition::SLUG_PREFIX,
+            'audiomuse_configured' => $audioMuse->isConfigured(),
         ]);
+    }
+
+    /**
+     * Save a playlist described in free text (issue #258), then generate it
+     * right away. It is regenerated afterwards like any other definition.
+     */
+    #[Route('/playlists/described', name: 'app_playlists_described_create', methods: ['POST'])]
+    public function createDescribed(
+        Request $request,
+        PlaylistGenerator $generator,
+        EntityManagerInterface $em,
+        MessageBusInterface $bus,
+    ): Response {
+        if (!$this->isCsrfTokenValid('playlists_described', (string) $request->request->get('_token'))) {
+            throw $this->createAccessDeniedException();
+        }
+
+        $name = trim((string) $request->request->get('name'));
+        $query = trim((string) $request->request->get('query'));
+        $count = $request->request->getInt('track_count', 30);
+        $maxPlaysRaw = trim((string) $request->request->get('max_plays'));
+        $maxPlays = $maxPlaysRaw === '' ? null : (int) $maxPlaysRaw;
+
+        $taken = array_map(
+            static fn (array $d): string => mb_strtolower($d['name']),
+            $generator->listDefinitions(),
+        );
+        $error = match (true) {
+            $name === '' || mb_strlen($name) > 100 => 'Le nom est obligatoire (100 caractères au plus).',
+            in_array(mb_strtolower($name), $taken, true) => sprintf('Une playlist générée s\'appelle déjà « %s ».', $name),
+            $query === '' || mb_strlen($query) > 300 => 'La description est obligatoire (300 caractères au plus).',
+            $count < 1 || $count > 200 => 'Le nombre de morceaux doit être compris entre 1 et 200.',
+            $maxPlays !== null && $maxPlays < 0 => 'Le plafond d\'écoutes ne peut pas être négatif.',
+            default => null,
+        };
+        if ($error !== null) {
+            $this->addFlash('error', $error);
+
+            return $this->redirectToRoute('app_playlists_index');
+        }
+
+        $playlist = new DescribedPlaylist($name, $query, $count, $maxPlays);
+        $em->persist($playlist);
+        $em->flush();
+
+        $bus->dispatch(new GeneratePlaylistsMessage(DescribedPlaylistDefinition::SLUG_PREFIX . $playlist->getId()));
+        $this->addFlash('success', sprintf('Playlist « %s » enregistrée, génération lancée en arrière-plan.', $name));
+
+        return $this->redirectToRoute('app_history');
+    }
+
+    /**
+     * Forget a described playlist: it is no longer regenerated. The playlist
+     * already written to Navidrome is left untouched.
+     */
+    #[Route('/playlists/described/{id}/delete', name: 'app_playlists_described_delete', methods: ['POST'], requirements: ['id' => '\d+'])]
+    public function deleteDescribed(
+        int $id,
+        Request $request,
+        DescribedPlaylistRepository $described,
+        EntityManagerInterface $em,
+    ): Response {
+        if (!$this->isCsrfTokenValid('playlists_described_delete', (string) $request->request->get('_token'))) {
+            throw $this->createAccessDeniedException();
+        }
+        $playlist = $described->find($id) ?? throw $this->createNotFoundException();
+
+        $em->remove($playlist);
+        $em->flush();
+        $this->addFlash('success', sprintf(
+            '« %s » ne sera plus régénérée. La playlist existante dans Navidrome n\'est pas supprimée.',
+            $playlist->getName(),
+        ));
+
+        return $this->redirectToRoute('app_playlists_index');
     }
 
     #[Route('/playlists/generate', name: 'app_playlists_generate', methods: ['POST'])]

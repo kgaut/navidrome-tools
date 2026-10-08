@@ -92,6 +92,68 @@
         </script>
     {% endif %}
 
+    <div class="card">
+        <div class="card__title card__title--sm">Playlists décrites</div>
+        <div class="muted mono fs-11 mb-12">
+            Une phrase (« piano calme, pluie », « rock énervé années 90 »…) cherchée dans ta bibliothèque par
+            AudioMuse-AI (recherche texte CLAP). Enregistrée, la playlist apparaît dans « Playlists générées »
+            et se régénère avec les autres.
+        </div>
+
+        {% if not audiomuse_configured %}
+            <div class="flash flash--info">AudioMuse-AI n'est pas configuré (<span class="mono">AUDIOMUSE_BASE_URL</span>) : les playlists décrites restent vides.</div>
+        {% endif %}
+
+        {% if described is not empty %}
+            <table class="data-table mb-12">
+                <tbody>
+                    {% for p in described %}
+                        <tr>
+                            <td>
+                                <div class="cell-track__title">{{ p.name }}</div>
+                                <div class="cell-track__sub">« {{ p.query }} » · {{ p.trackCount }} morceaux{% if p.maxPlays is not null %} · ≤ {{ p.maxPlays }} écoutes{% endif %}</div>
+                                <div class="mono fs-11 muted mt-8">{{ described_prefix ~ p.id }}</div>
+                            </td>
+                            <td class="right">
+                                <form method="post" action="{{ path('app_playlists_described_delete', { id: p.id }) }}"
+                                      onsubmit="return confirm('Ne plus régénérer « {{ p.name|e('js') }} » ? La playlist Navidrome existante est conservée.');">
+                                    <input type="hidden" name="_token" value="{{ csrf_token('playlists_described_delete') }}">
+                                    <button type="submit" class="btn btn--outline btn--sm">Retirer</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% endif %}
+
+        <form method="post" action="{{ path('app_playlists_described_create') }}">
+            <input type="hidden" name="_token" value="{{ csrf_token('playlists_described') }}">
+            <div class="row gap-16 mb-12" style="flex-wrap:wrap;">
+                <div class="field" style="flex:1; min-width:180px;">
+                    <label for="described-name">Nom de la playlist</label>
+                    <input type="text" id="described-name" name="name" class="input" maxlength="100" required placeholder="Piano sous la pluie">
+                </div>
+                <div class="field" style="flex:2; min-width:220px;">
+                    <label for="described-query">Description</label>
+                    <input type="text" id="described-query" name="query" class="input" maxlength="300" required placeholder="piano calme, pluie">
+                </div>
+            </div>
+            <div class="row gap-16 mb-12" style="flex-wrap:wrap;">
+                <div class="field">
+                    <label for="described-count">Morceaux</label>
+                    <input type="number" id="described-count" name="track_count" class="input" min="1" max="200" value="30" style="width:120px;">
+                </div>
+                <div class="field">
+                    <label for="described-max-plays">Écoutes au plus</label>
+                    <input type="number" id="described-max-plays" name="max_plays" class="input" min="0" placeholder="∞" style="width:120px;">
+                    <span class="muted fs-11">Vide = pas de filtre ; 0 = jamais écoutés</span>
+                </div>
+            </div>
+            <button type="submit" class="btn btn--primary btn--sm">Enregistrer et générer</button>
+        </form>
+    </div>
+
     {% if playlists is empty and not error %}
         <div class="empty-state">Aucune playlist trouvée côté Navidrome.</div>
     {% elseif playlists is not empty %}
