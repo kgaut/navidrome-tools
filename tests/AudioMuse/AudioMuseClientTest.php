@@ -249,4 +249,46 @@ class AudioMuseClientTest extends TestCase
         $this->expectException(AudioMuseException::class);
         (new AudioMuseClient($http, 'http://am:8000'))->syncManifest(1);
     }
+
+    public function testSyncTracksSplitsIdsSoEveryRequestLineFitsGunicornLimit(): void
+    {
+        $ids = [];
+        for ($i = 0; $i < 500; $i++) {
+            $ids[] = sprintf('%022d', $i); // Navidrome ids are ~22 characters
+        }
+
+        $requested = [];
+        $http = new MockHttpClient(function (string $method, string $url) use (&$requested): MockResponse {
+            // gunicorn rejects request lines (« GET <path?query> HTTP/1.1 ») over 4094 bytes.
+            $requestLine = sprintf('GET %s HTTP/1.1', substr($url, strlen('http://am:8000')));
+            $this->assertLessThanOrEqual(4094, strlen($requestLine));
+            parse_str((string) parse_url($url, \PHP_URL_QUERY), $query);
+            $chunk = explode(',', (string) $query['ids']);
+            $requested = [...$requested, ...$chunk];
+
+            return new MockResponse(json_encode(['tracks' => array_map(
+                static fn (string $id): array => ['id' => $id, 'fp' => 'f'],
+                $chunk,
+            )], \JSON_THROW_ON_ERROR));
+        });
+
+        $tracks = (new AudioMuseClient($http, 'http://am:8000'))->syncTracks($ids);
+
+        $this->assertSame($ids, $requested);
+        $this->assertCount(500, $tracks);
+        $this->assertGreaterThan(1, $http->getRequestsCount());
+    }
+
+    public function testChunkIdsForQueryRespectsByteBudgetAndOrder(): void
+    {
+        $ids = array_map(static fn (int $i): string => 'id-' . str_repeat('x', 30) . $i, range(1, 300));
+
+        $chunks = AudioMuseClient::chunkIdsForQuery($ids);
+
+        $this->assertSame($ids, array_merge(...$chunks));
+        foreach ($chunks as $chunk) {
+            $this->assertLessThanOrEqual(AudioMuseClient::MAX_IDS_QUERY_BYTES, strlen(rawurlencode(implode(',', $chunk))));
+        }
+        $this->assertSame([], AudioMuseClient::chunkIdsForQuery([]));
+    }
 }

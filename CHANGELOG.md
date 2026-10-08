@@ -9,6 +9,15 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+### Corrigé
+
+- **`app:audiomuse:sync` échouait en HTTP 400** (issue #257). Les lots de 500
+  ids envoyés à `/api/sync?ids=…` donnaient une URL d'environ 11,5 Ko, alors que
+  gunicorn (devant AudioMuse) refuse toute ligne de requête de plus de 4 094
+  octets : l'import ne passait jamais, et « Course », « Calmes et peu écoutés »
+  et « Énergiques oubliées » restaient vides. Le client découpe désormais les
+  ids par taille encodée (≤ 3 000 octets, environ 120 ids par appel).
+
 ### Sécurité
 
 - **Jetons Subsonic et clés Last.fm masqués dans les logs** (issue #265). Le
