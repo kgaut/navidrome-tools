@@ -3,6 +3,7 @@
 namespace App\Tests\Playlist;
 
 use App\AudioMuse\AudioMuseClient;
+use App\AudioMuse\AudioMuseException;
 use App\Navidrome\NavidromeRepository;
 use App\Playlist\Definition\CalmesPeuEcouteesDefinition;
 use App\Playlist\Definition\CourseDefinition;
@@ -134,5 +135,18 @@ class AudioFeatureDefinitionsTest extends TestCase
         $audioMuse->expects($this->never())->method('sonicFingerprint');
 
         $this->assertSame([], (new EmpreinteSonoreDefinition($this->createMock(NavidromeRepository::class), $audioMuse))->build($this->ctx()));
+    }
+
+    public function testEmpreinteSonoreEmptyFingerprintIsAnError(): void
+    {
+        $audioMuse = $this->createMock(AudioMuseClient::class);
+        $audioMuse->method('isConfigured')->willReturn(true);
+        $audioMuse->method('sonicFingerprint')->willReturn([]);
+        $navidrome = $this->createMock(NavidromeRepository::class);
+        $navidrome->expects($this->never())->method('filterMissingMediaFileIds');
+
+        $this->expectException(AudioMuseException::class);
+        $this->expectExceptionMessage('empreinte vide');
+        (new EmpreinteSonoreDefinition($navidrome, $audioMuse))->build($this->ctx());
     }
 }

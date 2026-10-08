@@ -81,6 +81,7 @@ class GeneratePlaylistsCommand extends Command
                 label: sprintf('Génération playlists [%s%s]', $slug ?? 'toutes', $dryRun ? ' dry-run' : ''),
                 action: fn (): array => $this->generator->generate($slug, $dryRun),
                 extractMetrics: static fn (array $r): array => ['playlists' => count($r)],
+                extractFailure: static fn (array $r): ?string => PlaylistRunResult::failureSummary($r),
             );
         } catch (\Throwable $e) {
             $io->error($e->getMessage());
@@ -89,7 +90,9 @@ class GeneratePlaylistsCommand extends Command
 
         $this->printResults($io, $results, $dryRun);
 
-        return Command::SUCCESS;
+        // Partial failure (one definition errored): non-zero exit so cron
+        // wrappers (navidrome-playlists.sh) alert too — #273.
+        return PlaylistRunResult::failureSummary($results) === null ? Command::SUCCESS : Command::FAILURE;
     }
 
     private function printList(SymfonyStyle $io): int

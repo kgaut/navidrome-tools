@@ -43,8 +43,15 @@ class RunHistoryRecorder
      *
      * @template T
      *
+     * Partial failures: an action can complete (no exception) yet report
+     * that part of the work failed — e.g. the playlist generator isolates
+     * each definition and returns its errors in the results. `$extractFailure`
+     * turns such a result into an `error` run (message + notification)
+     * while still returning the result to the caller (issue #273).
+     *
      * @param callable(RunHistory): T            $action
      * @param ?callable(T): array<string, mixed> $extractMetrics
+     * @param ?callable(T): ?string              $extractFailure non-null = the run failed, with this message
      *
      * @return T
      */
@@ -54,6 +61,7 @@ class RunHistoryRecorder
         string $label,
         callable $action,
         ?callable $extractMetrics = null,
+        ?callable $extractFailure = null,
     ): mixed {
         $entry = new RunHistory($type, $reference, $label);
         $entry->setStatus(RunHistory::STATUS_RUNNING);
@@ -83,7 +91,13 @@ class RunHistoryRecorder
             throw $e;
         }
 
-        $entry->setStatus(RunHistory::STATUS_SUCCESS);
+        $failure = $extractFailure !== null ? $extractFailure($result) : null;
+        if ($failure !== null) {
+            $entry->setStatus(RunHistory::STATUS_ERROR);
+            $entry->setMessage(SecretRedactor::redact($failure));
+        } else {
+            $entry->setStatus(RunHistory::STATUS_SUCCESS);
+        }
         $entry->setFinishedAt(new \DateTimeImmutable());
         $entry->setDurationMs((int) round((microtime(true) - $startedMicrotime) * 1000));
 

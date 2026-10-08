@@ -38,6 +38,51 @@ class RunHistoryRecorderTest extends TestCase
         $this->assertSame(RunHistory::STATUS_SUCCESS, $runHistory->getStatus());
     }
 
+    public function testExtractFailureMarksRunAsErrorButReturnsResult(): void
+    {
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->method('isOpen')->willReturn(true);
+        $persisted = [];
+        $em->method('persist')->willReturnCallback(function (object $e) use (&$persisted): void {
+            $persisted[] = $e;
+        });
+
+        $recorder = new RunHistoryRecorder($this->createMock(ManagerRegistry::class), $em);
+        $result = $recorder->record(
+            type: RunHistory::TYPE_PLAYLIST_GENERATE,
+            reference: 'all',
+            label: 'Partial failure',
+            action: fn () => ['ok', 'ko'],
+            extractFailure: static fn (array $r): string => 'mix : failed for "http://nd/rest/x.view?t=tok&s=salt"',
+        );
+
+        $this->assertSame(['ok', 'ko'], $result);
+        $run = $persisted[0];
+        $this->assertInstanceOf(RunHistory::class, $run);
+        $this->assertSame(RunHistory::STATUS_ERROR, $run->getStatus());
+        $this->assertSame('mix : failed for "http://nd/rest/x.view?t=***&s=***"', $run->getMessage());
+    }
+
+    public function testExtractFailureReturningNullKeepsSuccess(): void
+    {
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->method('isOpen')->willReturn(true);
+        $persisted = [];
+        $em->method('persist')->willReturnCallback(function (object $e) use (&$persisted): void {
+            $persisted[] = $e;
+        });
+
+        (new RunHistoryRecorder($this->createMock(ManagerRegistry::class), $em))->record(
+            type: RunHistory::TYPE_PLAYLIST_GENERATE,
+            reference: 'all',
+            label: 'All good',
+            action: fn () => 1,
+            extractFailure: static fn (int $r): ?string => null,
+        );
+
+        $this->assertSame(RunHistory::STATUS_SUCCESS, $persisted[0]->getStatus());
+    }
+
     public function testRecordErrorSetsStatusAndRethrows(): void
     {
         $em = $this->createMock(EntityManagerInterface::class);
