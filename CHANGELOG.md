@@ -9,6 +9,18 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+### Corrigé
+
+- **Images Docker versionnées et `latest` fiable** (issue #261). Les tags de
+  release (`1.6.0`, sans `v`) ne déclenchaient pas la CI : aucune image `X.Y.Z`
+  n'était publiée et `APP_VERSION` valait `main-<sha>`. La CI réagit désormais
+  aux tags `X.Y.Z` et publie `X.Y.Z`, `X.Y`, `X` et `latest`. `latest` désigne
+  la dernière release au lieu de suivre `develop` (branche par défaut du dépôt).
+  Un groupe `concurrency` annule le run précédent d'une même branche, pour qu'un
+  build plus ancien ne puisse plus écraser `:develop`, et la notification ne
+  signale plus ces runs annulés comme des échecs. Tags d'image documentés dans
+  le README.
+
 ## [1.6.0] - 2026-10-08
 
 ### Ajouté

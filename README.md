@@ -119,7 +119,15 @@ $DC down                                       # arrêter (var/data.db conservé
 
 ## Déploiement (prod)
 
-Image prébuildée : `ghcr.io/kgaut/navidrome-tools`. Trois rôles via `APP_MODE` :
+Image prébuildée : `ghcr.io/kgaut/navidrome-tools`.
+
+| Tag d'image | Contenu |
+|---|---|
+| `latest`, `X.Y.Z`, `X.Y`, `X` | une release publiée (tag git `X.Y.Z`) ; `latest` = la dernière |
+| `main`, `main-<sha>` | l'état de `main` (= dernière release) |
+| `develop`, `develop-<sha>` | la branche de développement (non publiée) |
+
+Trois rôles via `APP_MODE` :
 
 | `APP_MODE` | Rôle |
 |---|---|
