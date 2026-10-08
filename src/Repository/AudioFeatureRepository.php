@@ -190,13 +190,33 @@ class AudioFeatureRepository extends ServiceEntityRepository
      */
     public function energyPercentile(int $percentile): ?float
     {
-        $count = (int) $this->db()->fetchOne('SELECT COUNT(*) FROM audio_feature WHERE energy IS NOT NULL');
+        return $this->percentile('energy', $percentile);
+    }
+
+    /**
+     * Same as {@see energyPercentile()} for a mood score. AudioMuse's mood
+     * scores are bunched (e.g. danceable ≈ 0.6 across the whole library),
+     * so an absolute threshold barely filters anything (issue #271).
+     */
+    public function moodPercentile(string $mood, int $percentile): ?float
+    {
+        if (!in_array($mood, TrackFeatures::MOODS, true)) {
+            throw new \InvalidArgumentException(sprintf('Unknown mood "%s".', $mood));
+        }
+
+        return $this->percentile($mood, $percentile);
+    }
+
+    /** @param string $column a whitelisted numeric column (energy or a mood) */
+    private function percentile(string $column, int $percentile): ?float
+    {
+        $count = (int) $this->db()->fetchOne(sprintf('SELECT COUNT(*) FROM audio_feature WHERE %s IS NOT NULL', $column));
         if ($count === 0) {
             return null;
         }
         $offset = (int) floor((max(0, min(100, $percentile)) / 100) * ($count - 1));
         $value = $this->db()->fetchOne(
-            'SELECT energy FROM audio_feature WHERE energy IS NOT NULL ORDER BY energy ASC LIMIT 1 OFFSET ?',
+            sprintf('SELECT %1$s FROM audio_feature WHERE %1$s IS NOT NULL ORDER BY %1$s ASC LIMIT 1 OFFSET ?', $column),
             [$offset],
             [ParameterType::INTEGER],
         );
