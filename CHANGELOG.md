@@ -9,6 +9,15 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+### Sécurité
+
+- **Dépendances vulnérables mises à jour** (issue #252). Symfony passe de 7.2
+  (fin de maintenance) à **7.4 LTS** (7.4.20 : `http-foundation`,
+  `security-http`, `cache`, `routing`, `runtime`…), Twig de 3.24.0 à **3.30.0**
+  (17 avis, dont des critiques) et `squizlabs/php_codesniffer` (outil de dev) à
+  3.13.6. `composer audit` : aucun avis restant. Contrainte Flex
+  `extra.symfony.require` et `symfony/process` passées à `7.4.*`.
+
 ## [1.5.1] - 2026-10-08
 
 ### Corrigé

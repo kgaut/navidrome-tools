@@ -21,7 +21,7 @@
         "symfony/framework-bundle": "^7.2",
         "symfony/http-client": "^7.2",
         "symfony/messenger": "^7.2",
-        "symfony/process": "7.2.*",
+        "symfony/process": "7.4.*",
         "symfony/property-access": "^7.2",
         "symfony/runtime": "^7.2",
         "symfony/security-bundle": "^7.2",
@@ -83,7 +83,7 @@
     "extra": {
         "symfony": {
             "allow-contrib": false,
-            "require": "7.2.*"
+            "require": "7.4.*"
         }
     }
 }
