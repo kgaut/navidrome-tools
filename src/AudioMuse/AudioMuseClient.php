@@ -36,6 +36,13 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  */
 class AudioMuseClient
 {
+    /**
+     * Budget for the encoded `ids=` value of /api/sync: gunicorn's request
+     * line limit is 4094 bytes; this leaves room for the method, the base
+     * path, the other parameters and the protocol.
+     */
+    public const MAX_IDS_QUERY_BYTES = 3000;
+
     public function __construct(
         private readonly HttpClientInterface $httpClient,
         private readonly string $baseUrl = '',
@@ -188,7 +195,12 @@ class AudioMuseClient
     }
 
     /**
-     * Full audio features for up to 500 tracks, without embeddings.
+     * Full audio features for the given tracks, without embeddings.
+     *
+     * AudioMuse sits behind gunicorn, which rejects request lines over
+     * 4094 bytes (HTTP 400): with ~23-character Navidrome ids, a 500-id
+     * `ids=` list is ~11.5 KB. Ids are therefore sent in several calls whose
+     * encoded `ids` value stays under MAX_IDS_QUERY_BYTES (~120 ids each).
      *
      * @param list<string> $ids
      *
@@ -199,24 +211,50 @@ class AudioMuseClient
         if (!$this->isConfigured()) {
             throw new AudioMuseException('AudioMuse base URL is not set (AUDIOMUSE_BASE_URL).');
         }
-        if ($ids === []) {
-            return [];
-        }
-        if (count($ids) > 500) {
-            throw new \InvalidArgumentException('AudioMuse /api/sync accepts at most 500 ids per call.');
-        }
-
-        $payload = $this->get('/api/sync', ['ids' => implode(',', $ids), 'include_embeddings' => 'false']);
 
         $out = [];
-        foreach (is_array($payload['tracks'] ?? null) ? $payload['tracks'] : [] as $row) {
-            $track = is_array($row) ? TrackFeatures::fromSyncRow($row) : null;
-            if ($track !== null) {
-                $out[] = $track;
+        foreach (self::chunkIdsForQuery($ids) as $chunk) {
+            $payload = $this->get('/api/sync', ['ids' => implode(',', $chunk), 'include_embeddings' => 'false']);
+            foreach (is_array($payload['tracks'] ?? null) ? $payload['tracks'] : [] as $row) {
+                $track = is_array($row) ? TrackFeatures::fromSyncRow($row) : null;
+                if ($track !== null) {
+                    $out[] = $track;
+                }
             }
         }
 
         return $out;
+    }
+
+    /**
+     * Split ids so that each URL-encoded, comma-joined chunk stays under
+     * MAX_IDS_QUERY_BYTES, and under AudioMuse's 500-id cap.
+     *
+     * @param list<string> $ids
+     *
+     * @return list<list<string>>
+     */
+    public static function chunkIdsForQuery(array $ids): array
+    {
+        $chunks = [];
+        $current = [];
+        $bytes = 0;
+        foreach ($ids as $id) {
+            $cost = strlen(rawurlencode($id)) + ($current === [] ? 0 : 3); // ',' encodes as %2C
+            if ($current !== [] && ($bytes + $cost > self::MAX_IDS_QUERY_BYTES || count($current) >= 500)) {
+                $chunks[] = $current;
+                $current = [];
+                $cost = strlen(rawurlencode($id));
+                $bytes = 0;
+            }
+            $current[] = $id;
+            $bytes += $cost;
+        }
+        if ($current !== []) {
+            $chunks[] = $current;
+        }
+
+        return $chunks;
     }
 
     /**

@@ -9,6 +9,17 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+## [1.5.1] - 2026-10-08
+
+### Corrigé
+
+- **`app:audiomuse:sync` échouait en HTTP 400** (issue #257). Les lots de 500
+  ids envoyés à `/api/sync?ids=…` donnaient une URL d'environ 11,5 Ko, alors que
+  gunicorn (devant AudioMuse) refuse toute ligne de requête de plus de 4 094
+  octets : l'import ne passait jamais, et « Course », « Calmes et peu écoutés »
+  et « Énergiques oubliées » restaient vides. Le client découpe désormais les
+  ids par taille encodée (≤ 3 000 octets, environ 120 ids par appel).
+
 ### Sécurité
 
 - **Jetons Subsonic et clés Last.fm masqués dans les logs** (issue #265). Le
@@ -186,7 +197,8 @@ L'ancienne POC reste accessible via le tag `poc-v0`.
   `BackupService`, sessions persistantes ; CI (phpcs, PHPStan, PHPUnit, lint
   Twig, build Docker).
 
-[Non publié]: https://github.com/kgaut/navidrome-tools/compare/1.5.0...HEAD
+[Non publié]: https://github.com/kgaut/navidrome-tools/compare/1.5.1...HEAD
+[1.5.1]: https://github.com/kgaut/navidrome-tools/compare/1.5.0...1.5.1
 [1.5.0]: https://github.com/kgaut/navidrome-tools/compare/1.4.1...1.5.0
 [1.4.1]: https://github.com/kgaut/navidrome-tools/compare/1.4.0...1.4.1
 [1.4.0]: https://github.com/kgaut/navidrome-tools/compare/1.3.0...1.4.0

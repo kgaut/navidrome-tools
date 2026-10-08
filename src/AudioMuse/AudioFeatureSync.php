@@ -10,7 +10,8 @@ use App\Repository\AudioFeatureRepository;
  *
  *   1. read the whole manifest (`/api/sync?fields=index`, id => fp) ;
  *   2. fetch details only for new tracks and tracks whose fp changed
- *      (re-analysed), 500 at a time ;
+ *      (re-analysed), 500 per write batch (the client splits each batch
+ *      further so its URL fits gunicorn's request-line limit) ;
  *   3. drop local rows AudioMuse no longer knows.
  *
  * Safety: an empty manifest while rows exist locally aborts the run
