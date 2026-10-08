@@ -84,23 +84,27 @@ class AudioFeatureDefinitionsTest extends TestCase
     public function testKickstartEnergiqueKeepsKickstartOrderAndFiltersEnergyAndTempo(): void
     {
         $navidrome = $this->createMock(NavidromeRepository::class);
-        $navidrome->expects($this->once())->method('getDailyKickstartTracks')->with(500)
-            ->willReturn(['fast-loud', 'soft', 'half-tempo-dance', 'slow-loud', 'unanalysed', 'loud-2']);
         $navidrome->method('filterMissingMediaFileIds')->willReturn([]);
         $features = $this->createMock(AudioFeatureRepository::class);
         $features->method('energyPercentile')->with(60)->willReturn(0.6);
+        // Bunched scores (#271): the library's 75th percentile is 0.64, not 0.5.
+        $features->method('moodPercentile')->with('danceable', 75)->willReturn(0.64);
         $features->method('featuresByIds')->willReturn([
             'fast-loud' => ['tempo' => 128.0, 'energy' => 0.8, 'danceable' => 0.2],
             'soft' => ['tempo' => 130.0, 'energy' => 0.3, 'danceable' => 0.9],
-            'half-tempo-dance' => ['tempo' => 64.0, 'energy' => 0.7, 'danceable' => 0.6],
+            'half-tempo-dance' => ['tempo' => 64.0, 'energy' => 0.7, 'danceable' => 0.7],
+            'slow-average-dance' => ['tempo' => 70.0, 'energy' => 0.9, 'danceable' => 0.61],
             'slow-loud' => ['tempo' => 70.0, 'energy' => 0.9, 'danceable' => 0.1],
             'loud-2' => ['tempo' => 110.0, 'energy' => 0.6, 'danceable' => null],
         ]);
+        $navidrome->expects($this->once())->method('getDailyKickstartTracks')->with(500)
+            ->willReturn(['fast-loud', 'soft', 'half-tempo-dance', 'slow-average-dance', 'slow-loud', 'unanalysed', 'loud-2']);
 
-        $def = new KickstartEnergiqueDefinition($navidrome, $features, energyPercentile: 60, minBpm: 110);
+        $def = new KickstartEnergiqueDefinition($navidrome, $features, energyPercentile: 60, minBpm: 110, danceablePercentile: 75);
 
         $this->assertSame('kickstart-energique', $def->getSlug());
-        // Kickstart order kept; soft (energy), slow-loud (tempo, not danceable), unanalysed dropped.
+        // Kickstart order kept. Dropped: soft (energy), slow-average-dance (0.61 ≥ 0.5 but
+        // < p75: the old absolute threshold let it in), slow-loud (tempo, not danceable), unanalysed.
         $this->assertSame(['fast-loud', 'half-tempo-dance', 'loud-2'], $def->build($this->ctx()));
     }
 

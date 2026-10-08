@@ -114,4 +114,23 @@ class AudioFeatureRepositoryTest extends TestCase
             'no-energy' => ['tempo' => 120.0, 'energy' => null, 'danceable' => null],
         ], $repo->featuresByIds(['e2', 'no-energy', 'unknown']));
     }
+
+    public function testMoodPercentile(): void
+    {
+        $repo = $this->repo();
+        $this->assertNull($repo->moodPercentile('danceable', 75));
+
+        $tracks = [];
+        foreach ([0.55, 0.58, 0.6, 0.6, 0.61, 0.62, 0.63, 0.64, 0.7] as $i => $score) {
+            $tracks[] = self::track('d' . $i, 'f', 100.0, 0.5, ['danceable' => $score]);
+        }
+        $tracks[] = self::track('none', 'f', 100.0, 0.5);
+        $repo->upsert($tracks, new \DateTimeImmutable());
+
+        $this->assertSame(0.63, $repo->moodPercentile('danceable', 75));
+        $this->assertSame(0.55, $repo->moodPercentile('danceable', 0));
+
+        $this->expectException(\InvalidArgumentException::class);
+        $repo->moodPercentile('energy; DROP TABLE audio_feature', 50);
+    }
 }

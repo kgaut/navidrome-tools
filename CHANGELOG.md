@@ -9,6 +9,16 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+### Corrigé
+
+- **« Kickstart énergique » : le critère « dansant » ne filtrait presque rien**
+  (issue #271). Le score `danceable` d'AudioMuse est tassé (médiane ≈ 0,60 sur
+  toute la bibliothèque) : le seuil absolu de 0,5 laissait entrer 23 morceaux
+  lents sur 50, à peine plus dansants que la moyenne. Le critère devient
+  relatif : `danceable` ≥ le `PLAYLIST_KICKSTART_DANCEABLE_PERCENTILE`-ième
+  percentile de la bibliothèque (75), comme pour l'énergie.
+  `AudioFeatureRepository::moodPercentile()`.
+
 ## [1.6.2] - 2026-10-08
 
 ### Corrigé
