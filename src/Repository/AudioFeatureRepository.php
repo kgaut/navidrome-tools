@@ -158,6 +158,52 @@ class AudioFeatureRepository extends ServiceEntityRepository
         return $out;
     }
 
+    /**
+     * @param list<string> $ids
+     *
+     * @return array<string, array{tempo: ?float, energy: ?float, danceable: ?float}> for ids that have a row
+     */
+    public function featuresByIds(array $ids): array
+    {
+        $out = [];
+        foreach (array_chunk($ids, self::CHUNK) as $chunk) {
+            $rows = $this->db()->fetchAllAssociative(
+                'SELECT media_file_id, tempo, energy, danceable FROM audio_feature WHERE media_file_id IN (?)',
+                [$chunk],
+                [ArrayParameterType::STRING],
+            );
+            foreach ($rows as $r) {
+                $out[(string) $r['media_file_id']] = [
+                    'tempo' => $r['tempo'] === null ? null : (float) $r['tempo'],
+                    'energy' => $r['energy'] === null ? null : (float) $r['energy'],
+                    'danceable' => $r['danceable'] === null ? null : (float) $r['danceable'],
+                ];
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Library-wide energy at the given percentile (0..100), e.g. 60 → the
+     * value 60 % of analysed tracks stay under. Null when nothing is imported.
+     */
+    public function energyPercentile(int $percentile): ?float
+    {
+        $count = (int) $this->db()->fetchOne('SELECT COUNT(*) FROM audio_feature WHERE energy IS NOT NULL');
+        if ($count === 0) {
+            return null;
+        }
+        $offset = (int) floor((max(0, min(100, $percentile)) / 100) * ($count - 1));
+        $value = $this->db()->fetchOne(
+            'SELECT energy FROM audio_feature WHERE energy IS NOT NULL ORDER BY energy ASC LIMIT 1 OFFSET ?',
+            [$offset],
+            [ParameterType::INTEGER],
+        );
+
+        return $value === false ? null : (float) $value;
+    }
+
     private function db(): Connection
     {
         return $this->getEntityManager()->getConnection();

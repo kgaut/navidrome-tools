@@ -82,6 +82,8 @@
         <env name="PLAYLIST_COURSE_HALF_TEMPO" value="1"/>
         <env name="PLAYLIST_COURSE_MIN_PLAYS" value="1"/>
         <env name="PLAYLIST_CALMES_MAX_PLAYS" value="2"/>
+        <env name="PLAYLIST_KICKSTART_ENERGY_PERCENTILE" value="60"/>
+        <env name="PLAYLIST_KICKSTART_MIN_BPM" value="110"/>
     </php>
 
     <testsuites>

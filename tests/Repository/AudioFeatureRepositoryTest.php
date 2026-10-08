@@ -92,4 +92,26 @@ class AudioFeatureRepositoryTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->repo()->topByMood('tempo; DROP TABLE audio_feature', 0.5, 1);
     }
+
+    public function testFeaturesByIdsAndEnergyPercentile(): void
+    {
+        $repo = $this->repo();
+        $this->assertNull($repo->energyPercentile(60));
+
+        $tracks = [];
+        foreach ([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0] as $i => $energy) {
+            $tracks[] = self::track('e' . $i, 'f', 100.0 + $i, $energy, ['danceable' => 0.3]);
+        }
+        $tracks[] = self::track('no-energy', 'f', 120.0);
+        $repo->upsert($tracks, new \DateTimeImmutable());
+
+        $this->assertSame(0.1, $repo->energyPercentile(0));
+        $this->assertSame(0.6, $repo->energyPercentile(60));
+        $this->assertSame(1.0, $repo->energyPercentile(100));
+
+        $this->assertSame([
+            'e2' => ['tempo' => 102.0, 'energy' => 0.3, 'danceable' => 0.3],
+            'no-energy' => ['tempo' => 120.0, 'energy' => null, 'danceable' => null],
+        ], $repo->featuresByIds(['e2', 'no-energy', 'unknown']));
+    }
 }
