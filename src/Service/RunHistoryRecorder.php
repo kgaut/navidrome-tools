@@ -3,6 +3,7 @@
 namespace App\Service;
 
 use App\Entity\RunHistory;
+use App\Log\SecretRedactor;
 use App\Notifier\Notification;
 use App\Notifier\Notifier;
 use Doctrine\ORM\EntityManagerInterface;
@@ -66,7 +67,8 @@ class RunHistoryRecorder
         } catch (\Throwable $e) {
             $entry = $this->refreshEntryAfterFailure($entry);
             $entry->setStatus(RunHistory::STATUS_ERROR);
-            $entry->setMessage($e->getMessage());
+            // Last line of defence: no URL credential in history / notifications (#265).
+            $entry->setMessage(SecretRedactor::redact($e->getMessage()));
             $entry->setFinishedAt(new \DateTimeImmutable());
             $entry->setDurationMs((int) round((microtime(true) - $startedMicrotime) * 1000));
             try {

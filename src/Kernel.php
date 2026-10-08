@@ -2,12 +2,39 @@
 
 namespace App;
 
+use App\Log\RedactingLogger;
 use Symfony\Bundle\FrameworkBundle\Kernel\MicroKernelTrait;
+use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
+use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\ContainerInterface;
+use Symfony\Component\DependencyInjection\Definition;
+use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\HttpKernel\Kernel as BaseKernel;
 
-class Kernel extends BaseKernel
+class Kernel extends BaseKernel implements CompilerPassInterface
 {
     use MicroKernelTrait;
+
+    /**
+     * Symfony's HTTP client logs every request URL (query string included)
+     * through `logger`: hand it a decorator that masks credentials instead
+     * (Subsonic `t`/`s`, Last.fm `api_key`…, issue #265).
+     */
+    public function process(ContainerBuilder $container): void
+    {
+        if (!$container->hasDefinition('http_client.transport') || !$container->has('logger')) {
+            return;
+        }
+        $container->setDefinition(
+            'app.http_client.redacting_logger',
+            new Definition(RedactingLogger::class, [new Reference('logger')]),
+        );
+        $container->getDefinition('http_client.transport')
+            ->removeMethodCall('setLogger')
+            ->addMethodCall('setLogger', [
+                new Reference('app.http_client.redacting_logger', ContainerInterface::IGNORE_ON_INVALID_REFERENCE),
+            ]);
+    }
 
     public function boot(): void
     {

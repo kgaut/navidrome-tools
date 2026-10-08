@@ -2,6 +2,7 @@
 
 namespace App\Subsonic;
 
+use App\Log\SecretRedactor;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 /**
@@ -262,7 +263,7 @@ class SubsonicClient
             throw new \RuntimeException(sprintf(
                 'Subsonic call %s failed: %s',
                 $method,
-                $e->getMessage(),
+                SecretRedactor::redact($e->getMessage()), // the URL carries t/s (#265)
             ), 0, $e);
         }
 
