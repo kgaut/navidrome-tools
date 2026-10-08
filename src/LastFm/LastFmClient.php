@@ -2,6 +2,7 @@
 
 namespace App\LastFm;
 
+use App\Log\SecretRedactor;
 use Symfony\Contracts\HttpClient\Exception\HttpExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
@@ -183,7 +184,7 @@ class LastFmClient
             ]);
             $body = $response->toArray(throw: true);
         } catch (\Throwable $e) {
-            throw new \RuntimeException('Last.fm auth.getMobileSession failed: ' . $e->getMessage(), 0, $e);
+            throw new \RuntimeException('Last.fm auth.getMobileSession failed: ' . SecretRedactor::redact($e->getMessage()), 0, $e);
         }
 
         if (isset($body['error'])) {
@@ -330,7 +331,7 @@ class LastFmClient
             ]);
             $body = $response->toArray(throw: true);
         } catch (\Throwable $e) {
-            throw new \RuntimeException(sprintf('Last.fm %s failed for "%s — %s": %s', $method, $artist, $title, $e->getMessage()), 0, $e);
+            throw new \RuntimeException(sprintf('Last.fm %s failed for "%s — %s": %s', $method, $artist, $title, SecretRedactor::redact($e->getMessage())), 0, $e);
         }
 
         if (isset($body['error'])) {
@@ -365,7 +366,7 @@ class LastFmClient
                     $params['method'] ?? '?',
                     $params['page'] ?? '?',
                     $attempt,
-                    $e->getMessage(),
+                    SecretRedactor::redact($e->getMessage()), // the URL carries api_key (#265)
                 ), 0, $e);
             }
         }

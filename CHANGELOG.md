@@ -9,6 +9,18 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+### Sécurité
+
+- **Jetons Subsonic et clés Last.fm masqués dans les logs** (issue #265). Le
+  client HTTP de Symfony journalise chaque URL (niveau `info`, affiché par le
+  worker `-vv`) : le couple `t`/`s` de Subsonic, rejouable tant que le mot de
+  passe ne change pas, se retrouvait dans les logs du conteneur. Le client HTTP
+  journalise désormais via `RedactingLogger`, qui masque `t`, `s`, `p`,
+  `api_key`, `api_sig`, `sk`, `token`… (`***`) ; les messages d'erreur des
+  clients Subsonic et Last.fm, et ceux enregistrés dans l'historique et les
+  notifications, sont masqués de la même façon. ⚠️ Changer le mot de passe
+  Navidrome du compte utilisé pour invalider les jetons déjà journalisés.
+
 ## [1.5.0] - 2026-10-08
 
 ### Ajouté
