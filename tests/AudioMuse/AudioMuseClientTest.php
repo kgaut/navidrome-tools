@@ -291,4 +291,35 @@ class AudioMuseClientTest extends TestCase
         }
         $this->assertSame([], AudioMuseClient::chunkIdsForQuery([]));
     }
+
+    public function testSonicFingerprintPostsCountWithoutCredentials(): void
+    {
+        $captured = [];
+        $http = new MockHttpClient(function (string $method, string $url, array $options) use (&$captured): MockResponse {
+            $captured = [$method, $url, $options];
+
+            return new MockResponse(json_encode([
+                ['item_id' => 'mf-1', 'title' => 'A', 'distance' => 0.1],
+                ['item_id' => 'mf-2', 'distance' => 0.2],
+                ['title' => 'no id'],
+            ], \JSON_THROW_ON_ERROR));
+        });
+
+        $ids = (new AudioMuseClient($http, 'http://am:8000', 'k'))->sonicFingerprint(40);
+
+        $this->assertSame(['mf-1', 'mf-2'], $ids);
+        [$method, $url, $options] = $captured;
+        $this->assertSame('POST', $method);
+        $this->assertStringEndsWith('/api/sonic_fingerprint/generate', $url);
+        // Only the size: AudioMuse uses its own Navidrome account, no password leaves the tool.
+        $this->assertSame(['n' => 40], json_decode($options['body'], true));
+        $this->assertSame(120.0, (float) $options['timeout']);
+    }
+
+    public function testSonicFingerprintEmptyListIsEmpty(): void
+    {
+        $http = new MockHttpClient([new MockResponse('[]')]);
+
+        $this->assertSame([], (new AudioMuseClient($http, 'http://am:8000'))->sonicFingerprint(10));
+    }
 }

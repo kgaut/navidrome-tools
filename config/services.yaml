@@ -55,6 +55,8 @@ parameters:
     env(PLAYLIST_COURSE_HALF_TEMPO): '1'
     env(PLAYLIST_COURSE_MIN_PLAYS): '1'
     env(PLAYLIST_CALMES_MAX_PLAYS): '2'
+    env(PLAYLIST_KICKSTART_ENERGY_PERCENTILE): '60'
+    env(PLAYLIST_KICKSTART_MIN_BPM): '110'
     # API JSON (issue #250) : token Bearer statique (vide = API désactivée,
     # fail-closed) et fuseau de découpage des jours.
     env(APP_API_TOKEN): ''
@@ -128,6 +130,8 @@ parameters:
     playlist.course.half_tempo: '%env(bool:PLAYLIST_COURSE_HALF_TEMPO)%'
     playlist.course.min_plays: '%env(int:PLAYLIST_COURSE_MIN_PLAYS)%'
     playlist.calmes.max_plays: '%env(int:PLAYLIST_CALMES_MAX_PLAYS)%'
+    playlist.kickstart_energique.energy_percentile: '%env(int:PLAYLIST_KICKSTART_ENERGY_PERCENTILE)%'
+    playlist.kickstart_energique.min_bpm: '%env(int:PLAYLIST_KICKSTART_MIN_BPM)%'
     notify.drivers: '%env(NOTIFY_DRIVERS)%'
     notify.on: '%env(NOTIFY_ON)%'
     notify.gotify.url: '%env(NOTIFY_GOTIFY_URL)%'
@@ -281,6 +285,16 @@ services:
     App\Playlist\Definition\CalmesPeuEcouteesDefinition:
         arguments:
             $maxPlays: '%playlist.calmes.max_plays%'
+            $limit: '%playlists.default_limit%'
+
+    App\Playlist\Definition\KickstartEnergiqueDefinition:
+        arguments:
+            $energyPercentile: '%playlist.kickstart_energique.energy_percentile%'
+            $minBpm: '%playlist.kickstart_energique.min_bpm%'
+            $limit: '%playlists.default_limit%'
+
+    App\Playlist\Definition\EmpreinteSonoreDefinition:
+        arguments:
             $limit: '%playlists.default_limit%'
 
     App\Playlist\Definition\EnergiquesOublieesDefinition:

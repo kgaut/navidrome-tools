@@ -9,6 +9,18 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+### Ajouté
+
+- **Playlists « Kickstart énergique » et « Empreinte sonore »** (issue #257).
+  « Kickstart énergique » : la Kickstart (morceaux qui ouvrent le plus souvent
+  la journée, dans son ordre) limitée aux morceaux dont l'énergie AudioMuse
+  dépasse le `PLAYLIST_KICKSTART_ENERGY_PERCENTILE`-ième percentile de la
+  bibliothèque (60) et dont le tempo atteint `PLAYLIST_KICKSTART_MIN_BPM` (110)
+  ou qui sont dansants (BPM souvent détecté à moitié) ; la Kickstart d'origine
+  ne change pas. « Empreinte sonore » : reprend la playlist qu'AudioMuse
+  produisait (`POST /api/sonic_fingerprint/generate`), calculée sur le compte
+  Navidrome configuré dans AudioMuse, sans envoi d'identifiants.
+
 ## [1.5.2] - 2026-10-08
 
 ### Sécurité

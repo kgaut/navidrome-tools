@@ -2,10 +2,13 @@
 
 namespace App\Tests\Playlist;
 
+use App\AudioMuse\AudioMuseClient;
 use App\Navidrome\NavidromeRepository;
 use App\Playlist\Definition\CalmesPeuEcouteesDefinition;
 use App\Playlist\Definition\CourseDefinition;
+use App\Playlist\Definition\EmpreinteSonoreDefinition;
 use App\Playlist\Definition\EnergiquesOublieesDefinition;
+use App\Playlist\Definition\KickstartEnergiqueDefinition;
 use App\Playlist\PlaylistContext;
 use App\Repository\AudioFeatureRepository;
 use PHPUnit\Framework\TestCase;
@@ -75,5 +78,61 @@ class AudioFeatureDefinitionsTest extends TestCase
 
         $this->assertCount(1, $ids);
         $this->assertContains($ids[0], ['loud', 'mid']);
+    }
+
+    public function testKickstartEnergiqueKeepsKickstartOrderAndFiltersEnergyAndTempo(): void
+    {
+        $navidrome = $this->createMock(NavidromeRepository::class);
+        $navidrome->expects($this->once())->method('getDailyKickstartTracks')->with(500)
+            ->willReturn(['fast-loud', 'soft', 'half-tempo-dance', 'slow-loud', 'unanalysed', 'loud-2']);
+        $navidrome->method('filterMissingMediaFileIds')->willReturn([]);
+        $features = $this->createMock(AudioFeatureRepository::class);
+        $features->method('energyPercentile')->with(60)->willReturn(0.6);
+        $features->method('featuresByIds')->willReturn([
+            'fast-loud' => ['tempo' => 128.0, 'energy' => 0.8, 'danceable' => 0.2],
+            'soft' => ['tempo' => 130.0, 'energy' => 0.3, 'danceable' => 0.9],
+            'half-tempo-dance' => ['tempo' => 64.0, 'energy' => 0.7, 'danceable' => 0.6],
+            'slow-loud' => ['tempo' => 70.0, 'energy' => 0.9, 'danceable' => 0.1],
+            'loud-2' => ['tempo' => 110.0, 'energy' => 0.6, 'danceable' => null],
+        ]);
+
+        $def = new KickstartEnergiqueDefinition($navidrome, $features, energyPercentile: 60, minBpm: 110);
+
+        $this->assertSame('kickstart-energique', $def->getSlug());
+        // Kickstart order kept; soft (energy), slow-loud (tempo, not danceable), unanalysed dropped.
+        $this->assertSame(['fast-loud', 'half-tempo-dance', 'loud-2'], $def->build($this->ctx()));
+    }
+
+    public function testKickstartEnergiqueIsEmptyBeforeAnyImport(): void
+    {
+        $features = $this->createMock(AudioFeatureRepository::class);
+        $features->method('energyPercentile')->willReturn(null);
+        $navidrome = $this->createMock(NavidromeRepository::class);
+        $navidrome->expects($this->never())->method('getDailyKickstartTracks');
+
+        $this->assertSame([], (new KickstartEnergiqueDefinition($navidrome, $features))->build($this->ctx()));
+    }
+
+    public function testEmpreinteSonoreKeepsAudioMuseOrderAndDropsMissing(): void
+    {
+        $audioMuse = $this->createMock(AudioMuseClient::class);
+        $audioMuse->method('isConfigured')->willReturn(true);
+        $audioMuse->expects($this->once())->method('sonicFingerprint')->with(3)->willReturn(['a', 'gone', 'b', 'a', 'c', 'd']);
+        $navidrome = $this->createMock(NavidromeRepository::class);
+        $navidrome->method('filterMissingMediaFileIds')->willReturn(['gone']);
+
+        $def = new EmpreinteSonoreDefinition($navidrome, $audioMuse, limit: 3);
+
+        $this->assertSame('empreinte-sonore', $def->getSlug());
+        $this->assertSame(['a', 'b', 'c'], $def->build($this->ctx()));
+    }
+
+    public function testEmpreinteSonoreInactiveWithoutAudioMuse(): void
+    {
+        $audioMuse = $this->createMock(AudioMuseClient::class);
+        $audioMuse->method('isConfigured')->willReturn(false);
+        $audioMuse->expects($this->never())->method('sonicFingerprint');
+
+        $this->assertSame([], (new EmpreinteSonoreDefinition($this->createMock(NavidromeRepository::class), $audioMuse))->build($this->ctx()));
     }
 }

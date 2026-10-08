@@ -17,6 +17,7 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  *       → {"query": …, "results": [{item_id, …, similarity}], "count": int}
  *   GET /api/sync?fields=index&page=…   → {"tracks": [{id, fp}], "has_more": bool}
  *   GET /api/sync?ids=a,b&include_embeddings=false → {"tracks": [{id, tempo, …, fp}]}
+ *   POST /api/sonic_fingerprint/generate {"n": …} → [{item_id, …, distance}]
  *
  * Recent versions (≥ 3.6) return the list at the JSON root; older ones
  * wrapped it as {"similar_songs": […]}. Both shapes are accepted.
@@ -159,6 +160,34 @@ class AudioMuseClient
             $id = is_array($song) ? trim((string) ($song['item_id'] ?? '')) : '';
             if ($id !== '') {
                 $out[] = ['item_id' => $id, 'similarity' => (float) ($song['similarity'] ?? 0)];
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * AudioMuse's « sonic fingerprint »: tracks close to the centre of the
+     * user's most-played songs (recency-weighted), closest first. No
+     * credentials are sent: AudioMuse uses the Navidrome account configured
+     * on its side, so the fingerprint is that account's. Slow (one Navidrome
+     * lookup per top song on AudioMuse's side), hence the long timeout.
+     *
+     * @return list<string> media_file ids
+     */
+    public function sonicFingerprint(int $n): array
+    {
+        if (!$this->isConfigured()) {
+            throw new AudioMuseException('AudioMuse base URL is not set (AUDIOMUSE_BASE_URL).');
+        }
+
+        $payload = $this->post('/api/sonic_fingerprint/generate', ['n' => max(1, $n)], 120);
+
+        $out = [];
+        foreach (array_is_list($payload) ? $payload : [] as $song) {
+            $id = is_array($song) ? trim((string) ($song['item_id'] ?? '')) : '';
+            if ($id !== '') {
+                $out[] = $id;
             }
         }
 
