@@ -1,0 +1,27 @@
+{% extends 'base.html.twig' %}
+{% block title %}Autoriser un client MCP{% endblock %}
+{% block body %}
+    <div class="card card--lg">
+        <h1 class="mb-20">Autoriser « {{ client_name }} » ?</h1>
+        <p>Ce client demande l'accès à navidrome-tools par le serveur MCP, pour le compte <strong>{{ app.user.userIdentifier }}</strong>.</p>
+        <ul class="mb-20">
+            {% for scope in scopes %}
+                <li>
+                    {% if scope == 'mcp' %}
+                        <strong>Lecture</strong> : statistiques, matching, bibliothèque, playlists.
+                    {% elseif scope == 'mcp_write' %}
+                        <strong>Écriture</strong> : créer des playlists dans Navidrome, créer des alias, relancer le matching.
+                    {% else %}
+                        {{ scope }}
+                    {% endif %}
+                </li>
+            {% endfor %}
+        </ul>
+        <p class="mb-20">Le code d'autorisation sera envoyé à <strong>{{ redirect_host }}</strong>.</p>
+        <form method="post" action="{{ app.request.uri }}" class="row" style="gap:12px;">
+            <input type="hidden" name="_token" value="{{ csrf_token('oauth_consent') }}">
+            <button type="submit" name="decision" value="approve" class="btn btn--primary">Autoriser</button>
+            <button type="submit" name="decision" value="deny" class="btn btn--ghost">Refuser</button>
+        </form>
+    </div>
+{% endblock %}

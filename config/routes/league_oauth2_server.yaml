@@ -1,0 +1,11 @@
+# Seuls /authorize et /token (issue #276) : la route /device-code du bundle
+# n'est pas importée, ce grant n'est pas activé.
+oauth2_authorize:
+    path: /authorize
+    controller: league.oauth2_server.controller.authorization::indexAction
+    methods: [GET, POST]
+
+oauth2_token:
+    path: /token
+    controller: league.oauth2_server.controller.token::indexAction
+    methods: [POST]

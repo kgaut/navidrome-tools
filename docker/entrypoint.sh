@@ -18,6 +18,15 @@ php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migratio
 
 MODE="${APP_MODE:-web}"
 
+# Clés OAuth du serveur MCP (issue #276), créées une fois dans var/oauth.
+# Le conteneur web seul : il partage le volume avec le worker.
+if [ "$MODE" = "web" ]; then
+    php bin/console app:oauth:ensure-keys --env="${APP_ENV:-prod}" || {
+        echo "OAuth key generation failed" >&2
+        exit 1
+    }
+fi
+
 case "$MODE" in
     web)
         exec frankenphp run --config /etc/caddy/Caddyfile

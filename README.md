@@ -21,6 +21,7 @@ pour que les compteurs de lecture reflètent l'historique Last.fm.
 - [Déploiement (prod)](#déploiement-prod)
 - [Configuration](#configuration)
 - [Interface web](#interface-web)
+- [Serveur MCP](#serveur-mcp)
 - [Commandes console](#commandes-console)
 - [Workflow type](#workflow-type)
 - [Wipe complet + ré-import](#wipe-complet--ré-import)
@@ -308,6 +309,59 @@ Points de contrat :
 ```bash
 curl -H "Authorization: Bearer $APP_API_TOKEN" \
   'https://<host>/api/stats/daily?from=2026-08-01&to=2026-08-23&source=navidrome'
+```
+
+---
+
+## Serveur MCP
+
+Serveur [MCP](https://modelcontextprotocol.io) sur **`/mcp`** (Streamable HTTP),
+pour piloter navidrome-tools depuis un assistant : connecteur claude.ai,
+Claude Code… (issue #276).
+
+**Auth** : OAuth 2.1 seulement : enregistrement dynamique du client, code
+d'autorisation avec PKCE S256, écran de consentement derrière la connexion de
+l'interface. Aucun cookie de session n'est accepté sur `/mcp`. Sans jeton : `401`
+avec `WWW-Authenticate: Bearer resource_metadata="…"`, ce qui lance le parcours
+chez le client. Scopes : `mcp` (lecture) et `mcp_write` (outils d'écriture).
+
+| Outil | Rôle |
+|---|---|
+| `stats_overview`, `stats_daily`, `stats_top` | statistiques d'écoute (Navidrome, Last.fm) |
+| `matching_summary`, `unmatched_list`, `unmatched_diagnose` | état du matching, non-matchés et diagnostic |
+| `library_search`, `playlists_list` | recherche dans la bibliothèque (ids), playlists connues |
+| `playlist_create` ✍️ | playlist Navidrome à partir d'une liste d'ids |
+| `described_playlist_create` ✍️ | playlist décrite par une phrase (AudioMuse), régénérée par le cron |
+| `alias_create_track`, `alias_create_artist`, `unmatched_retry` ✍️ | réconciliation |
+
+✍️ = écriture : listés pour tout jeton, **refusés à l'exécution** sans `mcp_write`
+(rien n'est écrit). Une erreur métier (nom pris, id inconnu…) revient comme
+une erreur d'outil lisible ; une panne (Navidrome injoignable) reste une erreur
+interne.
+
+Configuration (`.env.dist`) :
+
+| Variable | Rôle |
+|---|---|
+| `APP_PUBLIC_URL` | URL publique, sans `/` final (émetteur OAuth, URLs de découverte). Vide = déduite de la requête |
+| `TRUSTED_PROXIES` | reverse proxy qui termine TLS (sinon les URLs annoncées sont en `http://`) |
+| `MCP_ALLOWED_HOSTS` | hôtes acceptés sur `/mcp` (protection DNS rebinding), ex. le nom public |
+| `OAUTH_ALLOWED_REDIRECT_URIS` | adresses de retour autorisées, en plus du loopback `http://localhost:<port>/callback` ; défaut : callbacks claude.ai |
+
+Les clés OAuth sont créées au démarrage du conteneur web dans `var/oauth`
+(`app:oauth:ensure-keys`, idempotent). Les perdre invalide seulement les jetons
+émis : les clients se reconnectent.
+
+Derrière un reverse proxy avec SSO, laisser passer sans authentification
+`/mcp`, `/token`, `/oauth/register` et `/.well-known/*` : `/authorize` reste
+derrière la connexion de l'application.
+
+Révoquer un client : `php bin/console league:oauth2-server:list-clients`, puis
+`league:oauth2-server:delete-client <id>` (ses jetons tombent avec lui).
+
+```bash
+# Claude Code
+claude mcp add --transport http navidrome-tools https://<host>/mcp
 ```
 
 ---

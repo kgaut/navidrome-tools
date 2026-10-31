@@ -1,0 +1,19 @@
+# Serveur MCP (issue #276) : Streamable HTTP sur /mcp, derrière OAuth
+# (pare-feu `mcp` de security.yaml).
+mcp:
+    servers:
+        default:
+            name: navidrome-tools
+            instructions: >-
+                Outils de navidrome-tools : statistiques d'écoute (Navidrome et Last.fm), matching des scrobbles Last.fm
+                vers la bibliothèque Navidrome, réconciliation (alias, nouvelle tentative) et playlists écrites dans
+                Navidrome. Pour une playlist à partir de morceaux précis : library_search ou stats_top pour obtenir les
+                ids, puis playlist_create. Pour une ambiance décrite en mots : described_playlist_create. Les outils
+                marqués ÉCRITURE exigent le scope mcp_write.
+            registry: 'App\Mcp\'
+            http:
+                path: /mcp
+                allowed_hosts: '%env(csv:MCP_ALLOWED_HOSTS)%'
+            session:
+                store: file
+                directory: '%kernel.project_dir%/var/mcp-sessions'

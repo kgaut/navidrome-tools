@@ -358,6 +358,87 @@ class ScrobbleSyncRepository extends ServiceEntityRepository
     }
 
     /**
+     * Number of (artist, title, album) groups {@see aggregateUnmatched()}
+     * would page through with the same filters — its pagination total
+     * (issue #276), unlike {@see countUnmatchedForTarget()} which counts
+     * scrobbles.
+     */
+    public function countUnmatchedGroups(
+        string $target,
+        ?string $filterArtist = null,
+        ?string $filterTitle = null,
+        ?string $period = null,
+    ): int {
+        $where = ['ss.target = :target', 'ss.status = :status'];
+        $params = ['target' => $target, 'status' => ScrobbleSync::STATUS_UNMATCHED];
+        if ($filterArtist !== null) {
+            $where[] = 'LOWER(s.artist) LIKE LOWER(:artist)';
+            $params['artist'] = '%' . $filterArtist . '%';
+        }
+        if ($filterTitle !== null) {
+            $where[] = 'LOWER(s.title) LIKE LOWER(:title)';
+            $params['title'] = '%' . $filterTitle . '%';
+        }
+        [$periodExpr] = self::periodClause($period);
+        if ($periodExpr !== null) {
+            $where[] = $periodExpr;
+            $params['period'] = $period;
+        }
+
+        return (int) $this->em->getConnection()->fetchOne(
+            'SELECT COUNT(*) FROM (
+                 SELECT 1
+                 FROM scrobble_sync ss
+                 JOIN scrobbles s ON s.id = ss.scrobble_id
+                 WHERE ' . implode(' AND ', $where) . '
+                 GROUP BY s.artist, s.title, s.album
+             )',
+            $params,
+        );
+    }
+
+    /**
+     * Number of rows per sync status for a target (issue #276, MCP
+     * `matching_summary`). Statuses with no row are absent.
+     *
+     * @return array<string, int>
+     */
+    public function countByStatus(string $target): array
+    {
+        $rows = $this->em->getConnection()->fetchAllAssociative(
+            'SELECT status, COUNT(*) AS n FROM scrobble_sync WHERE target = :target GROUP BY status',
+            ['target' => $target],
+        );
+        $out = [];
+        foreach ($rows as $r) {
+            $out[(string) $r['status']] = (int) $r['n'];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Matched rows per matching strategy for a target (issue #276).
+     *
+     * @return array<string, int>
+     */
+    public function countMatchedByStrategy(string $target): array
+    {
+        $rows = $this->em->getConnection()->fetchAllAssociative(
+            "SELECT COALESCE(strategy, '?') AS strategy, COUNT(*) AS n
+             FROM scrobble_sync WHERE target = :target AND status = :status
+             GROUP BY strategy ORDER BY n DESC",
+            ['target' => $target, 'status' => ScrobbleSync::STATUS_MATCHED],
+        );
+        $out = [];
+        foreach ($rows as $r) {
+            $out[(string) $r['strategy']] = (int) $r['n'];
+        }
+
+        return $out;
+    }
+
+    /**
      * Distinct unmatched artists for the given target with their lifetime
      * unmatched play count, ordered by plays. Feeds the MusicBrainz online
      * alias suggester ({@see \App\Service\MusicBrainzAliasSuggester}) which —
