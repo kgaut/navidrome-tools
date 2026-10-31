@@ -3,17 +3,13 @@
 namespace App\Controller;
 
 use App\Entity\ScrobbleSync;
-use App\LastFm\LastFmScrobble;
-use App\LastFm\MatchResult;
-use App\LastFm\ScrobbleMatcher;
 use App\Message\RematchMessage;
 use App\Message\SuggestAliasesMusicBrainzMessage;
 use App\Message\SyncNavidromeMessage;
-use App\Navidrome\NavidromeRepository;
-use App\Repository\LastFmMatchCacheRepository;
 use App\Repository\ScrobbleSyncRepository;
 use App\Service\DisparityStatsService;
 use App\Service\UnmatchedDiagnoser;
+use App\Service\UnmatchedRetrier;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -117,14 +113,8 @@ class NavidromeSyncController extends AbstractController
      * container stop.
      */
     #[Route('/navidrome/unmatched/retry', name: 'app_navidrome_unmatched_retry', methods: ['POST'])]
-    public function retryMatch(
-        Request $request,
-        ScrobbleMatcher $matcher,
-        ScrobbleSyncRepository $syncRepo,
-        LastFmMatchCacheRepository $cache,
-        UnmatchedDiagnoser $diagnoser,
-        NavidromeRepository $navidrome,
-    ): Response {
+    public function retryMatch(Request $request, UnmatchedRetrier $retrier): Response
+    {
         if (!$this->isCsrfTokenValid('navidrome_unmatched_retry', (string) $request->request->get('_token'))) {
             throw $this->createAccessDeniedException();
         }
@@ -140,42 +130,18 @@ class NavidromeSyncController extends AbstractController
             return $this->redirect($back);
         }
 
-        // Purge the negative cache entry so the cascade actually re-runs
-        // instead of short-circuiting on its own memoized miss.
-        $cache->purgeByCouple($artist, $title);
-
-        $result = $matcher->match(new LastFmScrobble(
-            artist: $artist,
-            title: $title,
-            album: $album,
-            mbid: null,
-            playedAt: new \DateTimeImmutable(),
-        ));
-
-        if ($result->status === MatchResult::STATUS_MATCHED && $result->mediaFileId !== null) {
-            $meta = $navidrome->getMediaFileMetadata([$result->mediaFileId]);
-            $label = $meta !== []
-                ? sprintf('%s — %s', $meta[0]['artist'], $meta[0]['album'] !== '' ? $meta[0]['album'] : '?')
-                : $result->mediaFileId;
-            $reset = $syncRepo->resetCoupleToPending(ScrobbleSync::TARGET_NAVIDROME, $artist, $title);
+        $outcome = $retrier->retry($artist, $title, $album);
+        if ($outcome['matched']) {
             $this->addFlash('success', sprintf(
                 '« %s — %s » matché (stratégie %s → %s). %d scrobble(s) remis en pending : lancez un sync pour les insérer dans Navidrome.',
                 $artist,
                 $title,
-                $result->strategy ?? '?',
-                $label,
-                $reset,
+                $outcome['strategy'] ?? '?',
+                $outcome['label'] ?? '?',
+                $outcome['requeued'],
             ));
         } else {
-            $diag = $diagnoser->diagnose($artist, $title);
-            $reason = match ($diag['reason'] ?? '') {
-                'artist_unknown' => 'artiste inconnu de la bibliothèque',
-                'artist_near_match' => 'artiste proche (voir suggestions d’alias)',
-                'title_near_match' => 'titre proche (voir suggestions d’alias)',
-                'track_missing' => 'artiste présent mais titre absent de la bibliothèque',
-                'matcher_gap' => 'track présente mais ratée par la cascade',
-                default => 'inconnue',
-            };
+            $reason = UnmatchedRetrier::reasonLabel((string) ($outcome['diagnosis']['reason'] ?? ''));
             $this->addFlash('warning', sprintf('« %s — %s » toujours non-matché. Raison : %s.', $artist, $title, $reason));
         }
 

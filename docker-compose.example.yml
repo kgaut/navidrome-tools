@@ -36,6 +36,10 @@ services:
       RUN_HISTORY_RETENTION_DAYS: "90"
       NOTIFY_DRIVERS: ""
       NOTIFY_ON: error
+      # Serveur MCP (/mcp, OAuth 2.1) — cf. README « Serveur MCP »
+      APP_PUBLIC_URL: ""             # ex: https://navidrome-tools.example.com
+      TRUSTED_PROXIES: ""            # ex: PRIVATE_SUBNETS derrière un reverse proxy
+      MCP_ALLOWED_HOSTS: localhost   # ex: navidrome-tools.example.com
     volumes:
       - navidrome-tools-data:/app/var
       # Base Navidrome en lecture seule (écriture gérée par app:scrobbles:sync-navidrome)

@@ -15,6 +15,17 @@ framework:
     php_errors:
         log: true
 
+    # Derrière un reverse proxy qui termine TLS (issue #276 : URLs OAuth).
+    trusted_proxies: '%env(TRUSTED_PROXIES)%'
+    trusted_headers: ['x-forwarded-for', 'x-forwarded-proto', 'x-forwarded-host', 'x-forwarded-port']
+
+    rate_limiter:
+        # Enregistrement dynamique de clients OAuth (issue #276).
+        oauth_registration:
+            policy: sliding_window
+            limit: 10
+            interval: '1 hour'
+
 when@test:
     framework:
         test: true

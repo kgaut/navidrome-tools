@@ -2639,6 +2639,87 @@ class NavidromeRepository
     }
 
     /**
+     * Free search over the library (issue #276, MCP `library_search`).
+     * Each non-empty criterion narrows the result (AND), matched as a
+     * case-insensitive substring: `query` on title OR artist OR album OR
+     * album_artist, the others on their own column (`artist` also matches
+     * `album_artist`). Files Navidrome flags as missing are left out.
+     *
+     * @return array{total: int, items: list<array{
+     *     id: string, title: string, artist: string, album: string,
+     *     year: ?int, duration: int, play_count: int
+     * }>}
+     */
+    public function searchMediaFiles(
+        ?string $query,
+        ?string $artist,
+        ?string $title,
+        ?string $album,
+        int $limit,
+        int $offset = 0,
+    ): array {
+        $clauses = [];
+        $params = [];
+        $types = [];
+        $like = static fn (string $v): string => '%' . mb_strtolower(trim($v)) . '%';
+
+        if ($query !== null && trim($query) !== '') {
+            $clauses[] = '(LOWER(mf.title) LIKE :q OR LOWER(mf.artist) LIKE :q OR LOWER(mf.album) LIKE :q OR LOWER(mf.album_artist) LIKE :q)';
+            $params['q'] = $like($query);
+        }
+        if ($artist !== null && trim($artist) !== '') {
+            $clauses[] = '(LOWER(mf.artist) LIKE :artist OR LOWER(mf.album_artist) LIKE :artist)';
+            $params['artist'] = $like($artist);
+        }
+        if ($title !== null && trim($title) !== '') {
+            $clauses[] = 'LOWER(mf.title) LIKE :title';
+            $params['title'] = $like($title);
+        }
+        if ($album !== null && trim($album) !== '') {
+            $clauses[] = 'LOWER(mf.album) LIKE :album';
+            $params['album'] = $like($album);
+        }
+        if (in_array('missing', $this->mediaFileColumns(), true)) {
+            $clauses[] = '(mf.missing IS NULL OR mf.missing = 0)';
+        }
+        $where = $clauses === [] ? '1 = 1' : implode(' AND ', $clauses);
+
+        $total = (int) $this->connection()->fetchOne('SELECT COUNT(*) FROM media_file mf WHERE ' . $where, $params);
+
+        $params['lim'] = max(1, $limit);
+        $params['off'] = max(0, $offset);
+        $types['lim'] = \Doctrine\DBAL\ParameterType::INTEGER;
+        $types['off'] = \Doctrine\DBAL\ParameterType::INTEGER;
+
+        /** @var list<array<string, mixed>> $rows */
+        $rows = $this->connection()->fetchAllAssociative(
+            'SELECT mf.id, mf.title, mf.artist, mf.album, mf.year, mf.duration
+             FROM media_file mf
+             WHERE ' . $where . '
+             ORDER BY mf.artist, mf.album, mf.title
+             LIMIT :lim OFFSET :off',
+            $params,
+            $types,
+        );
+
+        $ids = array_map(static fn (array $r): string => (string) $r['id'], $rows);
+        $plays = $this->getPlayCountsByMediaFileId($ids);
+
+        return [
+            'total' => $total,
+            'items' => array_map(static fn (array $r): array => [
+                'id' => (string) $r['id'],
+                'title' => (string) ($r['title'] ?? ''),
+                'artist' => (string) ($r['artist'] ?? ''),
+                'album' => (string) ($r['album'] ?? ''),
+                'year' => isset($r['year']) && (int) $r['year'] > 0 ? (int) $r['year'] : null,
+                'duration' => (int) ($r['duration'] ?? 0),
+                'play_count' => (int) ($plays[(string) $r['id']] ?? 0),
+            ], $rows),
+        ];
+    }
+
+    /**
      * Counts every media_file row whose MBID columns are all NULL or empty.
      * Same filter semantics as {@see findMediaFilesWithoutMbid()}; used by
      * the dashboard card and by paginated UIs.

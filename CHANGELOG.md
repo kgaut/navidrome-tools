@@ -9,6 +9,32 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+### Ajouté
+
+- **Serveur MCP sur `/mcp`** (issue #276), pour un assistant (connecteur claude.ai,
+  Claude Code) : stats d'écoute (`stats_overview`, `stats_daily`, `stats_top`),
+  matching (`matching_summary`, `unmatched_list`, `unmatched_diagnose`),
+  bibliothèque (`library_search`, `playlists_list`), playlists écrites dans
+  Navidrome (`playlist_create` à partir d'ids, `described_playlist_create` via
+  AudioMuse) et réconciliation (`alias_create_track`, `alias_create_artist`,
+  `unmatched_retry`). `mcp/sdk` 0.9 + `symfony/mcp-bundle` 1.0.0-BETA1.
+- **Serveur OAuth 2.1 intégré** (issue #276, `league/oauth2-server-bundle`) :
+  découverte (RFC 9728, RFC 8414), enregistrement dynamique de client restreint
+  (`authorization_code` + `refresh_token`, adresses de retour claude.ai et
+  loopback, 10 demandes/h par IP), PKCE S256 obligatoire, écran de consentement
+  derrière la connexion. `/mcp` n'accepte que le jeton. Scopes `mcp` et
+  `mcp_write` : les outils d'écriture sont refusés à l'exécution sans
+  `mcp_write`. Clés créées au démarrage dans `var/oauth`
+  (`app:oauth:ensure-keys`). Nouvelles variables `APP_PUBLIC_URL`,
+  `TRUSTED_PROXIES`, `MCP_ALLOWED_HOSTS`, `OAUTH_ALLOWED_REDIRECT_URIS`.
+  Migration `Version20261031180000`. Exploitation : README « Serveur MCP ».
+
+### Modifié
+
+- « Re-tenter le matching » (non-matchés) et la création de playlist décrite
+  passent par des services partagés avec le MCP (`UnmatchedRetrier`,
+  `DescribedPlaylistCreator`), sans changement visible (issue #276).
+
 ## [1.6.3] - 2026-10-08
 
 ### Corrigé

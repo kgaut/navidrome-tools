@@ -11,6 +11,20 @@ security:
             pattern: ^/(_(profiler|wdt)|css|images|js)/
             security: false
 
+        # Découverte OAuth, jeton, enregistrement de client (issue #276) :
+        # publics, sans session. /authorize reste dans `main` (connexion
+        # puis écran de consentement).
+        oauth_public:
+            pattern: ^/(token$|oauth/register$|\.well-known/)
+            security: false
+
+        # Serveur MCP : jeton OAuth seulement, aucun cookie de session.
+        mcp:
+            pattern: ^/mcp
+            stateless: true
+            provider: env_user_provider
+            oauth2: true
+
         api:
             pattern: ^/api
             stateless: true
@@ -32,6 +46,7 @@ security:
 
     access_control:
         - { path: ^/login, roles: PUBLIC_ACCESS }
+        - { path: ^/mcp, roles: ROLE_OAUTH2_MCP }
         - { path: ^/api, roles: ROLE_USER }
         - { path: ^/, roles: ROLE_USER }
 

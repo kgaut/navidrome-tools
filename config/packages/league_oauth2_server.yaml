@@ -1,0 +1,36 @@
+# Serveur d'autorisation OAuth 2.1 du serveur MCP (issue #276).
+# Clés : var/oauth (cf. docker/entrypoint.sh), surchargeables par env.
+league_oauth2_server:
+    role_prefix: ROLE_OAUTH2_
+    authorization_server:
+        private_key: '%env(resolve:OAUTH_PRIVATE_KEY)%'
+        private_key_passphrase: null
+        encryption_key: '%env(trim:file:resolve:OAUTH_ENCRYPTION_KEY_FILE)%'
+        access_token_ttl: PT1H
+        refresh_token_ttl: P1M
+        auth_code_ttl: PT10M
+        enable_client_credentials_grant: false
+        enable_password_grant: false
+        enable_refresh_token_grant: true
+        enable_auth_code_grant: true
+        require_code_challenge_for_public_clients: true
+    resource_server:
+        public_key: '%env(resolve:OAUTH_PUBLIC_KEY)%'
+    scopes:
+        available: ['mcp', 'mcp_write']
+        # Un client qui ne demande rien reçoit lecture + écriture ; l'écran
+        # de consentement l'affiche. Un client peut ne demander que `mcp`.
+        default: ['mcp', 'mcp_write']
+    persistence:
+        doctrine: null
+
+when@test:
+    league_oauth2_server:
+        persistence:
+            in_memory: null
+
+    services:
+        league.oauth2_server.password_hasher:
+            class: Symfony\Component\PasswordHasher\Hasher\NativePasswordHasher
+            arguments:
+                $cost: 4

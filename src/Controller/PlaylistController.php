@@ -3,12 +3,13 @@
 namespace App\Controller;
 
 use App\AudioMuse\AudioMuseClient;
-use App\Entity\DescribedPlaylist;
+use App\Exception\UserFacingException;
 use App\Message\GeneratePlaylistsMessage;
 use App\Playlist\Definition\DescribedPlaylistDefinition;
 use App\Playlist\PlaylistEnablement;
 use App\Playlist\PlaylistGenerator;
 use App\Repository\DescribedPlaylistRepository;
+use App\Service\DescribedPlaylistCreator;
 use App\Subsonic\SubsonicClient;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -68,46 +69,27 @@ class PlaylistController extends AbstractController
      * right away. It is regenerated afterwards like any other definition.
      */
     #[Route('/playlists/described', name: 'app_playlists_described_create', methods: ['POST'])]
-    public function createDescribed(
-        Request $request,
-        PlaylistGenerator $generator,
-        EntityManagerInterface $em,
-        MessageBusInterface $bus,
-    ): Response {
+    public function createDescribed(Request $request, DescribedPlaylistCreator $creator): Response
+    {
         if (!$this->isCsrfTokenValid('playlists_described', (string) $request->request->get('_token'))) {
             throw $this->createAccessDeniedException();
         }
 
-        $name = trim((string) $request->request->get('name'));
-        $query = trim((string) $request->request->get('query'));
-        $count = $request->request->getInt('track_count', 30);
         $maxPlaysRaw = trim((string) $request->request->get('max_plays'));
-        $maxPlays = $maxPlaysRaw === '' ? null : (int) $maxPlaysRaw;
-
-        $taken = array_map(
-            static fn (array $d): string => mb_strtolower($d['name']),
-            $generator->listDefinitions(),
-        );
-        $error = match (true) {
-            $name === '' || mb_strlen($name) > 100 => 'Le nom est obligatoire (100 caractères au plus).',
-            in_array(mb_strtolower($name), $taken, true) => sprintf('Une playlist générée s\'appelle déjà « %s ».', $name),
-            $query === '' || mb_strlen($query) > 300 => 'La description est obligatoire (300 caractères au plus).',
-            $count < 1 || $count > 200 => 'Le nombre de morceaux doit être compris entre 1 et 200.',
-            $maxPlays !== null && $maxPlays < 0 => 'Le plafond d\'écoutes ne peut pas être négatif.',
-            default => null,
-        };
-        if ($error !== null) {
-            $this->addFlash('error', $error);
+        try {
+            $playlist = $creator->create(
+                (string) $request->request->get('name'),
+                (string) $request->request->get('query'),
+                $request->request->getInt('track_count', 30),
+                $maxPlaysRaw === '' ? null : (int) $maxPlaysRaw,
+            );
+        } catch (UserFacingException $e) {
+            $this->addFlash('error', $e->getMessage());
 
             return $this->redirectToRoute('app_playlists_index');
         }
 
-        $playlist = new DescribedPlaylist($name, $query, $count, $maxPlays);
-        $em->persist($playlist);
-        $em->flush();
-
-        $bus->dispatch(new GeneratePlaylistsMessage(DescribedPlaylistDefinition::SLUG_PREFIX . $playlist->getId()));
-        $this->addFlash('success', sprintf('Playlist « %s » enregistrée, génération lancée en arrière-plan.', $name));
+        $this->addFlash('success', sprintf('Playlist « %s » enregistrée, génération lancée en arrière-plan.', $playlist->getName()));
 
         return $this->redirectToRoute('app_history');
     }

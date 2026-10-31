@@ -62,6 +62,15 @@ parameters:
     # fail-closed) et fuseau de découpage des jours.
     env(APP_API_TOKEN): ''
     env(APP_TIMEZONE): 'UTC'
+    # Serveur MCP + OAuth (issue #276). Clés générées au démarrage du
+    # conteneur web dans var/oauth (volume persistant) si absentes.
+    env(APP_PUBLIC_URL): ''
+    env(TRUSTED_PROXIES): ''
+    env(MCP_ALLOWED_HOSTS): 'localhost'
+    env(OAUTH_PRIVATE_KEY): '%kernel.project_dir%/var/oauth/private.key'
+    env(OAUTH_PUBLIC_KEY): '%kernel.project_dir%/var/oauth/public.key'
+    env(OAUTH_ENCRYPTION_KEY_FILE): '%kernel.project_dir%/var/oauth/encryption.key'
+    env(OAUTH_ALLOWED_REDIRECT_URIS): 'https://claude.ai/api/mcp/auth_callback,https://claude.com/api/mcp/auth_callback'
 
     app.auth_user: '%env(APP_AUTH_USER)%'
     app.auth_password: '%env(APP_AUTH_PASSWORD)%'
@@ -176,6 +185,14 @@ services:
         arguments:
             $username: '%app.auth_user%'
             $plainPassword: '%app.auth_password%'
+
+    App\OAuth\PublicUrl:
+        arguments:
+            $configured: '%env(APP_PUBLIC_URL)%'
+
+    App\OAuth\RedirectUriPolicy:
+        arguments:
+            $allowed: '%env(OAUTH_ALLOWED_REDIRECT_URIS)%'
 
     App\Security\ApiTokenAuthenticator:
         arguments:
