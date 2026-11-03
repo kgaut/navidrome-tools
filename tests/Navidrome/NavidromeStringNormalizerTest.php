@@ -192,4 +192,16 @@ class NavidromeStringNormalizerTest extends TestCase
         $this->assertSame(['ac dc'], NavidromeStringNormalizer::artistKeys('AC DC'));
         $this->assertSame(['malcolm x'], NavidromeStringNormalizer::artistKeys('Malcolm X'));
     }
+
+    public function testIsEditionAlbumSpotsNonReferenceEditions(): void
+    {
+        $this->assertTrue(NavidromeStringNormalizer::isEditionAlbum("L'écorle Du Micro D'argent - Instrumentales"));
+        $this->assertTrue(NavidromeStringNormalizer::isEditionAlbum('Bonus'));
+        $this->assertTrue(NavidromeStringNormalizer::isEditionAlbum('Inédits'));
+        $this->assertTrue(NavidromeStringNormalizer::isEditionAlbum('Live à Bercy'));
+        $this->assertTrue(NavidromeStringNormalizer::isEditionAlbum('Demos 1994'));
+        $this->assertFalse(NavidromeStringNormalizer::isEditionAlbum("L'École Du Micro D'Argent"));
+        $this->assertFalse(NavidromeStringNormalizer::isEditionAlbum('Oliver'));
+        $this->assertFalse(NavidromeStringNormalizer::isEditionAlbum('Delivery'));
+    }
 }

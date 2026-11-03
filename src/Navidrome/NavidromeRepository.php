@@ -27,7 +27,7 @@ class NavidromeRepository implements ResetInterface
      *     artistNorms: array<string, true>,
      *     artistColByPrefix: array<string, list<array{name: string, norm: string}>>,
      *     byArtistNorm: array<string, list<array{titleNorm: string, title: string, id: string, isArtist: bool}>>,
-     *     byBareKey: array<string, array<string, array{id: string, isArtist: bool}>>,
+     *     byBareKey: array<string, array<string, array{id: string, isArtist: bool, edition: bool}>>,
      *     byTitleNorm: array<string, list<array{id: string, a: string, aa: string, album: string}>>
      * }|null
      */
@@ -3140,7 +3140,7 @@ class NavidromeRepository implements ResetInterface
      *     artistNorms: array<string, true>,
      *     artistColByPrefix: array<string, list<array{name: string, norm: string}>>,
      *     byArtistNorm: array<string, list<array{titleNorm: string, title: string, id: string, isArtist: bool}>>,
-     *     byBareKey: array<string, array<string, array{id: string, isArtist: bool}>>,
+     *     byBareKey: array<string, array<string, array{id: string, isArtist: bool, edition: bool}>>,
      *     byTitleNorm: array<string, list<array{id: string, a: string, aa: string, album: string}>>
      * }
      */
@@ -3209,14 +3209,13 @@ class NavidromeRepository implements ResetInterface
                     foreach ($albumArtist !== '' ? NavidromeStringNormalizer::artistKeys($albumArtist) : [] as $key) {
                         $keys[$key] ??= false;
                     }
+                    // Rank: `artist` column, then non-edition album (#284), then lowest id.
+                    $edition = NavidromeStringNormalizer::isEditionAlbum((string) ($row['album'] ?? ''));
                     foreach ($keys as $key => $isArtist) {
                         $current = $byBareKey[$key][$bare] ?? null;
-                        if (
-                            $current === null
-                            || ($isArtist && !$current['isArtist'])
-                            || ($isArtist === $current['isArtist'] && strcmp($id, $current['id']) < 0)
-                        ) {
-                            $byBareKey[$key][$bare] = ['id' => $id, 'isArtist' => $isArtist];
+                        $rank = [$isArtist ? 0 : 1, $edition ? 1 : 0, $id];
+                        if ($current === null || $rank < [$current['isArtist'] ? 0 : 1, $current['edition'] ? 1 : 0, $current['id']]) {
+                            $byBareKey[$key][$bare] = ['id' => $id, 'isArtist' => $isArtist, 'edition' => $edition];
                         }
                     }
                 }
@@ -3424,18 +3423,28 @@ class NavidromeRepository implements ResetInterface
         return $matchId;
     }
 
-    public function findMediaFileByArtistTitle(string $artist, string $title): ?string
+    /**
+     * `$album` (the scrobbled album, optional) only orders ties between
+     * same-title rows (issue #284): edition albums (instrumentals, bonus,
+     * live…) come last unless the scrobble names one, then the album
+     * closest to `$album`, then the lowest id.
+     */
+    public function findMediaFileByArtistTitle(string $artist, string $title, string $album = ''): ?string
     {
         $artistN = self::normalize($artist);
         $titleN = self::normalize($title);
         if ($artistN === '' || $titleN === '') {
             return null;
         }
+        $ctx = [
+            'album' => self::normalize($album),
+            'editions' => !NavidromeStringNormalizer::isEditionAlbum($title) && !NavidromeStringNormalizer::isEditionAlbum($album),
+        ];
 
         // Primary exact step folds the album_artist column in (collabs /
         // compilations where Last.fm scrobbles the lead artist but the
         // track row credits a feat. variant). Title stays strict.
-        $id = $this->lookupExactArtistOrAlbumArtistTitle($artistN, $titleN);
+        $id = $this->lookupExactArtistOrAlbumArtistTitle($artistN, $titleN, $ctx);
         if ($id !== null) {
             return $id;
         }
@@ -3453,13 +3462,13 @@ class NavidromeRepository implements ResetInterface
         $titleHadFeaturing = self::titleHasFeaturingMarker($title);
 
         if ($artistChanged) {
-            $id = $this->lookupExactArtistTitle($leadArtistN, $titleN);
+            $id = $this->lookupExactArtistTitle($leadArtistN, $titleN, $ctx);
             if ($id !== null) {
                 return $id;
             }
         }
         if ($titleChanged) {
-            $id = $this->lookupExactArtistTitle($artistN, $bareTitleN);
+            $id = $this->lookupExactArtistTitle($artistN, $bareTitleN, $ctx);
             if ($id !== null) {
                 return $id;
             }
@@ -3472,14 +3481,14 @@ class NavidromeRepository implements ResetInterface
             // marker in the original title to keep the false-positive rate
             // tight.
             if ($titleHadFeaturing) {
-                $id = $this->lookupArtistPrefixFeaturingTitle($artistN, $bareTitleN);
+                $id = $this->lookupArtistPrefixFeaturingTitle($artistN, $bareTitleN, $ctx);
                 if ($id !== null) {
                     return $id;
                 }
             }
         }
         if ($artistChanged && $titleChanged) {
-            $id = $this->lookupExactArtistTitle($leadArtistN, $bareTitleN);
+            $id = $this->lookupExactArtistTitle($leadArtistN, $bareTitleN, $ctx);
             if ($id !== null) {
                 return $id;
             }
@@ -3493,7 +3502,7 @@ class NavidromeRepository implements ResetInterface
         // when neither field carries one. Title stays strict (exact), so a
         // hit is the same song under a longer artist credit.
         if (!$titleHadFeaturing) {
-            $id = $this->lookupArtistPrefixFeaturingTitle($artistN, $titleN);
+            $id = $this->lookupArtistPrefixFeaturingTitle($artistN, $titleN, $ctx);
             if ($id !== null) {
                 return $id;
             }
@@ -3513,19 +3522,21 @@ class NavidromeRepository implements ResetInterface
         // require album_artist to match the stripped artist for confidence.
         $leadOnlyN = self::normalize(self::stripLeadArtist($artist));
         if ($leadOnlyN !== '' && $leadOnlyN !== $artistN && $leadOnlyN !== $leadArtistN) {
-            return $this->lookupExactArtistTitleRequiringAlbumArtist($leadOnlyN, $titleN);
+            return $this->lookupExactArtistTitleRequiringAlbumArtist($leadOnlyN, $titleN, $ctx);
         }
 
         return null;
     }
 
-    private function lookupExactArtistTitle(string $artistNormalized, string $titleNormalized): ?string
+    /** @param array{album?: string, editions?: bool} $ctx */
+    private function lookupExactArtistTitle(string $artistNormalized, string $titleNormalized, array $ctx = []): ?string
     {
         // `artist` column = a, album_artist = a first, then lowest id.
         return $this->pickByTitle(
             $titleNormalized,
             static fn (array $r) => $r['a'] === $artistNormalized,
             static fn (array $r) => $r['aa'] === $artistNormalized,
+            $ctx,
         );
     }
 
@@ -3542,8 +3553,10 @@ class NavidromeRepository implements ResetInterface
      * Only used as the PRIMARY exact step — the stripped-form retries
      * deliberately keep the narrower `artist`-only lookup to avoid
      * compounding two fuzzy widenings at once.
+     *
+     * @param array{album?: string, editions?: bool} $ctx
      */
-    private function lookupExactArtistOrAlbumArtistTitle(string $artistNormalized, string $titleNormalized): ?string
+    private function lookupExactArtistOrAlbumArtistTitle(string $artistNormalized, string $titleNormalized, array $ctx = []): ?string
     {
         if ($artistNormalized === '' || $titleNormalized === '') {
             return null;
@@ -3553,6 +3566,7 @@ class NavidromeRepository implements ResetInterface
             $titleNormalized,
             static fn (array $r) => $r['a'] === $artistNormalized || $r['aa'] === $artistNormalized,
             static fn (array $r) => $r['a'] === $artistNormalized,
+            $ctx,
         );
     }
 
@@ -3568,8 +3582,10 @@ class NavidromeRepository implements ResetInterface
      * featuring / with — already lower-cased and dot-stripped by
      * np_normalize() on the candidate side, hence the simple `LIKE
      * ':a feat %'` form below.
+     *
+     * @param array{album?: string, editions?: bool} $ctx
      */
-    private function lookupArtistPrefixFeaturingTitle(string $artistNormalized, string $titleNormalized): ?string
+    private function lookupArtistPrefixFeaturingTitle(string $artistNormalized, string $titleNormalized, array $ctx = []): ?string
     {
         if ($artistNormalized === '' || $titleNormalized === '') {
             return null;
@@ -3591,6 +3607,8 @@ class NavidromeRepository implements ResetInterface
 
                 return false;
             },
+            null,
+            $ctx,
         );
     }
 
@@ -3611,12 +3629,16 @@ class NavidromeRepository implements ResetInterface
      * Used as a confidence threshold for risky strips (e.g. lead-artist
      * fallback on multi-artist separators) where the relaxed tie-break
      * of {@see lookupExactArtistTitle()} would let through false-positives.
+     *
+     * @param array{album?: string, editions?: bool} $ctx
      */
-    private function lookupExactArtistTitleRequiringAlbumArtist(string $artistNormalized, string $titleNormalized): ?string
+    private function lookupExactArtistTitleRequiringAlbumArtist(string $artistNormalized, string $titleNormalized, array $ctx = []): ?string
     {
         return $this->pickByTitle(
             $titleNormalized,
             static fn (array $r) => $r['a'] === $artistNormalized && $r['aa'] === $artistNormalized,
+            null,
+            $ctx,
         );
     }
 
@@ -3624,32 +3646,49 @@ class NavidromeRepository implements ResetInterface
      * In-memory replacement of the cascade's `SELECT id FROM media_file WHERE
      * np_normalize(title) = :t AND … ORDER BY <preferred> DESC, id ASC LIMIT 1`
      * (issue #282): rows of the normalized title kept by `$keep`, those
-     * satisfying `$preferred` first, then the lowest id (binary order, as
-     * SQLite). Same answers, without a full table scan per lookup.
+     * satisfying `$preferred` first. Ties between same-title rows (issue
+     * #284): non-edition album first when `$ctx['editions']` (instrumentals,
+     * bonus, live… unless the scrobble names one), then the album closest to
+     * `$ctx['album']` (Levenshtein, when given), then the lowest id (binary
+     * order, as SQLite).
      *
      * @param callable(array{id: string, a: string, aa: string, album: string}): bool $keep
      * @param (callable(array{id: string, a: string, aa: string, album: string}): bool)|null $preferred
+     * @param array{album?: string, editions?: bool} $ctx
      */
-    private function pickByTitle(string $titleNormalized, callable $keep, ?callable $preferred = null): ?string
+    private function pickByTitle(string $titleNormalized, callable $keep, ?callable $preferred = null, array $ctx = []): ?string
     {
+        $album = $ctx['album'] ?? '';
+        $editions = $ctx['editions'] ?? false;
+
         $best = null;
-        $bestPreferred = false;
+        $bestRank = null;
         foreach ($this->diagnosisIndex()['byTitleNorm'][$titleNormalized] ?? [] as $row) {
             if (!$keep($row)) {
                 continue;
             }
-            $isPreferred = $preferred !== null && $preferred($row);
-            if (
-                $best === null
-                || ($isPreferred && !$bestPreferred)
-                || ($isPreferred === $bestPreferred && strcmp($row['id'], $best) < 0)
-            ) {
+            $rank = [
+                $preferred !== null && $preferred($row) ? 0 : 1,
+                $editions && NavidromeStringNormalizer::isEditionAlbum($row['album']) ? 1 : 0,
+                $album !== '' ? self::albumDistance($album, $row['album']) : 0,
+            ];
+            if ($bestRank === null || $rank < $bestRank || ($rank === $bestRank && strcmp($row['id'], (string) $best) < 0)) {
                 $best = $row['id'];
-                $bestPreferred = $isPreferred;
+                $bestRank = $rank;
             }
         }
 
         return $best;
+    }
+
+    private static function albumDistance(string $albumNormalized, string $candidateRaw): int
+    {
+        $candidate = self::normalize($candidateRaw);
+        if ($candidate === $albumNormalized) {
+            return 0;
+        }
+
+        return strlen($candidate) <= 255 && strlen($albumNormalized) <= 255 ? levenshtein($candidate, $albumNormalized) : 255;
     }
 
     /**

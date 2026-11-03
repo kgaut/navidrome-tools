@@ -9,6 +9,22 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+## [1.8.1] - 2026-11-03
+
+### Corrigé
+
+- **Matching : des écoutes allaient aux éditions instrumentales au lieu de
+  l'album** (issue #284). Le cache de matching, indexé par (artiste, titre) sans
+  l'album, était consulté avant le triplet. Un couple résolu une fois (ici IAM
+  « Petit frère » vers « … - Instrumentales ») donnait ce morceau à toutes les
+  écoutes suivantes, quel que soit leur album. MBID et triplet passent
+  désormais avant le cache. Entre des titres en double, le couple écarte les
+  éditions (instrumentales, karaoké, bonus, démos, live, inédits, remixes), sauf
+  si l'écoute en nomme une, puis préfère l'album le plus proche de celui
+  scrobblé. Migration `Version20261103160000` : vide les positifs en stratégie
+  `couple` du cache, recalculés au prochain passage. Les écoutes déjà écrites
+  dans Navidrome ne sont pas déplacées (#285).
+
 ### Modifié
 
 - **Matching : étapes triplet et couple servies par l'index en mémoire de la
@@ -347,7 +363,8 @@ L'ancienne POC reste accessible via le tag `poc-v0`.
   `BackupService`, sessions persistantes ; CI (phpcs, PHPStan, PHPUnit, lint
   Twig, build Docker).
 
-[Non publié]: https://github.com/kgaut/navidrome-tools/compare/1.8.0...HEAD
+[Non publié]: https://github.com/kgaut/navidrome-tools/compare/1.8.1...HEAD
+[1.8.1]: https://github.com/kgaut/navidrome-tools/compare/1.8.0...1.8.1
 [1.8.0]: https://github.com/kgaut/navidrome-tools/compare/1.7.0...1.8.0
 [1.7.0]: https://github.com/kgaut/navidrome-tools/compare/1.6.3...1.7.0
 [1.6.3]: https://github.com/kgaut/navidrome-tools/compare/1.6.2...1.6.3

@@ -273,6 +273,21 @@ final class NavidromeStringNormalizer
     }
 
     /**
+     * True when an album (or a title) names an edition that is not the
+     * reference recording: instrumentals, karaoke, a cappella, bonus,
+     * demos, live, unreleased (« inédits »), remixes. Used to order ties
+     * between same-title tracks (issue #284), never to reject a match.
+     */
+    public static function isEditionAlbum(string $album): bool
+    {
+        return preg_match(
+            '/\b(?:instrumental|instrumentals|instrumentale|instrumentales|instrus?|karaoke|a ?cappella|acapella|bonus'
+            . '|demos?|live|inedits?|remixes)\b/u',
+            self::normalize($album),
+        ) === 1;
+    }
+
+    /**
      * True when the title carries a `(feat. …)` / `[ft. …]` / `(with …)`
      * marker (closed or truncated open-paren). Gates the « move the
      * featuring into the artist column » heuristic in the matcher.
