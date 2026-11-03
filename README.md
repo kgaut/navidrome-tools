@@ -334,6 +334,8 @@ chez le client. Scopes : `mcp` (lecture) et `mcp_write` (outils d'écriture).
 | `playlist_create` ✍️ | playlist Navidrome à partir d'une liste d'ids |
 | `described_playlist_create` ✍️ | playlist décrite par une phrase (AudioMuse), régénérée par le cron |
 | `alias_create_track`, `alias_create_artist`, `unmatched_retry`, `unmatched_retry_many` ✍️ | réconciliation (relance d'un couple ou d'une série de groupes) |
+| `matched_relink_preview` | écoutes déjà écrites que le matching actuel enverrait ailleurs |
+| `matched_relink` ✍️ | les déplace (mis en file : le worker arrête Navidrome le temps de l'écriture) |
 
 ✍️ = écriture : listés pour tout jeton, **refusés à l'exécution** sans `mcp_write`
 (rien n'est écrit). Une erreur métier (nom pris, id inconnu…) revient comme
@@ -422,6 +424,24 @@ traiter le backlog.
 | Option | Description |
 |---|---|
 | `--target` / `-t` | `navidrome` (défaut) ou `strawberry` |
+
+#### `app:scrobbles:relink`
+Déplace des écoutes **déjà écrites** dans Navidrome vers le morceau que choisit
+le matching **actuel**, après un correctif : par exemple, des écoutes d'un album
+rattachées à sa version instrumentale. Seules les écoutes écrites par
+navidrome-tools (`matched`) sont concernées, hors alias et MBID. Les écoutes
+enregistrées par Navidrome lui-même ne sont jamais touchées. Pour chaque
+écoute : suppression de notre ligne, écriture sur le nouveau morceau (ou
+statut `duplicate` si l'écoute y est déjà), recalcul des compteurs des deux
+morceaux. Sauvegarde avant écriture. Commencer par `--dry-run`.
+
+| Option | Description |
+|---|---|
+| `--artist`, `--title`, `--album` | filtres sur l'écoute scrobblée (sous-chaîne) |
+| `--from-album` | filtre sur l'album du morceau **actuel** (ex. `Instrumentales`) |
+| `--limit` | écoutes examinées (défaut `2000`) |
+| `--dry-run` | affiche les déplacements prévus, n'écrit rien |
+| `--force` / `--auto-stop` | comme pour `sync-navidrome` |
 
 #### `app:scrobbles:rematch`
 Re-joue la cascade de matching sur les scrobbles **déjà en attente** (`pending`).

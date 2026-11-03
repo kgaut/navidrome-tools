@@ -9,6 +9,20 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+### Ajouté
+
+- **Déplacer des écoutes déjà écrites dans Navidrome** (issue #285). Le matching
+  actuel est rejoué sur les écoutes écrites par navidrome-tools (`matched`,
+  hors alias et MBID). Celles qu'il envoie sur un autre morceau sont retirées
+  de l'ancien et réécrites sur le nouveau (ou passent en `duplicate` si
+  l'écoute y est déjà), puis les compteurs des deux morceaux sont recalculés.
+  Les écoutes enregistrées par Navidrome lui-même ne sont jamais touchées.
+  Sauvegarde avant écriture. Commande `app:scrobbles:relink` (`--dry-run`,
+  filtres sur l'écoute et sur l'album actuel). Outils MCP
+  `matched_relink_preview` et `matched_relink` (écriture mise en file : le
+  worker arrête Navidrome le temps de l'écriture). Sert à réparer l'historique
+  rattaché aux versions instrumentales avant #284.
+
 ## [1.8.2] - 2026-11-03
 
 ### Corrigé

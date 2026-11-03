@@ -6,13 +6,16 @@ use App\Entity\ScrobbleSync;
 use App\Mcp\McpToolSupport;
 use App\Mcp\McpWriteGuard;
 use App\Repository\ScrobbleSyncRepository;
+use App\Message\RelinkMatchedMessage;
 use App\Service\AliasManager;
+use App\Service\MatchedRelinker;
 use App\Service\UnmatchedDiagnoser;
 use App\Service\UnmatchedRetrier;
 use Mcp\Capability\Attribute\McpTool;
 use Mcp\Capability\Attribute\Schema;
 use Mcp\Exception\ToolCallException;
 use Mcp\Schema\ToolAnnotations;
+use Symfony\Component\Messenger\MessageBusInterface;
 
 /**
  * MCP tools — matching of Last.fm scrobbles against the Navidrome library,
@@ -24,6 +27,7 @@ class MatchingTools
 
     private const MAX_UNMATCHED = 100;
     private const MAX_RETRY_GROUPS = 100;
+    private const MAX_RELINK_GROUPS = 100;
 
     public function __construct(
         private readonly ScrobbleSyncRepository $syncRepo,
@@ -31,6 +35,8 @@ class MatchingTools
         private readonly UnmatchedRetrier $retrier,
         private readonly AliasManager $aliases,
         private readonly McpWriteGuard $guard,
+        private readonly MatchedRelinker $relinker,
+        private readonly MessageBusInterface $bus,
     ) {
     }
 
@@ -193,6 +199,107 @@ class MatchingTools
         );
 
         return $outcome;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    #[McpTool(
+        name: 'matched_relink_preview',
+        description: 'Écoutes DÉJÀ matchées et écrites dans Navidrome que le matching actuel enverrait sur un autre morceau '
+            . '(ex. écoutes d\'un album rattachées à sa version instrumentale avant un correctif). Ne concerne que les écoutes '
+            . 'écrites par navidrome-tools, hors alias et MBID ; les écoutes enregistrées par Navidrome lui-même ne sont '
+            . 'jamais déplacées. Filtres (sous-chaîne, insensible à la casse ; au moins un parmi artist, album, from_album) : '
+            . 'artist, title, album = album scrobblé ; from_album = album du morceau actuellement visé (ex. '
+            . '« Instrumentales »). limit = écoutes examinées (500 par défaut, ramené à 2000). Renvoie les déplacements '
+            . 'groupés (album actuel → nouvel album, nombre d\'écoutes) et le nombre d\'écoutes qui deviendraient non '
+            . 'matchées (laissées en place). Rien n\'est écrit dans Navidrome ; le cache de matching peut être complété. '
+            . 'Appliquer avec matched_relink.',
+        annotations: new ToolAnnotations(readOnlyHint: true, openWorldHint: true),
+    )]
+    public function relinkPreview(
+        ?string $artist = null,
+        ?string $title = null,
+        ?string $album = null,
+        ?string $from_album = null,
+        int $limit = 500,
+    ): array {
+        [$artist, $title, $album, $from_album] = $this->relinkFilters($artist, $title, $album, $from_album);
+        $limit = self::clamp($limit, MatchedRelinker::MAX_SCROBBLES);
+
+        $plan = $this->relinker->plan($artist, $title, $album, $from_album, $limit);
+        $groups = array_slice($plan['groups'], 0, self::MAX_RELINK_GROUPS);
+
+        return [
+            'filters' => ['artist' => $artist, 'title' => $title, 'album' => $album, 'from_album' => $from_album],
+            'limit' => $limit,
+            'considered' => $plan['considered'],
+            'to_move' => count($plan['moves']),
+            'would_unmatch' => $plan['would_unmatch'],
+            'api_errors' => $plan['api_errors'],
+            'groups' => $groups,
+            'message' => sprintf(
+                '%d écoute(s) examinée(s), %d à déplacer en %d groupe(s)%s, %d deviendrai(en)t non matchée(s) (laissée(s) en place).%s',
+                $plan['considered'],
+                count($plan['moves']),
+                count($plan['groups']),
+                count($plan['groups']) > count($groups) ? sprintf(' (%d premiers affichés)', count($groups)) : '',
+                $plan['would_unmatch'],
+                $plan['considered'] >= $limit ? ' Limite atteinte : d\'autres écoutes peuvent être concernées, augmenter limit ou affiner les filtres.' : '',
+            ),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    #[McpTool(
+        name: 'matched_relink',
+        description: 'ÉCRITURE (scope mcp_write). Applique matched_relink_preview avec les mêmes filtres (au moins un parmi '
+            . 'artist, album, from_album ; limit 500 par défaut, ramené à 2000) : chaque écoute concernée est retirée de son '
+            . 'morceau actuel et réécrite sur le nouveau, et les compteurs d\'écoutes des deux morceaux sont recalculés. Le '
+            . 'travail est mis en file pour le worker, qui arrête Navidrome le temps de l\'écriture (une à deux minutes, '
+            . 'sauvegarde préalable) : la réponse est immédiate, l\'écriture suit. Vérifier ensuite avec '
+            . 'matched_relink_preview (0 déplacement attendu). Appeler matched_relink_preview d\'abord.',
+        annotations: new ToolAnnotations(readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true),
+    )]
+    public function relink(
+        ?string $artist = null,
+        ?string $title = null,
+        ?string $album = null,
+        ?string $from_album = null,
+        int $limit = 500,
+    ): array {
+        $this->guard->assertCanWrite();
+        [$artist, $title, $album, $from_album] = $this->relinkFilters($artist, $title, $album, $from_album);
+        $limit = self::clamp($limit, MatchedRelinker::MAX_SCROBBLES);
+
+        $this->bus->dispatch(new RelinkMatchedMessage($artist, $title, $album, $from_album, $limit));
+
+        return [
+            'queued' => true,
+            'filters' => ['artist' => $artist, 'title' => $title, 'album' => $album, 'from_album' => $from_album],
+            'limit' => $limit,
+            'message' => 'Déplacement mis en file : le worker arrête Navidrome, sauvegarde, déplace puis redémarre (une à deux '
+                . 'minutes). Vérifier ensuite avec matched_relink_preview et les mêmes filtres (0 déplacement attendu).',
+        ];
+    }
+
+    /**
+     * Trims the relink filters; refuses a call without artist, album or
+     * from_album (a whole-library relink is a CLI decision, not an MCP one).
+     *
+     * @return array{0: ?string, 1: ?string, 2: ?string, 3: ?string}
+     */
+    private function relinkFilters(?string $artist, ?string $title, ?string $album, ?string $fromAlbum): array
+    {
+        $clean = static fn (?string $v): ?string => $v !== null && trim($v) !== '' ? trim($v) : null;
+        [$artist, $title, $album, $fromAlbum] = [$clean($artist), $clean($title), $clean($album), $clean($fromAlbum)];
+        if ($artist === null && $album === null && $fromAlbum === null) {
+            throw new ToolCallException('Au moins un filtre parmi artist, album et from_album est obligatoire.');
+        }
+
+        return [$artist, $title, $album, $fromAlbum];
     }
 
     /**

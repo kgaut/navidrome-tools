@@ -4036,6 +4036,29 @@ class NavidromeRepository implements ResetInterface
     }
 
     /**
+     * Delete ONE scrobble row (issue #285): the user's play of `$mediaFileId`
+     * at exactly `$time` (second precision, as {@see insertScrobble()} writes
+     * it). `scrobbles` has no key, so the row is picked by `rowid`. Must be
+     * called inside a write transaction. Returns 1, or 0 when no such row.
+     */
+    public function deleteOneScrobble(string $userId, string $mediaFileId, \DateTimeInterface $time): int
+    {
+        if (!$this->hasScrobblesTable()) {
+            return 0;
+        }
+
+        return (int) $this->connection()->executeStatement(
+            'DELETE FROM scrobbles WHERE rowid = (
+                 SELECT rowid FROM scrobbles
+                  WHERE user_id = ? AND media_file_id = ? AND submission_time = ?
+                  LIMIT 1
+             )',
+            [$userId, $mediaFileId, $time->getTimestamp()],
+            [2 => \Doctrine\DBAL\ParameterType::INTEGER],
+        );
+    }
+
+    /**
      * Delete all scrobble rows for the given user. Must be called inside a write transaction.
      * Returns the number of rows deleted.
      */
