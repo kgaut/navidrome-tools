@@ -33,6 +33,9 @@ class NavidromeRepository implements ResetInterface
      */
     private ?array $diagnosisIndexCache = null;
 
+    /** @var array<string, bool> media_file id → still in the library (#291) */
+    private array $mediaFileExistsCache = [];
+
     public function __construct(
         private readonly string $dbPath,
         private readonly string $userName,
@@ -48,6 +51,7 @@ class NavidromeRepository implements ResetInterface
     public function reset(): void
     {
         $this->diagnosisIndexCache = null;
+        $this->mediaFileExistsCache = [];
     }
 
     public function isAvailable(): bool
@@ -4033,6 +4037,72 @@ class NavidromeRepository implements ResetInterface
             "SELECT COUNT(*) FROM annotation WHERE user_id = ? AND item_type = 'media_file' AND play_count > 0",
             [$userId],
         );
+    }
+
+    /**
+     * True when the media_file id is still in the library (issue #291) — a
+     * cached or aliased target can outlive its track when Navidrome
+     * re-issues ids. Primary-key lookup, memoized for the request.
+     */
+    public function mediaFileExists(string $id): bool
+    {
+        if ($id === '') {
+            return false;
+        }
+        if (!isset($this->mediaFileExistsCache[$id])) {
+            if (count($this->mediaFileExistsCache) > 50000) {
+                $this->mediaFileExistsCache = [];
+            }
+            $this->mediaFileExistsCache[$id] = $this->connection()->fetchOne('SELECT 1 FROM media_file WHERE id = ?', [$id]) !== false;
+        }
+
+        return $this->mediaFileExistsCache[$id];
+    }
+
+    /**
+     * The user's plays by second (issue #291): `submission_time` → the
+     * `media_file_id` played at that second, or '' when several different
+     * tracks share it (ambiguous). Read-only. ~255k rows in production.
+     *
+     * @return array<int, string>
+     */
+    public function scrobbleTrackBySecond(string $userId): array
+    {
+        if (!$this->hasScrobblesTable()) {
+            return [];
+        }
+
+        $out = [];
+        $rows = $this->connection()->iterateNumeric(
+            'SELECT submission_time, media_file_id FROM scrobbles WHERE user_id = ?',
+            [$userId],
+        );
+        foreach ($rows as [$ts, $mfid]) {
+            $ts = (int) $ts;
+            $mfid = (string) $mfid;
+            if (!isset($out[$ts])) {
+                $out[$ts] = $mfid;
+            } elseif ($out[$ts] !== $mfid) {
+                $out[$ts] = '';
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Every media_file id → title (issue #291). Read-only.
+     *
+     * @return array<string, string>
+     */
+    public function mediaFileTitles(): array
+    {
+        $out = [];
+        foreach ($this->connection()->iterateNumeric('SELECT id, title FROM media_file') as [$id, $title]) {
+            $out[(string) $id] = (string) $title;
+        }
+
+        return $out;
     }
 
     /**

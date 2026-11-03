@@ -39,6 +39,63 @@ class ScrobbleSyncRepository extends ServiceEntityRepository
     }
 
     /**
+     * One page of the rows written to Navidrome (`matched`, `duplicate`) with
+     * the scrobble they come from, by id after `$afterId` (issue #291).
+     * Plain DBAL, page fully fetched: the caller writes between pages.
+     *
+     * @return list<array{id: int, played_at: string, target_id: ?string, artist: string, title: string}>
+     */
+    public function writtenNavidromePage(int $afterId, int $size): array
+    {
+        /** @var list<array{id: int|string, played_at: string, target_id: ?string, artist: string, title: string}> $rows */
+        $rows = $this->em->getConnection()->fetchAllAssociative(
+            'SELECT ss.id, s.played_at, ss.target_id, s.artist, s.title
+               FROM scrobble_sync ss
+               JOIN scrobbles s ON s.id = ss.scrobble_id
+              WHERE ss.target = :target AND ss.status IN (:matched, :duplicate) AND ss.id > :after
+              ORDER BY ss.id
+              LIMIT :size',
+            [
+                'target' => ScrobbleSync::TARGET_NAVIDROME,
+                'matched' => ScrobbleSync::STATUS_MATCHED,
+                'duplicate' => ScrobbleSync::STATUS_DUPLICATE,
+                'after' => $afterId,
+                'size' => $size,
+            ],
+            ['after' => \Doctrine\DBAL\ParameterType::INTEGER, 'size' => \Doctrine\DBAL\ParameterType::INTEGER],
+        );
+
+        return array_map(static fn (array $r) => ['id' => (int) $r['id']] + $r, $rows);
+    }
+
+    /**
+     * Rewrite target_id for the given scrobble_sync ids, in one transaction
+     * (issue #291). Status, strategy and run are kept.
+     *
+     * @param array<int, string> $targets scrobble_sync id → new target_id
+     */
+    public function updateTargetIds(array $targets): int
+    {
+        if ($targets === []) {
+            return 0;
+        }
+        $conn = $this->em->getConnection();
+
+        return (int) $conn->transactional(static function (Connection $conn) use ($targets): int {
+            $n = 0;
+            foreach ($targets as $id => $target) {
+                $n += (int) $conn->executeStatement(
+                    'UPDATE scrobble_sync SET target_id = ? WHERE id = ?',
+                    [$target, $id],
+                    [1 => \Doctrine\DBAL\ParameterType::INTEGER],
+                );
+            }
+
+            return $n;
+        });
+    }
+
+    /**
      * Matched rows of $target that a relink may move (issue #285): status
      * `matched` only — rows WE wrote; `duplicate` rows point at native
      * Navidrome plays and are never touched — and not resolved by a manual

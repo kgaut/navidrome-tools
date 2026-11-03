@@ -72,6 +72,7 @@ class MatchingToolsRelinkTest extends TestCase
             $guard ?? $this->createMock(McpWriteGuard::class),
             $relinker ?? $this->createMock(MatchedRelinker::class),
             $bus,
+            $this->createMock(\App\Service\TargetIdRepairer::class),
         );
     }
 }
