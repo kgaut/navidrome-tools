@@ -9,6 +9,8 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+## [1.10.0] - 2026-11-03
+
 ### Ajouté
 
 - **Remise d'aplomb des cibles des écoutes écrites** (issue #291). En prod, 85 %
@@ -438,7 +440,8 @@ L'ancienne POC reste accessible via le tag `poc-v0`.
   `BackupService`, sessions persistantes ; CI (phpcs, PHPStan, PHPUnit, lint
   Twig, build Docker).
 
-[Non publié]: https://github.com/kgaut/navidrome-tools/compare/1.9.1...HEAD
+[Non publié]: https://github.com/kgaut/navidrome-tools/compare/1.10.0...HEAD
+[1.10.0]: https://github.com/kgaut/navidrome-tools/compare/1.9.1...1.10.0
 [1.9.1]: https://github.com/kgaut/navidrome-tools/compare/1.9.0...1.9.1
 [1.9.0]: https://github.com/kgaut/navidrome-tools/compare/1.8.2...1.9.0
 [1.8.2]: https://github.com/kgaut/navidrome-tools/compare/1.8.1...1.8.2
