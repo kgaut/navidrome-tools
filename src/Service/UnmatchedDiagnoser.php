@@ -3,6 +3,7 @@
 namespace App\Service;
 
 use App\Navidrome\NavidromeRepository;
+use App\Navidrome\NavidromeStringNormalizer;
 
 /**
  * Classifies why a scrobble (or unmatched group) failed the matching
@@ -49,11 +50,29 @@ class UnmatchedDiagnoser
             return ['reason' => self::REASON_UNKNOWN];
         }
 
+        // Multi-artist / feat. credit (« Mobb Deep,The Alchemist ») unknown
+        // as such: diagnose under the first library-known key — feat-less
+        // credit, then lead artist (issue #280).
         if (!$this->navidrome->hasArtistInLibrary($artist)) {
-            $artistSuggestions = $this->navidrome->findNearestArtistNames(
-                $artist,
+            foreach (NavidromeStringNormalizer::artistKeys($artist) as $key) {
+                if ($this->navidrome->hasArtistInLibrary($key)) {
+                    $artist = $key;
+                    break;
+                }
+            }
+        }
+
+        if (!$this->navidrome->hasArtistInLibrary($artist)) {
+            // Distance relative to the name length: one edit per 5 characters,
+            // capped by artistMaxDistance. Short names no longer suggest
+            // unrelated artists (« Colas » → « Coins », « Rocé » → « Rone »).
+            $maxDistance = min(
                 $this->artistMaxDistance,
+                intdiv(mb_strlen(NavidromeStringNormalizer::normalize($artist)), 5),
             );
+            $artistSuggestions = $maxDistance > 0
+                ? $this->navidrome->findNearestArtistNames($artist, $maxDistance)
+                : [];
             if ($artistSuggestions !== []) {
                 return [
                     'reason' => self::REASON_ARTIST_NEAR_MATCH,
@@ -70,7 +89,8 @@ class UnmatchedDiagnoser
         // entry, or a tagging asymmetry the cascade is too strict to
         // bridge). Most actionable category : the user just needs to
         // rematch (cache now busted) or, worst case, create a direct alias.
-        $mfid = $this->navidrome->findMediaFileByArtistOrAlbumArtistAndTitle($artist, $title);
+        $mfid = $this->navidrome->findMediaFileByArtistOrAlbumArtistAndTitle($artist, $title)
+            ?? $this->navidrome->findMediaFileByBareForms($artist, $title);
         if ($mfid !== null) {
             return [
                 'reason' => self::REASON_MATCHER_GAP,
@@ -78,11 +98,22 @@ class UnmatchedDiagnoser
             ];
         }
 
+        // Edit distance first, then titles that start with / contain the
+        // scrobbled one (« Taj Mahal » → « Taj Mahal feat. The Alchemist »,
+        // issue #280), which the distance alone always misses.
         $titleSuggestions = $this->navidrome->findNearestTitlesForArtist(
             $artist,
             $title,
             $this->titleMaxDistance,
         );
+        foreach ($this->navidrome->findTitlesExtendingForArtist($artist, $title) as $suggestion) {
+            if (count($titleSuggestions) >= 3) {
+                break;
+            }
+            if (!in_array($suggestion['title'], array_column($titleSuggestions, 'title'), true)) {
+                $titleSuggestions[] = $suggestion;
+            }
+        }
         if ($titleSuggestions !== []) {
             return [
                 'reason' => self::REASON_TITLE_NEAR_MATCH,

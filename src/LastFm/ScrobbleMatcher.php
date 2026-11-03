@@ -60,7 +60,7 @@ class ScrobbleMatcher
             }
             $mfid = $alias->getTargetMediaFileId();
             if ($mfid !== null) {
-                return MatchResult::matched($mfid);
+                return MatchResult::matched($mfid, MatchResult::STRATEGY_ALIAS);
             }
         }
 

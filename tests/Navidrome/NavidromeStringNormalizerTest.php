@@ -155,4 +155,41 @@ class NavidromeStringNormalizerTest extends TestCase
             \App\Navidrome\NavidromeRepository::normalize('Sigur Rós'),
         );
     }
+    public function testBareTitleStripsFeaturingVersionSuffixesAndFoldsPart(): void
+    {
+        $base = NavidromeStringNormalizer::bareTitle("Can't Get Enough of It");
+        $this->assertSame('cant get enough of it', $base);
+        $this->assertSame($base, NavidromeStringNormalizer::bareTitle('Can’t Get Enough Of It (Feat. General G)'));
+        $this->assertSame('taj mahal', NavidromeStringNormalizer::bareTitle('Taj Mahal feat. The Alchemist'));
+        $this->assertSame('shook ones pt ii', NavidromeStringNormalizer::bareTitle('Shook Ones, Part II'));
+        $this->assertSame('shook ones pt ii', NavidromeStringNormalizer::bareTitle('Shook Ones Pt. II'));
+        $this->assertSame('quiet storm', NavidromeStringNormalizer::bareTitle('Quiet Storm - Original Version'));
+        $this->assertSame('quiet storm', NavidromeStringNormalizer::bareTitle('Quiet Storm - Infamous Sessions Mix'));
+        $this->assertSame('la balade', NavidromeStringNormalizer::bareTitle('La balade - Version instrumentale'));
+        $this->assertSame('la balade', NavidromeStringNormalizer::bareTitle('La balade (feat. X) - Remastered 2011'));
+        $this->assertSame('toucher lhorizon', NavidromeStringNormalizer::bareTitle("Toucher l'horizon - Remasterisé"));
+        $this->assertSame('arcueil cachan', NavidromeStringNormalizer::bareTitle('Arcueil Cachan (avec Shantel)'));
+        $this->assertSame('fais les backs', NavidromeStringNormalizer::bareTitle('Fais les backs (Live)'));
+        $this->assertSame('fais les backs', NavidromeStringNormalizer::bareTitle('22h31 - Fais les backs'));
+        $this->assertSame('tu pu du cu', NavidromeStringNormalizer::bareTitle('Tu pu du cu - Bonus Track'));
+    }
+
+    public function testBareTitleKeepsRemixesAndPlainSegments(): void
+    {
+        $this->assertSame('get lucky skrillex remix', NavidromeStringNormalizer::bareTitle('Get Lucky (Skrillex Remix)'));
+        $this->assertSame('intro pt 2', NavidromeStringNormalizer::bareTitle('Intro - Part 2'));
+        $this->assertSame('live and let die', NavidromeStringNormalizer::bareTitle('Live and Let Die'));
+    }
+
+    public function testArtistKeysGoFromFullCreditToLeadArtist(): void
+    {
+        $this->assertSame(
+            ['mobb deep feat general g', 'mobb deep'],
+            NavidromeStringNormalizer::artistKeys('Mobb Deep feat. General G'),
+        );
+        $this->assertSame(['mobb deepthe alchemist', 'mobb deep'], NavidromeStringNormalizer::artistKeys('Mobb Deep,The Alchemist'));
+        $this->assertSame(['nas az', 'nas'], NavidromeStringNormalizer::artistKeys('Nas • AZ'));
+        $this->assertSame(['ac dc'], NavidromeStringNormalizer::artistKeys('AC DC'));
+        $this->assertSame(['malcolm x'], NavidromeStringNormalizer::artistKeys('Malcolm X'));
+    }
 }

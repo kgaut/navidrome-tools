@@ -10,6 +10,7 @@ use App\LastFm\LastFmScrobble;
 use App\LastFm\MatchResult;
 use App\LastFm\ScrobbleMatcher;
 use App\Repository\ScrobbleSyncRepository;
+use App\Service\UnmatchedCatchUp;
 use Doctrine\ORM\EntityManagerInterface;
 
 /**
@@ -44,6 +45,7 @@ class NavidromeSyncService
         private readonly int $backupIntervalSeconds = 600,
         private readonly int $batchSize = self::BATCH_SIZE,
         private readonly int $maxConsecutiveApiErrors = 25,
+        private readonly ?UnmatchedCatchUp $catchUp = null,
     ) {
     }
 
@@ -64,6 +66,13 @@ class NavidromeSyncService
 
         // 1. Prepare pending rows for any scrobbles not yet in scrobble_sync.
         $report->prepared = $this->syncRepo->prepareForTarget(ScrobbleSync::TARGET_NAVIDROME);
+
+        // 2. Catch-up: unmatched scrobbles of artists added to the library,
+        //    and a rotating share of those whose miss expired, back to
+        //    pending so this run retries them (issue #278). Not in dry-run.
+        if (!$dryRun && $this->catchUp !== null) {
+            $report->catchUpRequeued = $this->catchUp->run()['requeued'];
+        }
 
         $userId = $this->navidrome->resolveUserId();
         $backupTaken = false;

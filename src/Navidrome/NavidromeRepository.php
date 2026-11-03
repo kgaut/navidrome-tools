@@ -5,8 +5,9 @@ namespace App\Navidrome;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\DriverManager;
 use Doctrine\DBAL\Exception as DbalException;
+use Symfony\Contracts\Service\ResetInterface;
 
-class NavidromeRepository
+class NavidromeRepository implements ResetInterface
 {
     private ?Connection $connection = null;
     private ?bool $hasScrobblesCache = null;
@@ -25,7 +26,8 @@ class NavidromeRepository
      * @var array{
      *     artistNorms: array<string, true>,
      *     artistColByPrefix: array<string, list<array{name: string, norm: string}>>,
-     *     byArtistNorm: array<string, list<array{titleNorm: string, title: string, id: string, isArtist: bool}>>
+     *     byArtistNorm: array<string, list<array{titleNorm: string, title: string, id: string, isArtist: bool}>>,
+     *     byBareKey: array<string, array<string, array{id: string, isArtist: bool}>>
      * }|null
      */
     private ?array $diagnosisIndexCache = null;
@@ -34,6 +36,17 @@ class NavidromeRepository
         private readonly string $dbPath,
         private readonly string $userName,
     ) {
+    }
+
+    /**
+     * Drops the in-memory library index between two messages of a
+     * long-lived worker (`kernel.reset`): otherwise tracks added to the
+     * library after the first lookup stay invisible to the matcher and the
+     * diagnoser until the worker restarts (issue #278).
+     */
+    public function reset(): void
+    {
+        $this->diagnosisIndexCache = null;
     }
 
     public function isAvailable(): bool
@@ -2997,6 +3010,126 @@ class NavidromeRepository
     }
 
     /**
+     * Library additions since a watermark (issue #278): the artist credits
+     * (`artist` and `album_artist`) of the media_files whose `created_at` is
+     * strictly after `$since`, and the new watermark (`MAX(created_at)` of
+     * the whole table). `$since` null = no artist listed, watermark only.
+     * Watermark null when the table has no `created_at` column or no row:
+     * the caller then has nothing to compare against.
+     *
+     * @return array{watermark: ?string, artists: list<string>}
+     */
+    public function libraryAdditionsSince(?string $since): array
+    {
+        $columns = array_map(
+            static fn (array $r) => (string) ($r['name'] ?? ''),
+            $this->connection()->fetchAllAssociative('PRAGMA table_info(media_file)'),
+        );
+        if (!in_array('created_at', $columns, true)) {
+            return ['watermark' => null, 'artists' => []];
+        }
+
+        $watermark = $this->connection()->fetchOne('SELECT MAX(created_at) FROM media_file');
+        $watermark = is_scalar($watermark) && (string) $watermark !== '' ? (string) $watermark : null;
+        if ($since === null || $watermark === null || strcmp($watermark, $since) <= 0) {
+            return ['watermark' => $watermark, 'artists' => []];
+        }
+
+        $artists = [];
+        $rows = $this->connection()->fetchAllAssociative(
+            'SELECT DISTINCT artist, album_artist FROM media_file WHERE created_at > :since',
+            ['since' => $since],
+        );
+        foreach ($rows as $row) {
+            foreach (['artist', 'album_artist'] as $col) {
+                $name = trim((string) ($row[$col] ?? ''));
+                if ($name !== '') {
+                    $artists[$name] = true;
+                }
+            }
+        }
+
+        return ['watermark' => $watermark, 'artists' => array_map('strval', array_keys($artists))];
+    }
+
+    /**
+     * Symmetric « bare » lookup (issue #279): compares
+     * {@see NavidromeStringNormalizer::bareTitle()} of the scrobbled title
+     * with the same form of every library title, under each key of
+     * {@see NavidromeStringNormalizer::artistKeys()} (full credit, feat-less,
+     * lead artist) on both sides — `artist` and `album_artist` columns.
+     * Catches « Mobb Deep feat. General G / Can't Get Enough of It » ↔
+     * « Mobb Deep / Can't Get Enough Of It (Feat. General G) » and
+     * « Mobb Deep,The Alchemist / Taj Mahal » ↔ « Taj Mahal feat. The
+     * Alchemist ». Served from the in-memory library index.
+     */
+    public function findMediaFileByBareForms(string $artist, string $title): ?string
+    {
+        $bare = NavidromeStringNormalizer::bareTitle($title);
+        if ($bare === '') {
+            return null;
+        }
+        $index = $this->diagnosisIndex()['byBareKey'];
+        foreach (NavidromeStringNormalizer::artistKeys($artist) as $key) {
+            if (isset($index[$key][$bare])) {
+                return $index[$key][$bare]['id'];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Titles of `$artist` that START with the scrobbled title or CONTAIN it
+     * as whole words — what the edit distance misses (« Taj Mahal » vs
+     * « Taj Mahal feat. The Alchemist », issue #280). Normalized comparison,
+     * scrobbled title of 4 characters at least, distinct titles, prefix
+     * hits first, then shortest. `distance` is the Levenshtein distance,
+     * for a shape shared with {@see findNearestTitlesForArtist()}.
+     *
+     * @return list<array{title: string, distance: int}>
+     */
+    public function findTitlesExtendingForArtist(string $artist, string $title, int $limit = 3): array
+    {
+        $titleN = self::normalize($title);
+        if ($limit <= 0 || mb_strlen($titleN) < 4) {
+            return [];
+        }
+
+        $index = $this->diagnosisIndex()['byArtistNorm'];
+        $seen = [];
+        $matches = [];
+        foreach (NavidromeStringNormalizer::artistKeys($artist) as $key) {
+            foreach ($index[$key] ?? [] as $entry) {
+                $candN = $entry['titleNorm'];
+                if ($candN === $titleN || isset($seen[$candN])) {
+                    continue;
+                }
+                $prefix = str_starts_with($candN, $titleN . ' ');
+                if (!$prefix && !str_contains(' ' . $candN . ' ', ' ' . $titleN . ' ')) {
+                    continue;
+                }
+                $seen[$candN] = true;
+                $matches[] = [
+                    'title' => $entry['title'],
+                    'distance' => strlen($candN) <= 255 && strlen($titleN) <= 255 ? levenshtein($candN, $titleN) : 255,
+                    'prefix' => $prefix,
+                ];
+            }
+            if ($matches !== []) {
+                break;
+            }
+        }
+
+        usort($matches, static fn (array $a, array $b) => [$b['prefix'], $a['distance']] <=> [$a['prefix'], $b['distance']]);
+
+        return array_map(
+            static fn (array $m) => ['title' => $m['title'], 'distance' => $m['distance']],
+            array_slice($matches, 0, $limit),
+        );
+    }
+
+    /**
      * Build (once, request-scoped) the in-memory library index backing the
      * unmatched diagnoser. A single plain scan of `media_file` — normalization
      * happens in PHP — replaces the per-row `np_normalize(...)` full-table
@@ -3005,7 +3138,8 @@ class NavidromeRepository
      * @return array{
      *     artistNorms: array<string, true>,
      *     artistColByPrefix: array<string, list<array{name: string, norm: string}>>,
-     *     byArtistNorm: array<string, list<array{titleNorm: string, title: string, id: string, isArtist: bool}>>
+     *     byArtistNorm: array<string, list<array{titleNorm: string, title: string, id: string, isArtist: bool}>>,
+     *     byBareKey: array<string, array<string, array{id: string, isArtist: bool}>>
      * }
      */
     private function diagnosisIndex(): array
@@ -3021,6 +3155,7 @@ class NavidromeRepository
         $artistNorms = [];
         $artistColByPrefix = [];
         $byArtistNorm = [];
+        $byBareKey = [];
         $seenArtistCol = [];
 
         foreach ($rows as $row) {
@@ -3051,6 +3186,29 @@ class NavidromeRepository
                 if ($albumArtistN !== '' && $albumArtistN !== $artistN) {
                     $byArtistNorm[$albumArtistN][] = ['titleNorm' => $titleN, 'title' => $title, 'id' => $id, 'isArtist' => false];
                 }
+
+                // Bare-form index (issue #279): one best id per (artist key,
+                // bare title) — `artist` column first, then lowest id.
+                $bare = NavidromeStringNormalizer::bareTitle($title);
+                if ($bare !== '') {
+                    $keys = [];
+                    foreach ($artist !== '' ? NavidromeStringNormalizer::artistKeys($artist) : [] as $key) {
+                        $keys[$key] = true;
+                    }
+                    foreach ($albumArtist !== '' ? NavidromeStringNormalizer::artistKeys($albumArtist) : [] as $key) {
+                        $keys[$key] ??= false;
+                    }
+                    foreach ($keys as $key => $isArtist) {
+                        $current = $byBareKey[$key][$bare] ?? null;
+                        if (
+                            $current === null
+                            || ($isArtist && !$current['isArtist'])
+                            || ($isArtist === $current['isArtist'] && strcmp($id, $current['id']) < 0)
+                        ) {
+                            $byBareKey[$key][$bare] = ['id' => $id, 'isArtist' => $isArtist];
+                        }
+                    }
+                }
             }
         }
 
@@ -3058,6 +3216,7 @@ class NavidromeRepository
             'artistNorms' => $artistNorms,
             'artistColByPrefix' => $artistColByPrefix,
             'byArtistNorm' => $byArtistNorm,
+            'byBareKey' => $byBareKey,
         ];
     }
 
@@ -3334,6 +3493,14 @@ class NavidromeRepository
             if ($id !== null) {
                 return $id;
             }
+        }
+
+        // Symmetric « bare » fallback (issue #279): both sides stripped of
+        // featuring (delimited or not), version suffixes and « Part »/« Pt »,
+        // artist tried as full credit, feat-less credit, then lead artist.
+        $id = $this->findMediaFileByBareForms($artist, $title);
+        if ($id !== null) {
+            return $id;
         }
 
         // Last-resort: split lead artist on multi-artist separators

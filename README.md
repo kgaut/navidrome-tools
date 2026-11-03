@@ -209,6 +209,7 @@ d'environnement Docker en prod) :
 | `LASTFM_PAGE_DELAY_SECONDS` | `10` | délai entre pages (rate limit) |
 | `LASTFM_FUZZY_MAX_DISTANCE` | `0` | distance Levenshtein du matching fuzzy (0 = désactivé) |
 | `LASTFM_MATCH_CACHE_TTL_DAYS` | `30` | durée de vie des entrées négatives du cache de matching |
+| `LASTFM_UNMATCHED_RETRY_PER_RUN` | `200` | à chaque sync Navidrome, nombre max de couples non matchés dont l'échec a expiré (TTL ci-dessus) retentés, les plus écoutés d'abord ; `0` = désactivé |
 
 ### MusicBrainz
 
@@ -332,7 +333,7 @@ chez le client. Scopes : `mcp` (lecture) et `mcp_write` (outils d'écriture).
 | `library_search`, `playlists_list` | recherche dans la bibliothèque (ids), playlists connues |
 | `playlist_create` ✍️ | playlist Navidrome à partir d'une liste d'ids |
 | `described_playlist_create` ✍️ | playlist décrite par une phrase (AudioMuse), régénérée par le cron |
-| `alias_create_track`, `alias_create_artist`, `unmatched_retry` ✍️ | réconciliation |
+| `alias_create_track`, `alias_create_artist`, `unmatched_retry`, `unmatched_retry_many` ✍️ | réconciliation (relance d'un couple ou d'une série de groupes) |
 
 ✍️ = écriture : listés pour tout jeton, **refusés à l'exécution** sans `mcp_write`
 (rien n'est écrit). Une erreur métier (nom pris, id inconnu…) revient comme
@@ -665,12 +666,25 @@ premier succès) :
    (positives gardées, négatives expirent après `LASTFM_MATCH_CACHE_TTL_DAYS`).
 4. **MBID** (`mbid_track` ↔ `mbz_recording_id`).
 5. **Triplet** `(artiste, titre, album)` quand l'album est renseigné.
-6. **Couple** `(artiste, titre)` avec normalisation + strip `feat.` / version.
+6. **Couple** `(artiste, titre)` avec normalisation + strip `feat.` / version,
+   puis une comparaison « à nu » symétrique (bibliothèque et scrobble) :
+   `feat.` / `(avec …)` retirés du titre comme de l'artiste, artiste principal
+   d'un crédit multiple (`,` `•` `&`…), suffixes de version (« - Original
+   Version », « - … Mix », « - Remasterisé », « - Bonus Track », « (Live) »),
+   « Part » ≡ « Pt. ».
 7. **`track.getInfo`** Last.fm (autocorrection orthographe / MBID canonique).
 8. **Fuzzy Levenshtein** (opt-in via `LASTFM_FUZZY_MAX_DISTANCE > 0`).
 
 Normalisation (`np_normalize`) : minuscules, suppression des accents (NFKD) et
 de la ponctuation — `Beyoncé` = `Beyonce`, `AC/DC` = `ACDC`, etc.
+
+Un scrobble non matché n'est pas abandonné : au début de chaque sync
+Navidrome, les non-matchés des artistes **ajoutés à la bibliothèque** depuis
+le sync précédent (`media_file.created_at`) repassent en pending, ainsi
+qu'une part (`LASTFM_UNMATCHED_RETRY_PER_RUN`, les plus écoutés d'abord) de
+ceux dont l'échec en cache a expiré. Le premier sync ne fait que poser le
+repère : pour rattraper l'existant d'un coup, `app:scrobbles:requeue-unmatched`
+puis un sync (ou « Rematcher tous »).
 
 Les couples insolubles automatiquement se gèrent via les **alias** : UI,
 `app:aliases:generate` (offline, MBID-only) ou `app:aliases:musicbrainz`

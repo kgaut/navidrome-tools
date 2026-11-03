@@ -9,6 +9,48 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+### Ajouté
+
+- **Rattrapage automatique des non-matchés à chaque sync Navidrome** (issue
+  #278). Un scrobble non
+  matché n'était jamais retenté sans rematch manuel : un album ajouté après
+  l'écoute ne récupérait pas ses scrobbles, et la durée de vie du cache négatif
+  ne servait à rien. Au début de chaque sync, `UnmatchedCatchUp` repasse en
+  pending les non-matchés des artistes ajoutés à la bibliothèque depuis le sync
+  précédent (repère `media_file.created_at`), puis une part de ceux dont l'échec
+  a expiré, les plus écoutés d'abord (`LASTFM_UNMATCHED_RETRY_PER_RUN`, 200). Le
+  premier sync ne fait que poser le repère.
+- **Outil MCP `unmatched_retry_many`** (issue #278) : relance en un appel tous
+  les couples non matchés d'une page de `unmatched_list`, avec les mêmes filtres
+  (artiste, titre, période).
+
+### Modifié
+
+- **Matching : comparaison « à nu » symétrique** (issue #279). En dernier
+  recours, le titre et l'artiste sont comparés sous une forme débarrassée, des
+  deux côtés (bibliothèque et scrobble), des `feat.` (avec ou sans
+  parenthèses), des `(avec …)` et des suffixes de version (« - Original
+  Version », « - … Mix », « - Remasterisé », « - Bonus Track », « (Live) »).
+  Cette forme ignore aussi le préfixe horaire « 22h31 - » et réduit « Part » à
+  « Pt. ». L'artiste est essayé en entier, sans `feat.`, puis réduit à
+  l'artiste principal d'un crédit multiple (`,` `•` `&` `;` `/` `x` `avec`…).
+- **Diagnostic des non-matchés** (issue #280) :
+  - il suggère aussi les titres de l'artiste qui commencent par le titre écouté
+    ou le contiennent ;
+  - il diagnostique un crédit multiple sous l'artiste principal ;
+  - il ne suggère plus d'artiste éloigné pour les noms courts (une modification
+    tolérée par tranche de 5 caractères : fin de « Colas » → « Coins ») ;
+  - `unmatched_list` diagnostique tous les groupes servis, sans coupure à 25.
+- Un match obtenu par un alias de morceau a la stratégie `alias` (et non plus
+  vide, « stratégie ? » côté MCP) (issue #280).
+
+### Corrigé
+
+- Le worker gardait l'index en mémoire de la bibliothèque d'un message à
+  l'autre : les morceaux ajoutés restaient invisibles au diagnostic jusqu'au
+  redémarrage (`NavidromeRepository` est remis à zéro entre deux messages,
+  issue #278).
+
 ## [1.7.0] - 2026-10-31
 
 ### Ajouté

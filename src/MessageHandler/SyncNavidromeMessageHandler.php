@@ -34,6 +34,7 @@ class SyncNavidromeMessageHandler
             ),
             extractMetrics: static fn (NavidromeSyncReport $r) => [
                 'prepared' => $r->prepared,
+                'catch_up_requeued' => $r->catchUpRequeued,
                 'considered' => $r->considered,
                 'matched' => $r->matched,
                 'duplicates' => $r->duplicates,
