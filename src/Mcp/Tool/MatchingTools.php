@@ -212,8 +212,9 @@ class MatchingTools
             . 'jamais déplacées. Filtres (sous-chaîne, insensible à la casse ; au moins un parmi artist, album, from_album) : '
             . 'artist, title, album = album scrobblé ; from_album = album du morceau actuellement visé (ex. '
             . '« Instrumentales »). limit = écoutes examinées (500 par défaut, ramené à 2000). Renvoie les déplacements '
-            . 'groupés (album actuel → nouvel album, nombre d\'écoutes) et le nombre d\'écoutes qui deviendraient non '
-            . 'matchées (laissées en place). Rien n\'est écrit dans Navidrome ; le cache de matching peut être complété. '
+            . 'groupés (album actuel → nouvel album, nombre d\'écoutes), le nombre d\'écoutes qui deviendraient non '
+            . 'matchées et celui des écoutes dont le morceau enregistré a disparu de la bibliothèque (stale_target ; '
+            . 'laissées en place dans les deux cas). Rien n\'est écrit dans Navidrome ; le cache de matching peut être complété. '
             . 'Appliquer avec matched_relink.',
         annotations: new ToolAnnotations(readOnlyHint: true, openWorldHint: true),
     )]
@@ -236,15 +237,18 @@ class MatchingTools
             'considered' => $plan['considered'],
             'to_move' => count($plan['moves']),
             'would_unmatch' => $plan['would_unmatch'],
+            'stale_target' => $plan['stale_target'],
             'api_errors' => $plan['api_errors'],
             'groups' => $groups,
             'message' => sprintf(
-                '%d écoute(s) examinée(s), %d à déplacer en %d groupe(s)%s, %d deviendrai(en)t non matchée(s) (laissée(s) en place).%s',
+                '%d écoute(s) examinée(s), %d à déplacer en %d groupe(s)%s, %d deviendrai(en)t non matchée(s) et %d visent un '
+                    . 'morceau disparu de la bibliothèque (laissées en place).%s',
                 $plan['considered'],
                 count($plan['moves']),
                 count($plan['groups']),
                 count($plan['groups']) > count($groups) ? sprintf(' (%d premiers affichés)', count($groups)) : '',
                 $plan['would_unmatch'],
+                $plan['stale_target'],
                 $plan['considered'] >= $limit ? ' Limite atteinte : d\'autres écoutes peuvent être concernées, augmenter limit ou affiner les filtres.' : '',
             ),
         ];

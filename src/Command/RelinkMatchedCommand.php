@@ -78,10 +78,11 @@ class RelinkMatchedCommand extends Command
             ], $plan['groups']),
         );
         $io->writeln(sprintf(
-            'examinées=%d à déplacer=%d deviendraient non matchées (laissées)=%d erreurs Last.fm=%d',
+            'examinées=%d à déplacer=%d deviendraient non matchées (laissées)=%d cible disparue de la bibliothèque (laissées)=%d erreurs Last.fm=%d',
             $plan['considered'],
             count($plan['moves']),
             $plan['would_unmatch'],
+            $plan['stale_target'],
             $plan['api_errors'],
         ));
         if ($dryRun || $plan['moves'] === []) {
@@ -98,7 +99,11 @@ class RelinkMatchedCommand extends Command
                 action: fn (RunHistory $entry) => $autoStop
                     ? $this->container->runWithNavidromeStopped(fn () => $this->relinker->apply($plan['moves'], $entry))
                     : $this->relinker->apply($plan['moves'], $entry),
-                extractMetrics: static fn (array $r): array => $r + ['planned' => count($plan['moves']), 'would_unmatch' => $plan['would_unmatch']],
+                extractMetrics: static fn (array $r): array => $r + [
+                    'planned' => count($plan['moves']),
+                    'would_unmatch' => $plan['would_unmatch'],
+                    'stale_target' => $plan['stale_target'],
+                ],
             );
         } catch (\Throwable $e) {
             $io->error($e->getMessage());
@@ -107,7 +112,7 @@ class RelinkMatchedCommand extends Command
         }
 
         $io->success(sprintf(
-            'Déplacées=%d (dont %d sur une écoute déjà présente → duplicate), ancienne ligne absente=%d, sauvegarde=%s',
+            'Déplacées=%d (dont %d sur une écoute déjà présente → duplicate), ligne Navidrome introuvable (laissées telles quelles)=%d, sauvegarde=%s',
             $written['moved'] + $written['duplicates'],
             $written['duplicates'],
             $written['missing_old'],

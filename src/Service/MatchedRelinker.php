@@ -22,10 +22,12 @@ use Doctrine\ORM\EntityManagerInterface;
  * Only rows WE wrote (`scrobble_sync.status = matched`) are candidates, minus
  * manual aliases and MBID matches; native Navidrome plays (`duplicate`) are
  * never touched. A row moves only when the new target is non-null and
- * different; one that would become unmatched stays and is counted.
+ * different; one that would become unmatched stays and is counted, and so
+ * does one whose recorded target is no longer in the library (stale id).
  *
- * Writing a move: delete our `scrobbles` row (user, old track, exact second),
- * insert on the new track unless a play already sits there within the
+ * Writing a move: delete our `scrobbles` row (user, old track, exact second)
+ * — not found: nothing is written for that play, never an insert alone,
+ * which would double it (#290) — insert on the new track unless a play already sits there within the
  * tolerance (then the row becomes `duplicate`), recompute both tracks'
  * annotation from `scrobbles`, update `scrobble_sync`. Batches of 100 in one
  * Navidrome transaction, backup first. The caller stops Navidrome.
@@ -54,6 +56,7 @@ class MatchedRelinker
      *     moves: list<array{sync_id: int, from: string, to: string, strategy: string, played_at: \DateTimeImmutable}>,
      *     groups: list<array{artist: string, title: string, album: string, from_id: string, from_album: string, to_id: string, to_album: string, strategy: string, count: int}>,
      *     would_unmatch: int,
+     *     stale_target: int,
      *     api_errors: int
      * }
      */
@@ -70,12 +73,19 @@ class MatchedRelinker
             ));
         }
 
-        $out = ['considered' => count($rows), 'moves' => [], 'groups' => [], 'would_unmatch' => 0, 'api_errors' => 0];
+        $out = ['considered' => count($rows), 'moves' => [], 'groups' => [], 'would_unmatch' => 0, 'stale_target' => 0, 'api_errors' => 0];
         /** @var array<string, ?MatchResult> $resolved */
         $resolved = [];
         $groups = [];
         $newIds = [];
         foreach ($rows as $sync) {
+            // Recorded target no longer in the library (track ids changed
+            // since the write): our Navidrome row cannot be found by it, so
+            // moving would only ADD a play. Left alone, counted (#290).
+            if (!isset($albums[(string) $sync->getTargetId()])) {
+                $out['stale_target']++;
+                continue;
+            }
             $scrobble = $sync->getScrobble();
             $key = implode("\0", [$scrobble->getArtist(), $scrobble->getTitle(), (string) $scrobble->getAlbum(), (string) $scrobble->getMbidTrack()]);
             if (!array_key_exists($key, $resolved)) {
@@ -162,7 +172,7 @@ class MatchedRelinker
             foreach (array_chunk($moves, self::BATCH_SIZE) as $batch) {
                 $statuses = $this->writeBatch($batch, $userId, $out);
                 foreach ($batch as $i => $move) {
-                    $sync = $this->em->find(ScrobbleSync::class, $move['sync_id']);
+                    $sync = $statuses[$i] === null ? null : $this->em->find(ScrobbleSync::class, $move['sync_id']);
                     if ($sync === null) {
                         continue;
                     }
@@ -188,7 +198,7 @@ class MatchedRelinker
      * @param list<array{sync_id: int, from: string, to: string, strategy: string, played_at: \DateTimeImmutable}> $batch
      * @param array{moved: int, duplicates: int, missing_old: int, backup: ?string} $out
      *
-     * @return list<string> status per move
+     * @return list<?string> status per move, null = left untouched (our row not found)
      */
     private function writeBatch(array $batch, string $userId, array &$out): array
     {
@@ -197,8 +207,12 @@ class MatchedRelinker
         $this->navidrome->beginWriteTransaction();
         try {
             foreach ($batch as $move) {
+                // Our row not found: inserting the new one would double the
+                // play (#290). Leave both sides untouched.
                 if ($this->navidrome->deleteOneScrobble($userId, $move['from'], $move['played_at']) === 0) {
                     $out['missing_old']++;
+                    $statuses[] = null;
+                    continue;
                 }
                 $touched[$move['from']] = true;
                 $touched[$move['to']] = true;

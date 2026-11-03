@@ -2,6 +2,7 @@
 
 namespace App\Repository;
 
+use App\Doctrine\UtcDateTimeImmutableType;
 use App\Entity\Scrobble;
 use App\Entity\ScrobbleSync;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
@@ -76,23 +77,61 @@ class ScrobbleSyncRepository extends ServiceEntityRepository
     /**
      * Stream pending rows for $target, oldest scrobble first.
      *
+     * Read by pages of `$pageSize` (keyset on played_at, id), each page fully
+     * fetched — its cursor closed — before it is yielded (issue #290). The
+     * caller writes to this same database while iterating (flush per batch):
+     * a cursor held open across those writes is a read lock the connection
+     * then tries to upgrade, and any concurrent writer (an OAuth token, a web
+     * flush) makes SQLite answer `database is locked` at once, busy_timeout
+     * notwithstanding. Rows processed meanwhile leave `pending` and the keyset
+     * never revisits them; `$limit` (0 = none) caps the total.
+     *
      * @return iterable<ScrobbleSync>
      */
-    public function streamPending(string $target, int $limit = 0): iterable
+    public function streamPending(string $target, int $limit = 0, int $pageSize = 500): iterable
     {
-        $qb = $this->createQueryBuilder('ss')
-            ->join('ss.scrobble', 's')
-            ->where('ss.target = :target')
-            ->andWhere('ss.status = :status')
-            ->setParameter('target', $target)
-            ->setParameter('status', ScrobbleSync::STATUS_PENDING)
-            ->orderBy('s.playedAt', 'ASC');
+        $yielded = 0;
+        $lastPlayedAt = null;
+        $lastId = 0;
+        while (true) {
+            $size = $limit > 0 ? min($pageSize, $limit - $yielded) : $pageSize;
+            if ($size <= 0) {
+                return;
+            }
 
-        if ($limit > 0) {
-            $qb->setMaxResults($limit);
+            $qb = $this->createQueryBuilder('ss')
+                ->addSelect('s')
+                ->join('ss.scrobble', 's')
+                ->where('ss.target = :target')
+                ->andWhere('ss.status = :status')
+                ->setParameter('target', $target)
+                ->setParameter('status', ScrobbleSync::STATUS_PENDING)
+                ->orderBy('s.playedAt', 'ASC')
+                ->addOrderBy('ss.id', 'ASC')
+                ->setMaxResults($size);
+            if ($lastPlayedAt !== null) {
+                $qb->andWhere('s.playedAt > :lastPlayedAt OR (s.playedAt = :lastPlayedAt AND ss.id > :lastId)')
+                    ->setParameter('lastPlayedAt', $lastPlayedAt, UtcDateTimeImmutableType::NAME)
+                    ->setParameter('lastId', $lastId);
+            }
+
+            /** @var list<ScrobbleSync> $page */
+            $page = $qb->getQuery()->getResult();
+            if ($page === []) {
+                return;
+            }
+            $last = $page[count($page) - 1];
+            $lastPlayedAt = $last->getScrobble()->getPlayedAt();
+            $lastId = (int) $last->getId();
+
+            foreach ($page as $sync) {
+                yield $sync;
+                $yielded++;
+            }
+            if (count($page) < $size) {
+                return;
+            }
         }
-
-        return $qb->getQuery()->toIterable();
     }
 
     public function countByTargetStatus(string $target, string $status): int

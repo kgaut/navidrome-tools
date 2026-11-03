@@ -9,6 +9,30 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+## [1.9.1] - 2026-11-03
+
+### Corrigé
+
+- **Sync et rematch tués par « database is locked » quand le web ou le MCP
+  écrivait pendant la passe** (issue #290). La passe lisait les écoutes en
+  attente par un curseur ouvert d'un bout à l'autre, tout en écrivant sur la
+  même connexion. Une écriture concurrente (ici l'émission d'un jeton OAuth du
+  connecteur MCP) formait un interblocage, et SQLite échouait aussitôt, malgré
+  le `busy_timeout` de 30 s. `ScrobbleSyncRepository::streamPending()` lit
+  désormais par pages de 500, curseur fermé avant le traitement, dans le même
+  ordre et avec la même limite. Le passage de `data.db` en WAL ne suffisait
+  pas : reproduit, il échoue aussi avec un curseur ouvert.
+- **`app:scrobbles:relink` pouvait doubler des écoutes** (issue #290, sur
+  #285). Si notre ligne Navidrome était introuvable par la cible enregistrée,
+  la nouvelle écoute était écrite quand même. Or, en prod, 85 % des cibles de
+  `scrobble_sync` visent des morceaux disparus de Navidrome (#291). Une écoute
+  dont la cible a disparu n'est plus proposée (`stale_target`), et une ligne
+  introuvable n'entraîne plus aucune écriture.
+- **Mémoire** : `memory_limit` passe à 512M dans l'image. L'index de la
+  bibliothèque gardé en mémoire par le matching (#279, #282) occupe 57 Mo
+  (pic à 73 Mo) pour 31 600 morceaux, et `relink` dépassait les 128 Mo par
+  défaut de PHP.
+
 ## [1.9.0] - 2026-11-03
 
 ### Ajouté
@@ -391,7 +415,8 @@ L'ancienne POC reste accessible via le tag `poc-v0`.
   `BackupService`, sessions persistantes ; CI (phpcs, PHPStan, PHPUnit, lint
   Twig, build Docker).
 
-[Non publié]: https://github.com/kgaut/navidrome-tools/compare/1.9.0...HEAD
+[Non publié]: https://github.com/kgaut/navidrome-tools/compare/1.9.1...HEAD
+[1.9.1]: https://github.com/kgaut/navidrome-tools/compare/1.9.0...1.9.1
 [1.9.0]: https://github.com/kgaut/navidrome-tools/compare/1.8.2...1.9.0
 [1.8.2]: https://github.com/kgaut/navidrome-tools/compare/1.8.1...1.8.2
 [1.8.1]: https://github.com/kgaut/navidrome-tools/compare/1.8.0...1.8.1
