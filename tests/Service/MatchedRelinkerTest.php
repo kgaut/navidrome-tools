@@ -108,15 +108,31 @@ class MatchedRelinkerTest extends TestCase
         $nd->close();
     }
 
-    public function testApplyCountsAMissingOldRowAndStillWritesTheNewOne(): void
+    public function testApplyLeavesAPlayWhoseRowIsNotFoundUntouched(): void
     {
+        // #290: inserting without removing would double the play.
         $this->sync(1, '2024-01-01 10:00:00', '9instru', 'L\'École Du Micro D\'Argent');
 
         $relinker = $this->relinker();
         $out = $relinker->apply($relinker->plan('IAM', null, null, null, 100)['moves']);
 
         $this->assertSame(1, $out['missing_old']);
-        $this->assertSame(1, $out['moved']);
+        $this->assertSame(0, $out['moved']);
+        $nd = $this->nd();
+        $this->assertSame(0, (int) $nd->fetchOne('SELECT COUNT(*) FROM scrobbles'));
+        $nd->close();
+        $this->assertSame('9instru', $this->syncs[1]->getTargetId());
+    }
+
+    public function testPlanLeavesRowsWhoseRecordedTargetLeftTheLibrary(): void
+    {
+        // Production: track ids changed after the write; the recorded target is gone.
+        $this->sync(1, '2024-01-01 10:00:00', 'gone-id', 'L\'École Du Micro D\'Argent');
+
+        $plan = $this->relinker()->plan('IAM', null, null, null, 100);
+
+        $this->assertSame(1, $plan['stale_target']);
+        $this->assertSame([], $plan['moves']);
     }
 
     public function testDeleteOneScrobbleRemovesASingleIdenticalRow(): void

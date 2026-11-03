@@ -51,6 +51,7 @@ class MatchingToolsRelinkTest extends TestCase
             'moves' => [['sync_id' => 1, 'from' => 'a', 'to' => 'b', 'strategy' => 'triplet', 'played_at' => new \DateTimeImmutable()]],
             'groups' => [['artist' => 'IAM', 'title' => 'T', 'album' => 'A', 'from_id' => 'a', 'from_album' => 'X', 'to_id' => 'b', 'to_album' => 'A', 'strategy' => 'triplet', 'count' => 1]],
             'would_unmatch' => 1,
+            'stale_target' => 0,
             'api_errors' => 0,
         ]);
 
