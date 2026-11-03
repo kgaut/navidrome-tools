@@ -9,6 +9,15 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+### Modifié
+
+- **Matching : étapes triplet et couple servies par l'index en mémoire de la
+  bibliothèque** (issue #282). Chaque recherche balayait toute la table
+  `media_file` en recalculant `np_normalize()` sur chaque ligne, plusieurs fois
+  par scrobble non trouvé. Sur 3 000 scrobbles réels : réponses identiques,
+  0,2 ms par recherche au lieu de 149 ms. Un sync ou un rematch ne paie plus,
+  par écoute ratée, que les appels Last.fm.
+
 ## [1.8.0] - 2026-11-03
 
 ### Ajouté
