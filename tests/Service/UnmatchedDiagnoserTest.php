@@ -131,6 +131,62 @@ class UnmatchedDiagnoserTest extends TestCase
         $this->assertSame(UnmatchedDiagnoser::REASON_TRACK_MISSING, $result['reason']);
     }
 
+    public function testShortArtistNamesDoNotSuggestUnrelatedArtists(): void
+    {
+        $repo = $this->seedLibrary([
+            ['id' => 'mf-1', 'title' => 'Track', 'artist' => 'Coins'],
+            ['id' => 'mf-2', 'title' => 'Track', 'artist' => 'Rone'],
+        ]);
+        $diag = new UnmatchedDiagnoser($repo);
+
+        $this->assertSame(UnmatchedDiagnoser::REASON_ARTIST_UNKNOWN, $diag->diagnose('Colas', 'Song')['reason']);
+        $this->assertSame(UnmatchedDiagnoser::REASON_ARTIST_UNKNOWN, $diag->diagnose('Rocé', 'Song')['reason']);
+    }
+
+    public function testTitleNearMatchSuggestsTitlesStartingWithOrContainingTheScrobbledOne(): void
+    {
+        // Issue #280: the edit distance misses « Bad Habits » → « Bad
+        // Habits (Remix by X) Extended ». Prefix and containment catch it.
+        $repo = $this->seedLibrary([
+            ['id' => 'mf-1', 'title' => 'The Infamous Bad Habits Interlude', 'artist' => 'Mobb Deep'],
+            ['id' => 'mf-2', 'title' => 'Bad Habits Pt. 2 With A Long Tail', 'artist' => 'Mobb Deep'],
+            ['id' => 'mf-3', 'title' => 'Habitat', 'artist' => 'Mobb Deep'],
+        ]);
+
+        $result = (new UnmatchedDiagnoser($repo))->diagnose('Mobb Deep', 'Bad Habits');
+
+        $this->assertSame(UnmatchedDiagnoser::REASON_TITLE_NEAR_MATCH, $result['reason']);
+        $this->assertSame(
+            ['Bad Habits Pt. 2 With A Long Tail', 'The Infamous Bad Habits Interlude'],
+            array_column($result['title_suggestions'], 'title'),
+        );
+    }
+
+    public function testFeatInLibraryTitleIsAMatcherGapNotATrackMissing(): void
+    {
+        // Issue #280 report: « Mobb Deep / Taj Mahal » answered track_missing
+        // while the library has « Taj Mahal feat. The Alchemist ».
+        $repo = $this->seedLibrary([
+            ['id' => 'mf-1', 'title' => 'Taj Mahal feat. The Alchemist', 'artist' => 'Mobb Deep'],
+        ]);
+
+        $result = (new UnmatchedDiagnoser($repo))->diagnose('Mobb Deep', 'Taj Mahal');
+
+        $this->assertSame(UnmatchedDiagnoser::REASON_MATCHER_GAP, $result['reason']);
+        $this->assertSame('mf-1', $result['target_media_file_id']);
+    }
+
+    public function testMultiArtistCreditIsDiagnosedUnderTheLeadArtist(): void
+    {
+        $repo = $this->seedLibrary([
+            ['id' => 'mf-1', 'title' => 'Quiet Storm', 'artist' => 'Mobb Deep'],
+        ]);
+
+        $result = (new UnmatchedDiagnoser($repo))->diagnose('Mobb Deep • Lil Kim', 'Something Else Entirely');
+
+        $this->assertSame(UnmatchedDiagnoser::REASON_TRACK_MISSING, $result['reason']);
+    }
+
     /**
      * @param list<array{id: string, title: string, artist: string, album_artist?: string}> $tracks
      */

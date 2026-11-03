@@ -57,7 +57,8 @@ final class NavidromeFixtureFactory
                 mbz_track_id VARCHAR(255) DEFAULT '',
                 mbz_recording_id VARCHAR(255) DEFAULT '',
                 mbz_album_id VARCHAR(255) DEFAULT NULL,
-                mbz_album_artist_id VARCHAR(255) DEFAULT NULL
+                mbz_album_artist_id VARCHAR(255) DEFAULT NULL,
+                created_at DATETIME DEFAULT NULL
             )
         SQL);
         if ($withAnnId) {
@@ -131,11 +132,12 @@ final class NavidromeFixtureFactory
         ?string $mbzTrackId = null,
         ?string $mbzRecordingId = null,
         ?string $mbzAlbumId = null,
+        ?string $createdAt = null,
     ): void {
         $artistId = 'artist-' . md5($artist);
         $conn->executeStatement(
-            'INSERT INTO media_file (id, path, title, artist, album, artist_id, album_artist, duration, mbz_track_id, mbz_recording_id, mbz_album_id)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO media_file (id, path, title, artist, album, artist_id, album_artist, duration, mbz_track_id, mbz_recording_id, mbz_album_id, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [
                 $id,
                 $path,
@@ -148,6 +150,7 @@ final class NavidromeFixtureFactory
                 $mbzTrackId,
                 $mbzRecordingId,
                 $mbzAlbumId,
+                $createdAt,
             ],
         );
     }

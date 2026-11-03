@@ -23,7 +23,7 @@ class MatchingTools
     use McpToolSupport;
 
     private const MAX_UNMATCHED = 100;
-    private const DIAGNOSE_MAX = 25;
+    private const MAX_RETRY_GROUPS = 100;
 
     public function __construct(
         private readonly ScrobbleSyncRepository $syncRepo,
@@ -69,8 +69,8 @@ class MatchingTools
             . 'moins écouté. Filtres facultatifs (sous-chaîne, insensible à la casse) : artist, title ; period = "AAAA" ou '
             . '"AAAA-MM" (ignoré si autre format). Pagination : limit (25 par défaut, ramené à 100) et offset ; total = '
             . 'nombre de groupes. diagnose = true (défaut) ajoute à chaque groupe la raison probable (artist_unknown, '
-            . 'artist_near_match, title_near_match, track_missing, matcher_gap) et des suggestions ; le diagnostic est '
-            . 'coupé au-delà de 25 groupes servis.',
+            . 'artist_near_match, title_near_match, track_missing, matcher_gap) et des suggestions, pour chaque groupe servi. '
+            . 'Pour relancer d\'un coup les groupes non matchés : unmatched_retry_many.',
         annotations: new ToolAnnotations(readOnlyHint: true, openWorldHint: false),
     )]
     public function unmatchedList(
@@ -90,8 +90,9 @@ class MatchingTools
 
         $rows = $this->syncRepo->aggregateUnmatched(ScrobbleSync::TARGET_NAVIDROME, $limit, $offset, $artist, $title, $period);
         $total = $this->syncRepo->countUnmatchedGroups(ScrobbleSync::TARGET_NAVIDROME, $artist, $title, $period);
-        $diagnosed = $diagnose && count($rows) <= self::DIAGNOSE_MAX;
-        if ($diagnosed) {
+        // The diagnosis is served from an in-memory library index, so every
+        // served group gets one (the former 25-group cut is gone, issue #280).
+        if ($diagnose) {
             foreach ($rows as &$row) {
                 $row['diagnosis'] = $this->diagnoser->diagnose((string) $row['artist'], (string) $row['title']);
             }
@@ -99,9 +100,6 @@ class MatchingTools
         }
 
         $message = self::limitNote(count($rows), $limit, $total);
-        if ($diagnose && !$diagnosed) {
-            $message .= sprintf(' Diagnostic omis : plus de %d groupes servis, réduire limit.', self::DIAGNOSE_MAX);
-        }
 
         return [
             'filters' => ['artist' => $artist, 'title' => $title, 'period' => $period],
@@ -151,6 +149,48 @@ class MatchingTools
         $outcome['message'] = $outcome['matched']
             ? sprintf('Matché (stratégie %s) : %d scrobble(s) remis en pending, écrits au prochain sync.', $outcome['strategy'] ?? '?', $outcome['requeued'])
             : sprintf('Toujours non matché : %s.', UnmatchedRetrier::reasonLabel((string) ($outcome['diagnosis']['reason'] ?? '')));
+
+        return $outcome;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    #[McpTool(
+        name: 'unmatched_retry_many',
+        description: 'ÉCRITURE (scope mcp_write). Relance le matching de tous les couples (artiste, titre) non matchés parmi '
+            . 'les limit premiers groupes de unmatched_list (mêmes filtres facultatifs artist, title, period ; limit 50 par '
+            . 'défaut, ramené à 100), comme unmatched_retry sur chacun. À utiliser après un ajout à la bibliothèque, une '
+            . 'série d\'alias ou une évolution du matching, plutôt que des dizaines d\'appels unmatched_retry. Les scrobbles '
+            . 'des couples trouvés repassent en pending : ils seront écrits dans Navidrome au prochain sync. Renvoie les '
+            . 'couples matchés et, pour les autres, le nombre par raison de diagnostic.',
+        annotations: new ToolAnnotations(readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true),
+    )]
+    public function retryMany(
+        ?string $artist = null,
+        ?string $title = null,
+        #[Schema(description: 'AAAA ou AAAA-MM.')]
+        ?string $period = null,
+        int $limit = 50,
+    ): array {
+        $this->guard->assertCanWrite();
+        $artist = $artist !== null && trim($artist) !== '' ? trim($artist) : null;
+        $title = $title !== null && trim($title) !== '' ? trim($title) : null;
+        $period = $period !== null && preg_match('/^\d{4}(-\d{2})?$/', trim($period)) === 1 ? trim($period) : null;
+        $limit = self::clamp($limit, self::MAX_RETRY_GROUPS);
+
+        $outcome = $this->retrier->retryMany($artist, $title, $period, $limit);
+        // Map: an empty one must stay a JSON object.
+        $outcome['still_unmatched'] = (object) $outcome['still_unmatched'];
+        $outcome['filters'] = ['artist' => $artist, 'title' => $title, 'period' => $period];
+        $outcome['message'] = sprintf(
+            '%d couple(s) relancé(s) sur %d groupe(s) : %d matché(s), %d scrobble(s) remis en pending, écrits au prochain sync.%s',
+            $outcome['couples'],
+            $outcome['groups'],
+            $outcome['matched'],
+            $outcome['requeued'],
+            $outcome['aborted'] ? ' Arrêté après 5 erreurs Last.fm consécutives : relancer plus tard.' : '',
+        );
 
         return $outcome;
     }

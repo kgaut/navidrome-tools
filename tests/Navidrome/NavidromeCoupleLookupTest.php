@@ -179,6 +179,82 @@ class NavidromeCoupleLookupTest extends TestCase
         $this->assertSame('mf-1', $repo->findMediaFileByArtistTitle('Diplo x M.I.A.', 'Paper Planes'));
     }
 
+    public function testBareFormsMatchFeatInScrobbleArtistAgainstFeatInLibraryTitle(): void
+    {
+        // Issue #279: Last.fm « Mobb Deep feat. General G » / plain title,
+        // library « Mobb Deep » / « … (Feat. General G) ».
+        $repo = $this->seed([
+            ['id' => 'mf-1', 'title' => 'Can\'t Get Enough Of It (Feat. General G)', 'artist' => 'Mobb Deep'],
+        ]);
+
+        $this->assertSame('mf-1', $repo->findMediaFileByArtistTitle('Mobb Deep feat. General G', 'Can’t Get Enough of It'));
+    }
+
+    public function testBareFormsMatchMultiArtistCreditAgainstUndelimitedFeatInTitle(): void
+    {
+        $repo = $this->seed([
+            ['id' => 'mf-1', 'title' => 'Taj Mahal feat. The Alchemist', 'artist' => 'Mobb Deep'],
+        ]);
+
+        $this->assertSame('mf-1', $repo->findMediaFileByArtistTitle('Mobb Deep,The Alchemist', 'Taj Mahal'));
+    }
+
+    public function testBareFormsStripVersionSuffixesAndFoldPart(): void
+    {
+        $repo = $this->seed([
+            ['id' => 'mf-1', 'title' => 'Quiet Storm', 'artist' => 'Mobb Deep'],
+            ['id' => 'mf-2', 'title' => 'Shook Ones Pt. II', 'artist' => 'Mobb Deep'],
+        ]);
+
+        $this->assertSame('mf-1', $repo->findMediaFileByArtistTitle('Mobb Deep', 'Quiet Storm - Infamous Sessions Mix'));
+        $this->assertSame('mf-2', $repo->findMediaFileByArtistTitle('Mobb Deep', 'Shook Ones, Part II'));
+    }
+
+    public function testBareFormsKeepTitleAndArtistBoundaries(): void
+    {
+        $repo = $this->seed([
+            ['id' => 'mf-1', 'title' => 'Taj Mahal feat. The Alchemist', 'artist' => 'Mobb Deep'],
+            ['id' => 'mf-2', 'title' => 'Get Lucky (Skrillex Remix)', 'artist' => 'Daft Punk'],
+        ]);
+
+        $this->assertNull($repo->findMediaFileByArtistTitle('Mobb Deep', 'Taj'));
+        $this->assertNull($repo->findMediaFileByArtistTitle('Prodigy', 'Taj Mahal'));
+        $this->assertNull($repo->findMediaFileByArtistTitle('Daft Punk', 'Get Lucky'));
+    }
+
+    public function testResetDropsTheInMemoryIndex(): void
+    {
+        $path = sys_get_temp_dir() . '/nd-couple-' . uniqid() . '.db';
+        $this->cleanup[] = $path;
+        $conn = NavidromeFixtureFactory::createDatabase($path, withScrobbles: false);
+        $repo = new NavidromeRepository($path, 'admin');
+        $this->assertNull($repo->findMediaFileByBareForms('Mobb Deep', 'Quiet Storm'));
+
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', 'Quiet Storm (Feat. Lil Kim)', 'Mobb Deep');
+        $conn->close();
+        $this->assertNull($repo->findMediaFileByBareForms('Mobb Deep', 'Quiet Storm'), 'index kept until reset');
+
+        $repo->reset();
+        $this->assertSame('mf-1', $repo->findMediaFileByBareForms('Mobb Deep', 'Quiet Storm'));
+    }
+
+    public function testLibraryAdditionsSinceListsArtistsAddedAfterTheWatermark(): void
+    {
+        $path = sys_get_temp_dir() . '/nd-couple-' . uniqid() . '.db';
+        $this->cleanup[] = $path;
+        $conn = NavidromeFixtureFactory::createDatabase($path, withScrobbles: false);
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-1', 'Old', 'Old Artist', createdAt: '2025-01-01 10:00:00');
+        NavidromeFixtureFactory::insertTrack($conn, 'mf-2', 'New', 'Mobb Deep', albumArtist: 'Various', createdAt: '2026-11-01 10:00:00');
+        $conn->close();
+        $repo = new NavidromeRepository($path, 'admin');
+
+        $this->assertSame(['watermark' => '2026-11-01 10:00:00', 'artists' => []], $repo->libraryAdditionsSince(null));
+        $since = $repo->libraryAdditionsSince('2025-06-01 00:00:00');
+        $this->assertSame('2026-11-01 10:00:00', $since['watermark']);
+        $this->assertSame(['Mobb Deep', 'Various'], $since['artists']);
+        $this->assertSame([], $repo->libraryAdditionsSince('2026-11-01 10:00:00')['artists']);
+    }
+
     /**
      * @param list<array{id: string, title: string, artist: string, album_artist?: string, album?: string}> $tracks
      */

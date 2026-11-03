@@ -8,6 +8,9 @@ final class MatchResult
     public const STATUS_SKIPPED = 'skipped';
     public const STATUS_UNMATCHED = 'unmatched';
 
+    /** Strategy of a match resolved by a track-level manual alias (issue #280). */
+    public const STRATEGY_ALIAS = 'alias';
+
     public const CACHE_HIT_POSITIVE = 'hit-positive';
     public const CACHE_HIT_NEGATIVE = 'hit-negative';
     public const CACHE_MISS = 'miss';

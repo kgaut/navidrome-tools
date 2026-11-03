@@ -3,6 +3,8 @@
 namespace App\Service;
 
 use App\Entity\ScrobbleSync;
+use App\LastFm\LastFmApiException;
+use App\LastFm\LastFmRequestException;
 use App\LastFm\LastFmScrobble;
 use App\LastFm\MatchResult;
 use App\LastFm\ScrobbleMatcher;
@@ -79,6 +81,80 @@ class UnmatchedRetrier
             'requeued' => 0,
             'diagnosis' => $this->diagnoser->diagnose($artist, $title),
         ];
+    }
+
+    /**
+     * Retries every unmatched (artist, title) couple among the first
+     * `$limit` groups of the unmatched list (same filters and order as
+     * `/navidrome/unmatched` and `unmatched_list`), one {@see retry()} per
+     * distinct couple — the bulk counterpart of the per-couple button
+     * (issue #278). A Last.fm failure leaves its couple untouched and is
+     * counted; five in a row stop the batch.
+     *
+     * @return array{
+     *     groups: int,
+     *     couples: int,
+     *     matched: int,
+     *     requeued: int,
+     *     still_unmatched: array<string, int>,
+     *     api_errors: int,
+     *     aborted: bool,
+     *     matches: list<array{artist: string, title: string, strategy: ?string, label: ?string, requeued: int}>
+     * }
+     */
+    public function retryMany(?string $artist, ?string $title, ?string $period, int $limit): array
+    {
+        $rows = $this->syncRepo->aggregateUnmatched(ScrobbleSync::TARGET_NAVIDROME, $limit, 0, $artist, $title, $period);
+        $out = [
+            'groups' => count($rows),
+            'couples' => 0,
+            'matched' => 0,
+            'requeued' => 0,
+            'still_unmatched' => [],
+            'api_errors' => 0,
+            'aborted' => false,
+            'matches' => [],
+        ];
+
+        $seen = [];
+        $consecutiveErrors = 0;
+        foreach ($rows as $row) {
+            $coupleKey = $row['artist'] . "\0" . $row['title'];
+            if (isset($seen[$coupleKey])) {
+                continue;
+            }
+            $seen[$coupleKey] = true;
+            $out['couples']++;
+
+            try {
+                $outcome = $this->retry($row['artist'], $row['title'], (string) ($row['album'] ?? ''));
+                $consecutiveErrors = 0;
+            } catch (LastFmRequestException | LastFmApiException) {
+                $out['api_errors']++;
+                if (++$consecutiveErrors >= 5) {
+                    $out['aborted'] = true;
+                    break;
+                }
+                continue;
+            }
+
+            if ($outcome['matched']) {
+                $out['matched']++;
+                $out['requeued'] += $outcome['requeued'];
+                $out['matches'][] = [
+                    'artist' => $row['artist'],
+                    'title' => $row['title'],
+                    'strategy' => $outcome['strategy'],
+                    'label' => $outcome['label'],
+                    'requeued' => $outcome['requeued'],
+                ];
+            } else {
+                $reason = (string) ($outcome['diagnosis']['reason'] ?? UnmatchedDiagnoser::REASON_UNKNOWN);
+                $out['still_unmatched'][$reason] = ($out['still_unmatched'][$reason] ?? 0) + 1;
+            }
+        }
+
+        return $out;
     }
 
     /** Short French label for a diagnosis reason. */

@@ -190,6 +190,89 @@ final class NavidromeStringNormalizer
     }
 
     /**
+     * Drop a trailing version suffix that {@see stripVersionMarkers()} does
+     * not know by name: a dash-separated or delimited segment carrying a
+     * version keyword — Spotify / Last.fm « - Original Version »,
+     * « - Infamous Sessions Mix », « (Version instrumentale) »,
+     * « - Live at Wembley » (issue #279). « Remix » is left alone (the
+     * keyword must be a whole word: a remix is a distinct recording), and
+     * so is any segment without a keyword (« - Part 2 », « (Interlude) »).
+     */
+    public static function stripVersionSuffix(string $title): string
+    {
+        $kw = '(?:version|versi[oó]n|mix|edit|remaster|remastered|remasteris[ée]e?|live|instrumental|instrumentale'
+            . '|demo|acoustic|acoustique|mono|stereo|st[ée]r[ée]o|session|sessions|original|bonus)';
+
+        $stripped = preg_replace(
+            '/\s+[\-\x{2013}\x{2014}]\s+[^\-\x{2013}\x{2014}]*?\b' . $kw . '\b[^\-\x{2013}\x{2014}]*$/iu',
+            '',
+            $title,
+        ) ?? $title;
+        $stripped = preg_replace('/\s*[(\[][^)\]]*?\b' . $kw . '\b[^)\]]*[)\]]\s*$/iu', '', $stripped) ?? $stripped;
+
+        return trim($stripped) !== '' ? trim($stripped) : $title;
+    }
+
+    /**
+     * « Bare » comparison form of a title, applied identically to the
+     * scrobble and to the library by the symmetric fallback of the couple
+     * cascade (issue #279). Strips, until stable: track-number prefix,
+     * time-of-day prefix (« 22h31 - »), truncated paren, `(feat. …)`,
+     * `(avec …)`, trailing undelimited `feat. …`, known
+     * version markers and keyword version suffixes. Then normalizes, with
+     * « Part » folded to « Pt » (« Part I » ≡ « Pt. I »). The typographic
+     * apostrophe needs no rule: {@see normalize()} drops punctuation.
+     */
+    public static function bareTitle(string $title): string
+    {
+        $current = $title;
+        for ($i = 0; $i < 3; $i++) {
+            $next = self::stripTruncatedParen(self::stripTrackNumberPrefix($current));
+            $next = self::stripFeaturingFromTitle($next);
+            // French « (avec X) », delimited only.
+            $next = trim(preg_replace('/\s*[(\[]avec\s+[^)\]]+[)\]]\s*$/iu', '', $next) ?? $next);
+            $next = trim(preg_replace('/\s+(?:feat\.?|ft\.?|featuring)\s+.*$/iu', '', $next) ?? $next);
+            // Time-of-day track prefix of concept albums (« 22h31 - Fais les backs »).
+            $next = trim(preg_replace('/^\d{1,2}h\d{2}\s*[\-\x{2013}\x{2014}]\s*(?=\S)/u', '', $next) ?? $next);
+            $next = self::stripVersionSuffix(self::stripVersionMarkers($next));
+            if ($next === '' || $next === $current) {
+                break;
+            }
+            $current = $next;
+        }
+
+        return trim((string) preg_replace('/\bpart\b/u', 'pt', self::normalize($current)));
+    }
+
+    /**
+     * Normalized artist keys tried by the symmetric fallback (issue #279),
+     * most specific first and without duplicates: the full credit, the
+     * credit without `feat. …`, then the lead artist of a multi-artist
+     * credit split on `,`, `•`, `&`, `;`, ` / `, ` x `, ` vs `, ` with `, ` avec `,
+     * ` and `, ` et ` (« Mobb Deep,The Alchemist » → « mobb deep »).
+     *
+     * @return list<string>
+     */
+    public static function artistKeys(string $artist): array
+    {
+        $featless = self::stripFeaturedArtists($artist);
+        $lead = $featless;
+        if (preg_match('/^(.*?)(?:\s*[,•;&]\s*|\s+\/\s+|\s+(?:x|vs\.?|with|avec|and|et)\s+)/iu', $featless, $m) === 1) {
+            $lead = trim($m[1]);
+        }
+
+        $keys = [];
+        foreach ([$artist, $featless, $lead] as $candidate) {
+            $key = self::normalize($candidate);
+            if ($key !== '' && !in_array($key, $keys, true)) {
+                $keys[] = $key;
+            }
+        }
+
+        return $keys;
+    }
+
+    /**
      * True when the title carries a `(feat. …)` / `[ft. …]` / `(with …)`
      * marker (closed or truncated open-paren). Gates the « move the
      * featuring into the artist column » heuristic in the matcher.

@@ -5,6 +5,8 @@ namespace App\Navidrome;
 final class NavidromeSyncReport
 {
     public int $prepared = 0;
+    /** Unmatched scrobbles put back to pending by the catch-up (#278). */
+    public int $catchUpRequeued = 0;
     public int $considered = 0;
     public int $matched = 0;
     public int $duplicates = 0;

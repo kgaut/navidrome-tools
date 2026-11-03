@@ -242,6 +242,32 @@ class LastFmMatchCacheRepository extends ServiceEntityRepository
     }
 
     /**
+     * Couples (`artist_norm` NUL `title_norm`) holding a negative entry
+     * still within `$ttlDays` — the ones the matcher would short-circuit.
+     * `$ttlDays <= 0` = negatives never expire, so every one is fresh.
+     * Used by {@see \App\Service\UnmatchedCatchUp} to skip the couples
+     * whose miss is recent (issue #278).
+     *
+     * @return array<string, true>
+     */
+    public function freshNegativeKeys(int $ttlDays): array
+    {
+        $sql = 'SELECT source_artist_norm AS a, source_title_norm AS t FROM lastfm_match_cache WHERE target_media_file_id IS NULL';
+        $params = [];
+        if ($ttlDays > 0) {
+            $sql .= ' AND resolved_at >= :threshold';
+            $params['threshold'] = (new \DateTimeImmutable())->modify(sprintf('-%d days', $ttlDays))->format('Y-m-d H:i:s');
+        }
+
+        $keys = [];
+        foreach ($this->connection()->fetchAllAssociative($sql, $params) as $row) {
+            $keys[$row['a'] . "\0" . $row['t']] = true;
+        }
+
+        return $keys;
+    }
+
+    /**
      * Drop every negative cache row older than `$ttlDays`. Called once at
      * the start of each import / rematch run. `$ttlDays <= 0` means
      * « never expire », so it's a no-op.

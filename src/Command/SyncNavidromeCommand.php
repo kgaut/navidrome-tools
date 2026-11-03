@@ -76,6 +76,7 @@ class SyncNavidromeCommand extends Command
                 ),
                 extractMetrics: static fn (NavidromeSyncReport $r) => [
                     'prepared' => $r->prepared,
+                    'catch_up_requeued' => $r->catchUpRequeued,
                     'considered' => $r->considered,
                     'matched' => $r->matched,
                     'duplicates' => $r->duplicates,
@@ -97,9 +98,10 @@ class SyncNavidromeCommand extends Command
 
         $io->newLine();
         $io->success(sprintf(
-            '%s done. prepared=%d considered=%d matched=%d duplicates=%d unmatched=%d skipped=%d',
+            '%s done. prepared=%d catch_up_requeued=%d considered=%d matched=%d duplicates=%d unmatched=%d skipped=%d',
             $dryRun ? 'Dry-run' : 'Sync',
             $report->prepared,
+            $report->catchUpRequeued,
             $report->considered,
             $report->matched,
             $report->duplicates,
