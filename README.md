@@ -336,6 +336,7 @@ chez le client. Scopes : `mcp` (lecture) et `mcp_write` (outils d'écriture).
 | `alias_create_track`, `alias_create_artist`, `unmatched_retry`, `unmatched_retry_many` ✍️ | réconciliation (relance d'un couple ou d'une série de groupes) |
 | `matched_relink_preview` | écoutes déjà écrites que le matching actuel enverrait ailleurs |
 | `matched_relink` ✍️ | les déplace (mis en file : le worker arrête Navidrome le temps de l'écriture) |
+| `matched_targets_repair` (✍️ hors `dry_run`) | remet d'aplomb les cibles des écoutes écrites dont le morceau a disparu |
 
 ✍️ = écriture : listés pour tout jeton, **refusés à l'exécution** sans `mcp_write`
 (rien n'est écrit). Une erreur métier (nom pris, id inconnu…) revient comme
@@ -442,6 +443,13 @@ morceaux. Sauvegarde avant écriture. Commencer par `--dry-run`.
 | `--limit` | écoutes examinées (défaut `2000`) |
 | `--dry-run` | affiche les déplacements prévus, n'écrit rien |
 | `--force` / `--auto-stop` | comme pour `sync-navidrome` |
+
+#### `app:scrobbles:repair-targets`
+Fait de nouveau pointer les écoutes déjà écrites vers le morceau sous lequel
+Navidrome les garde, quand le morceau enregistré a disparu de la bibliothèque
+(identifiants renouvelés par Navidrome). La correspondance se fait à la même
+seconde ; une écoute sans correspondance, ou ambiguë, est laissée. Navidrome
+n'est que lu. À lancer avant `relink`. Option : `--dry-run`.
 
 #### `app:scrobbles:rematch`
 Re-joue la cascade de matching sur les scrobbles **déjà en attente** (`pending`).

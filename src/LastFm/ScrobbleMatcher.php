@@ -61,7 +61,10 @@ class ScrobbleMatcher
                 return MatchResult::skipped();
             }
             $mfid = $alias->getTargetMediaFileId();
-            if ($mfid !== null) {
+            // A target that left the library (ids re-issued by Navidrome)
+            // would be written as a dangling play: fall through to the
+            // cascade instead (#291).
+            if ($mfid !== null && $this->navidrome->mediaFileExists($mfid)) {
                 return MatchResult::matched($mfid, MatchResult::STRATEGY_ALIAS);
             }
         }
@@ -112,10 +115,14 @@ class ScrobbleMatcher
                 if ($cached->isPositive()) {
                     /** @var string $mfid (positive entries always have a non-null target) */
                     $mfid = $cached->getTargetMediaFileId();
-
-                    return MatchResult::matched($mfid, $cached->getStrategy(), MatchResult::CACHE_HIT_POSITIVE);
-                }
-                if (!$cached->isStale($this->cacheTtlDays)) {
+                    if ($this->navidrome->mediaFileExists($mfid)) {
+                        return MatchResult::matched($mfid, $cached->getStrategy(), MatchResult::CACHE_HIT_POSITIVE);
+                    }
+                    // Cached track left the library (ids re-issued by
+                    // Navidrome): drop the entry and re-run the cascade
+                    // rather than write a dangling play (#291).
+                    $this->cacheRepository->purgeByCouple($scrobble->artist, $scrobble->title);
+                } elseif (!$cached->isStale($this->cacheTtlDays)) {
                     return MatchResult::unmatched(MatchResult::CACHE_HIT_NEGATIVE);
                 }
                 // Stale negative: fall through to the cascade. The next

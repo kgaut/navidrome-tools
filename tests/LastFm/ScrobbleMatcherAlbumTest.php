@@ -88,6 +88,23 @@ class ScrobbleMatcherAlbumTest extends TestCase
         $this->assertSame(LastFmMatchCacheEntry::STRATEGY_COUPLE, $result->strategy);
     }
 
+    public function testCachedTargetGoneFromTheLibraryIsPurgedAndRematched(): void
+    {
+        // #291: cache entry written before Navidrome re-issued its ids.
+        $cache = $this->createMock(LastFmMatchCacheRepository::class);
+        $cache->method('findByCouple')->willReturn(
+            new LastFmMatchCacheEntry('IAM', 'Petit Frere', 'old-id', LastFmMatchCacheEntry::STRATEGY_COUPLE),
+        );
+        $cache->expects($this->once())->method('purgeByCouple')->with('IAM', 'Petit frère');
+        $cache->expects($this->once())->method('recordPositive');
+
+        $result = $this->matcher($cache)->match($this->scrobble(''));
+
+        $this->assertNotSame('old-id', $result->mediaFileId);
+        $this->assertContains($result->mediaFileId, ['rylW', 'mbid-row']);
+        $this->assertSame(MatchResult::CACHE_MISS, $result->cacheStatus);
+    }
+
     private function scrobble(string $album): LastFmScrobble
     {
         return new LastFmScrobble('IAM', 'Petit frère', $album, null, new \DateTimeImmutable());

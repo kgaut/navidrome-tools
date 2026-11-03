@@ -9,6 +9,7 @@ use App\Repository\ScrobbleSyncRepository;
 use App\Message\RelinkMatchedMessage;
 use App\Service\AliasManager;
 use App\Service\MatchedRelinker;
+use App\Service\TargetIdRepairer;
 use App\Service\UnmatchedDiagnoser;
 use App\Service\UnmatchedRetrier;
 use Mcp\Capability\Attribute\McpTool;
@@ -37,6 +38,7 @@ class MatchingTools
         private readonly McpWriteGuard $guard,
         private readonly MatchedRelinker $relinker,
         private readonly MessageBusInterface $bus,
+        private readonly TargetIdRepairer $targetRepairer,
     ) {
     }
 
@@ -287,6 +289,40 @@ class MatchingTools
             'message' => 'Déplacement mis en file : le worker arrête Navidrome, sauvegarde, déplace puis redémarre (une à deux '
                 . 'minutes). Vérifier ensuite avec matched_relink_preview et les mêmes filtres (0 déplacement attendu).',
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    #[McpTool(
+        name: 'matched_targets_repair',
+        description: 'Remet d\'aplomb le morceau enregistré pour les écoutes déjà écrites dans Navidrome quand ce morceau '
+            . 'n\'existe plus dans la bibliothèque (identifiants changés depuis l\'écriture) : la cible devient le morceau '
+            . 'sous lequel Navidrome garde l\'écoute, retrouvé à la même seconde. Une écoute sans écoute Navidrome à cette '
+            . 'seconde, ou avec plusieurs morceaux différents, est laissée et comptée. Navidrome n\'est que lu ; seul le '
+            . 'suivi local est modifié. Préalable à matched_relink_preview / matched_relink, qui laissent ces écoutes de côté '
+            . '(stale_target). dry_run = true (défaut) : compte et montre des exemples sans rien écrire. dry_run = false : '
+            . 'ÉCRITURE (scope mcp_write).',
+        annotations: new ToolAnnotations(readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false),
+    )]
+    public function repairTargets(bool $dry_run = true): array
+    {
+        if (!$dry_run) {
+            $this->guard->assertCanWrite();
+        }
+        $report = $this->targetRepairer->run($dry_run);
+        $report['message'] = sprintf(
+            '%d écoute(s) examinée(s), %d avec une cible disparue : %d %s, %d sans écoute Navidrome à la seconde, %d ambiguë(s)%s.',
+            $report['examined'],
+            $report['stale'],
+            $report['repaired'],
+            $dry_run ? 'réparable(s) (dry-run, rien d\'écrit)' : 'réparée(s)',
+            $report['not_found'],
+            $report['ambiguous'],
+            $report['title_mismatch'] > 0 ? sprintf(', dont %d au titre différent (alias probables)', $report['title_mismatch']) : '',
+        );
+
+        return $report;
     }
 
     /**

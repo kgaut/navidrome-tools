@@ -9,6 +9,31 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+## [1.10.0] - 2026-11-03
+
+### Ajouté
+
+- **Remise d'aplomb des cibles des écoutes écrites** (issue #291). En prod, 85 %
+  des `target_id` de `scrobble_sync` visent des morceaux disparus de Navidrome
+  (identifiants changés depuis l'écriture). La commande
+  `app:scrobbles:repair-targets` (`--dry-run`) et l'outil MCP
+  `matched_targets_repair` (`dry_run` par défaut) font de nouveau pointer
+  chaque écoute vers le morceau sous lequel Navidrome la garde, retrouvé à la
+  même seconde. Une écoute sans correspondance, ou avec plusieurs morceaux
+  différents à cette seconde, est laissée et comptée. Navidrome n'est que lu,
+  seul `data.db` est écrit, sans arrêt du conteneur. C'est un préalable à
+  `relink` (#285), qui laisse ces écoutes de côté.
+
+### Corrigé
+
+- **Le matching servait des morceaux disparus de la bibliothèque** (issue #291).
+  Une entrée positive du cache, ou un alias, dont le morceau n'existe plus
+  (identifiants renouvelés par Navidrome) était rendue telle quelle. Le sync
+  écrivait alors une écoute orpheline (clés étrangères non imposées), et
+  `relink` aurait déplacé des écoutes vers un morceau inexistant. Le matcher
+  vérifie désormais que la cible existe. Sinon, l'entrée de cache est purgée,
+  l'alias ignoré, et la cascade rejouée.
+
 ## [1.9.1] - 2026-11-03
 
 ### Corrigé
@@ -415,7 +440,8 @@ L'ancienne POC reste accessible via le tag `poc-v0`.
   `BackupService`, sessions persistantes ; CI (phpcs, PHPStan, PHPUnit, lint
   Twig, build Docker).
 
-[Non publié]: https://github.com/kgaut/navidrome-tools/compare/1.9.1...HEAD
+[Non publié]: https://github.com/kgaut/navidrome-tools/compare/1.10.0...HEAD
+[1.10.0]: https://github.com/kgaut/navidrome-tools/compare/1.9.1...1.10.0
 [1.9.1]: https://github.com/kgaut/navidrome-tools/compare/1.9.0...1.9.1
 [1.9.0]: https://github.com/kgaut/navidrome-tools/compare/1.8.2...1.9.0
 [1.8.2]: https://github.com/kgaut/navidrome-tools/compare/1.8.1...1.8.2
