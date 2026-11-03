@@ -9,6 +9,19 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+## [1.10.1] - 2026-11-03
+
+### Corrigé
+
+- **`relink` : la limite s'appliquait avant le filtre `--from-album`** (issue
+  #294). Les `limit` premières écoutes de l'artiste étaient chargées, puis
+  filtrées sur l'album actuel : les écoutes concernées au-delà de cette
+  fenêtre n'étaient jamais examinées, et rien ne le signalait. Les candidates
+  sont désormais lues par pages et filtrées page par page jusqu'à la limite.
+  Une coupure est signalée (`truncated`) en CLI, dans le MCP et dans les
+  métriques du run.
+- Exemples tirés de données d'écoute retirés de ce journal.
+
 ## [1.10.0] - 2026-11-03
 
 ### Ajouté
@@ -92,8 +105,8 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 - **Matching : des écoutes allaient aux éditions instrumentales au lieu de
   l'album** (issue #284). Le cache de matching, indexé par (artiste, titre) sans
-  l'album, était consulté avant le triplet. Un couple résolu une fois (ici IAM
-  « Petit frère » vers « … - Instrumentales ») donnait ce morceau à toutes les
+  l'album, était consulté avant le triplet. Un couple résolu une fois (ici vers
+  l'édition « … - Instrumentales » d'un album) donnait ce morceau à toutes les
   écoutes suivantes, quel que soit leur album. MBID et triplet passent
   désormais avant le cache. Entre des titres en double, le couple écarte les
   éditions (instrumentales, karaoké, bonus, démos, live, inédits, remixes), sauf
@@ -143,7 +156,7 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
     ou le contiennent ;
   - il diagnostique un crédit multiple sous l'artiste principal ;
   - il ne suggère plus d'artiste éloigné pour les noms courts (une modification
-    tolérée par tranche de 5 caractères : fin de « Colas » → « Coins ») ;
+    tolérée par tranche de 5 caractères) ;
   - `unmatched_list` diagnostique tous les groupes servis, sans coupure à 25.
 - Un match obtenu par un alias de morceau a la stratégie `alias` (et non plus
   vide, « stratégie ? » côté MCP) (issue #280).
@@ -440,7 +453,8 @@ L'ancienne POC reste accessible via le tag `poc-v0`.
   `BackupService`, sessions persistantes ; CI (phpcs, PHPStan, PHPUnit, lint
   Twig, build Docker).
 
-[Non publié]: https://github.com/kgaut/navidrome-tools/compare/1.10.0...HEAD
+[Non publié]: https://github.com/kgaut/navidrome-tools/compare/1.10.1...HEAD
+[1.10.1]: https://github.com/kgaut/navidrome-tools/compare/1.10.0...1.10.1
 [1.10.0]: https://github.com/kgaut/navidrome-tools/compare/1.9.1...1.10.0
 [1.9.1]: https://github.com/kgaut/navidrome-tools/compare/1.9.0...1.9.1
 [1.9.0]: https://github.com/kgaut/navidrome-tools/compare/1.8.2...1.9.0

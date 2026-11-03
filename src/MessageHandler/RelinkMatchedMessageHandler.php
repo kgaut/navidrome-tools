@@ -38,6 +38,7 @@ class RelinkMatchedMessageHandler
 
                 return [
                     'considered' => $plan['considered'],
+                    'truncated' => $plan['truncated'],
                     'planned' => count($plan['moves']),
                     'would_unmatch' => $plan['would_unmatch'],
                     'stale_target' => $plan['stale_target'],

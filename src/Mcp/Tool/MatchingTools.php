@@ -237,6 +237,7 @@ class MatchingTools
             'filters' => ['artist' => $artist, 'title' => $title, 'album' => $album, 'from_album' => $from_album],
             'limit' => $limit,
             'considered' => $plan['considered'],
+            'truncated' => $plan['truncated'],
             'to_move' => count($plan['moves']),
             'would_unmatch' => $plan['would_unmatch'],
             'stale_target' => $plan['stale_target'],
@@ -251,7 +252,7 @@ class MatchingTools
                 count($plan['groups']) > count($groups) ? sprintf(' (%d premiers affichés)', count($groups)) : '',
                 $plan['would_unmatch'],
                 $plan['stale_target'],
-                $plan['considered'] >= $limit ? ' Limite atteinte : d\'autres écoutes peuvent être concernées, augmenter limit ou affiner les filtres.' : '',
+                $plan['truncated'] ? ' Plafond atteint (truncated) : d\'autres écoutes passent les filtres ; relancer après application, ou affiner les filtres.' : '',
             ),
         ];
     }

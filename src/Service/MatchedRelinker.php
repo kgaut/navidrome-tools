@@ -36,6 +36,7 @@ class MatchedRelinker
 {
     public const MAX_SCROBBLES = 2000;
     private const BATCH_SIZE = 100;
+    private const PAGE = 1000;
 
     public function __construct(
         private readonly ScrobbleSyncRepository $syncRepo,
@@ -53,6 +54,7 @@ class MatchedRelinker
      *
      * @return array{
      *     considered: int,
+     *     truncated: bool,
      *     moves: list<array{sync_id: int, from: string, to: string, strategy: string, played_at: \DateTimeImmutable}>,
      *     groups: list<array{artist: string, title: string, album: string, from_id: string, from_album: string, to_id: string, to_album: string, strategy: string, count: int}>,
      *     would_unmatch: int,
@@ -62,18 +64,14 @@ class MatchedRelinker
      */
     public function plan(?string $artist, ?string $title, ?string $album, ?string $fromAlbum, int $limit): array
     {
-        $rows = $this->syncRepo->matchedForRelink(ScrobbleSync::TARGET_NAVIDROME, $artist, $title, $album, $limit);
-
+        [$rows, $truncated] = $this->candidates($artist, $title, $album, $fromAlbum, $limit);
         $targetIds = array_values(array_unique(array_map(static fn (ScrobbleSync $s) => (string) $s->getTargetId(), $rows)));
         $albums = $this->albumsOf($targetIds);
-        if ($fromAlbum !== null && $fromAlbum !== '') {
-            $rows = array_values(array_filter(
-                $rows,
-                static fn (ScrobbleSync $s) => mb_stripos($albums[(string) $s->getTargetId()] ?? '', $fromAlbum) !== false,
-            ));
-        }
 
-        $out = ['considered' => count($rows), 'moves' => [], 'groups' => [], 'would_unmatch' => 0, 'stale_target' => 0, 'api_errors' => 0];
+        $out = [
+            'considered' => count($rows), 'truncated' => $truncated, 'moves' => [], 'groups' => [],
+            'would_unmatch' => 0, 'stale_target' => 0, 'api_errors' => 0,
+        ];
         /** @var array<string, ?MatchResult> $resolved */
         $resolved = [];
         $groups = [];
@@ -237,6 +235,51 @@ class MatchedRelinker
         }
 
         return $statuses;
+    }
+
+    /**
+     * Up to `$limit` candidates that pass every filter, `$fromAlbum` included
+     * (issue #294): the album of the current target lives in navidrome.db,
+     * so it cannot join the data.db query — candidates are read by pages and
+     * filtered page by page, instead of filtering a first window of `$limit`
+     * rows and silently missing the rest. `truncated` = at least one more
+     * candidate passes the filters beyond the limit.
+     *
+     * @return array{0: list<ScrobbleSync>, 1: bool}
+     */
+    private function candidates(?string $artist, ?string $title, ?string $album, ?string $fromAlbum, int $limit): array
+    {
+        $filtered = $fromAlbum !== null && $fromAlbum !== '';
+        $kept = [];
+        $afterId = 0;
+        while (true) {
+            $page = $this->syncRepo->matchedForRelink(
+                ScrobbleSync::TARGET_NAVIDROME,
+                $artist,
+                $title,
+                $album,
+                $filtered ? self::PAGE : $limit + 1 - count($kept),
+                $afterId,
+            );
+            if ($page === []) {
+                return [$kept, false];
+            }
+            $afterId = (int) $page[count($page) - 1]->getId();
+
+            $albums = $filtered ? $this->albumsOf(array_values(array_unique(array_map(static fn (ScrobbleSync $s) => (string) $s->getTargetId(), $page)))) : [];
+            foreach ($page as $sync) {
+                if ($filtered && mb_stripos($albums[(string) $sync->getTargetId()] ?? '', (string) $fromAlbum) === false) {
+                    continue;
+                }
+                if (count($kept) >= $limit) {
+                    return [$kept, true];
+                }
+                $kept[] = $sync;
+            }
+            if (!$filtered) {
+                return [$kept, false];
+            }
+        }
     }
 
     /**

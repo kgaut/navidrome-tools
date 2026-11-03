@@ -57,6 +57,31 @@ class MatchedRelinkerTest extends TestCase
         $this->assertSame('L\'École Du Micro D\'Argent', $plan['groups'][0]['to_album']);
     }
 
+    public function testLimitAppliesAfterTheFromAlbumFilterAndReportsTruncation(): void
+    {
+        // #294: older rows on the album fill the first window; the
+        // instrumental rows come later and used to be missed.
+        for ($i = 1; $i <= 5; $i++) {
+            $this->sync($i, sprintf('2024-01-0%d 10:00:00', $i), 'album', 'L\'École Du Micro D\'Argent');
+        }
+        $this->sync(6, '2024-02-01 10:00:00', '9instru', 'L\'École Du Micro D\'Argent');
+        $this->sync(7, '2024-02-02 10:00:00', '9instru', 'L\'École Du Micro D\'Argent');
+
+        $one = $this->relinker()->plan('IAM', null, null, 'Instrumentales', 1);
+        $this->assertSame(1, $one['considered']);
+        $this->assertTrue($one['truncated']);
+        $this->assertSame(6, $one['moves'][0]['sync_id']);
+
+        $all = $this->relinker()->plan('IAM', null, null, 'Instrumentales', 2);
+        $this->assertSame(2, $all['considered']);
+        $this->assertFalse($all['truncated']);
+        $this->assertCount(2, $all['moves']);
+
+        $unfiltered = $this->relinker()->plan('IAM', null, null, null, 3);
+        $this->assertSame(3, $unfiltered['considered']);
+        $this->assertTrue($unfiltered['truncated']);
+    }
+
     public function testFromAlbumFiltersOnTheCurrentTarget(): void
     {
         $this->sync(1, '2024-01-01 10:00:00', '9instru', 'L\'École Du Micro D\'Argent');
@@ -165,7 +190,10 @@ class MatchedRelinkerTest extends TestCase
     {
         $syncRepo = $this->createMock(ScrobbleSyncRepository::class);
         $syncRepo->method('matchedForRelink')->willReturnCallback(
-            fn () => array_values(array_filter($this->syncs, static fn (ScrobbleSync $s) => $s->getStatus() === ScrobbleSync::STATUS_MATCHED)),
+            fn (string $t, ?string $a, ?string $ti, ?string $al, int $limit, int $afterId = 0) => array_slice(array_values(array_filter(
+                $this->syncs,
+                static fn (ScrobbleSync $s) => $s->getStatus() === ScrobbleSync::STATUS_MATCHED && $s->getId() > $afterId,
+            )), 0, $limit),
         );
         $em = $this->createMock(EntityManagerInterface::class);
         $em->method('find')->willReturnCallback(fn (string $class, int $id) => $this->syncs[$id] ?? null);
