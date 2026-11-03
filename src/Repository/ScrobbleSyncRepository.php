@@ -101,12 +101,12 @@ class ScrobbleSyncRepository extends ServiceEntityRepository
      * Navidrome plays and are never touched — and not resolved by a manual
      * alias or an MBID (`alias`, `mbid`, and the empty strategy, which is how
      * alias matches were stored before 1.8.0). Optional case-insensitive
-     * substring filters on the scrobbled artist, title, album. Oldest first,
-     * scrobble joined.
+     * substring filters on the scrobbled artist, title, album. By id after
+     * `$afterId` (keyset paging, issue #294), scrobble joined.
      *
      * @return list<ScrobbleSync>
      */
-    public function matchedForRelink(string $target, ?string $artist, ?string $title, ?string $album, int $limit): array
+    public function matchedForRelink(string $target, ?string $artist, ?string $title, ?string $album, int $limit, int $afterId = 0): array
     {
         $qb = $this->createQueryBuilder('ss')
             ->addSelect('s')
@@ -118,7 +118,9 @@ class ScrobbleSyncRepository extends ServiceEntityRepository
             ->setParameter('target', $target)
             ->setParameter('status', ScrobbleSync::STATUS_MATCHED)
             ->setParameter('trusted', ['alias', 'mbid', ''])
-            ->orderBy('s.playedAt', 'ASC')
+            ->andWhere('ss.id > :afterId')
+            ->setParameter('afterId', $afterId)
+            ->orderBy('ss.id', 'ASC')
             ->setMaxResults(max(1, $limit));
         foreach (['artist' => $artist, 'title' => $title, 'album' => $album] as $field => $value) {
             if ($value !== null && $value !== '') {

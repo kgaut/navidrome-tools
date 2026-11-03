@@ -85,6 +85,9 @@ class RelinkMatchedCommand extends Command
             $plan['stale_target'],
             $plan['api_errors'],
         ));
+        if ($plan['truncated']) {
+            $io->warning(sprintf('Plafond de %d écoutes atteint : d\'autres écoutes passent les filtres. Relancer après application, ou affiner les filtres.', $limit));
+        }
         if ($dryRun || $plan['moves'] === []) {
             $io->success($dryRun ? 'Dry-run : rien n\'est écrit.' : 'Rien à déplacer.');
 
@@ -103,6 +106,7 @@ class RelinkMatchedCommand extends Command
                     'planned' => count($plan['moves']),
                     'would_unmatch' => $plan['would_unmatch'],
                     'stale_target' => $plan['stale_target'],
+                    'truncated' => $plan['truncated'],
                 ],
             );
         } catch (\Throwable $e) {
