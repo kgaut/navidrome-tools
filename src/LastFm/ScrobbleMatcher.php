@@ -17,6 +17,8 @@ use App\Repository\LastFmMatchCacheRepository;
  * Cascade order (each step short-circuits on success) :
  *   1. Track-level manual alias → STATUS_MATCHED or STATUS_SKIPPED (skips cache)
  *   2. Artist-level alias       → rewrite artist name, fall through to next step
+ *   2b. MBID, then triplet when the scrobble has an album, BEFORE the
+ *       cache (#284) — the cache key has no album
  *   3. Match cache lookup       → positive hit returns matched, negative
  *                                 (non-stale) hit returns unmatched. Skips
  *                                 the cascade so we don't re-run SQL or call
@@ -79,6 +81,25 @@ class ScrobbleMatcher
                 mbid: $scrobble->mbid,
                 playedAt: $scrobble->playedAt,
             );
+        }
+
+        // Recording and album before cache (issue #284): the cache is keyed
+        // by (artist, title) only, so a couple first resolved to « … -
+        // Instrumentales » would hand that row to every later scrobble,
+        // whatever its album. MBID and triplet are cheap (indexed column,
+        // in-memory library index since #282). Not memoized — the cache
+        // cannot hold the recording or the album.
+        if ($scrobble->mbid !== null) {
+            $mfid = $this->navidrome->findMediaFileByMbid($scrobble->mbid);
+            if ($mfid !== null) {
+                return MatchResult::matched($mfid, LastFmMatchCacheEntry::STRATEGY_MBID);
+            }
+        }
+        if ($scrobble->album !== '') {
+            $mfid = $this->navidrome->findMediaFileByArtistTitleAlbum($scrobble->artist, $scrobble->title, $scrobble->album);
+            if ($mfid !== null) {
+                return MatchResult::matched($mfid, LastFmMatchCacheEntry::STRATEGY_TRIPLET);
+            }
         }
 
         // Match cache lookup. Positive entries are trusted forever (until
@@ -255,7 +276,7 @@ class ScrobbleMatcher
             }
         }
 
-        $mfid = $this->navidrome->findMediaFileByArtistTitle($scrobble->artist, $scrobble->title);
+        $mfid = $this->navidrome->findMediaFileByArtistTitle($scrobble->artist, $scrobble->title, $scrobble->album);
         if ($mfid !== null) {
             return [$mfid, LastFmMatchCacheEntry::STRATEGY_COUPLE];
         }

@@ -222,6 +222,21 @@ class NavidromeCoupleLookupTest extends TestCase
         $this->assertNull($repo->findMediaFileByArtistTitle('Daft Punk', 'Get Lucky'));
     }
 
+    public function testCoupleTieBreakPutsEditionAlbumsLastAndPrefersTheClosestAlbum(): void
+    {
+        // Issue #284: lowest id used to win, here the instrumental edition.
+        $repo = $this->seed([
+            ['id' => 'a-instru', 'title' => 'La Saga', 'artist' => 'IAM', 'album' => 'L\'École - Instrumentales'],
+            ['id' => 'b-antho', 'title' => 'La Saga', 'artist' => 'IAM', 'album' => 'Anthologie CD2'],
+            ['id' => 'c-album', 'title' => 'La Saga', 'artist' => 'IAM', 'album' => 'L\'École Du Micro D\'Argent'],
+        ]);
+
+        $this->assertSame('b-antho', $repo->findMediaFileByArtistTitle('IAM', 'La saga'));
+        $this->assertSame('c-album', $repo->findMediaFileByArtistTitle('IAM', 'La saga', 'L\'Ecole du micro'));
+        // The scrobble names the edition: no penalty, closest album wins.
+        $this->assertSame('a-instru', $repo->findMediaFileByArtistTitle('IAM', 'La saga', 'L\'École - Instrumentales'));
+    }
+
     public function testResetDropsTheInMemoryIndex(): void
     {
         $path = sys_get_temp_dir() . '/nd-couple-' . uniqid() . '.db';

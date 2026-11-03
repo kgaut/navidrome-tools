@@ -9,6 +9,20 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+### Corrigé
+
+- **Matching : des écoutes allaient aux éditions instrumentales au lieu de
+  l'album** (issue #284). Le cache de matching, indexé par (artiste, titre) sans
+  l'album, était consulté avant le triplet. Un couple résolu une fois (ici IAM
+  « Petit frère » vers « … - Instrumentales ») donnait ce morceau à toutes les
+  écoutes suivantes, quel que soit leur album. MBID et triplet passent
+  désormais avant le cache. Entre des titres en double, le couple écarte les
+  éditions (instrumentales, karaoké, bonus, démos, live, inédits, remixes), sauf
+  si l'écoute en nomme une, puis préfère l'album le plus proche de celui
+  scrobblé. Migration `Version20261103160000` : vide les positifs en stratégie
+  `couple` du cache, recalculés au prochain passage. Les écoutes déjà écrites
+  dans Navidrome ne sont pas déplacées (#285).
+
 ### Modifié
 
 - **Matching : étapes triplet et couple servies par l'index en mémoire de la
