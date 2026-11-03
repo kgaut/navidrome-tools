@@ -27,7 +27,8 @@ class NavidromeRepository implements ResetInterface
      *     artistNorms: array<string, true>,
      *     artistColByPrefix: array<string, list<array{name: string, norm: string}>>,
      *     byArtistNorm: array<string, list<array{titleNorm: string, title: string, id: string, isArtist: bool}>>,
-     *     byBareKey: array<string, array<string, array{id: string, isArtist: bool}>>
+     *     byBareKey: array<string, array<string, array{id: string, isArtist: bool}>>,
+     *     byTitleNorm: array<string, list<array{id: string, a: string, aa: string, album: string}>>
      * }|null
      */
     private ?array $diagnosisIndexCache = null;
@@ -3139,7 +3140,8 @@ class NavidromeRepository implements ResetInterface
      *     artistNorms: array<string, true>,
      *     artistColByPrefix: array<string, list<array{name: string, norm: string}>>,
      *     byArtistNorm: array<string, list<array{titleNorm: string, title: string, id: string, isArtist: bool}>>,
-     *     byBareKey: array<string, array<string, array{id: string, isArtist: bool}>>
+     *     byBareKey: array<string, array<string, array{id: string, isArtist: bool}>>,
+     *     byTitleNorm: array<string, list<array{id: string, a: string, aa: string, album: string}>>
      * }
      */
     private function diagnosisIndex(): array
@@ -3149,13 +3151,14 @@ class NavidromeRepository implements ResetInterface
         }
 
         $rows = $this->connection()->fetchAllAssociative(
-            "SELECT id, artist, album_artist, title FROM media_file WHERE artist != '' OR album_artist != ''",
+            "SELECT id, artist, album_artist, title, album FROM media_file WHERE artist != '' OR album_artist != ''",
         );
 
         $artistNorms = [];
         $artistColByPrefix = [];
         $byArtistNorm = [];
         $byBareKey = [];
+        $byTitleNorm = [];
         $seenArtistCol = [];
 
         foreach ($rows as $row) {
@@ -3180,6 +3183,14 @@ class NavidromeRepository implements ResetInterface
                 $artistNorms[$albumArtistN] = true;
             }
             if ($titleN !== '' && $id !== '') {
+                // Title-keyed rows serving the triplet / couple lookups of the
+                // cascade (issue #282). Album kept raw: normalized on demand.
+                $byTitleNorm[$titleN][] = [
+                    'id' => $id,
+                    'a' => $artistN,
+                    'aa' => $albumArtistN,
+                    'album' => (string) ($row['album'] ?? ''),
+                ];
                 if ($artistN !== '') {
                     $byArtistNorm[$artistN][] = ['titleNorm' => $titleN, 'title' => $title, 'id' => $id, 'isArtist' => true];
                 }
@@ -3217,6 +3228,7 @@ class NavidromeRepository implements ResetInterface
             'artistColByPrefix' => $artistColByPrefix,
             'byArtistNorm' => $byArtistNorm,
             'byBareKey' => $byBareKey,
+            'byTitleNorm' => $byTitleNorm,
         ];
     }
 
@@ -3368,19 +3380,18 @@ class NavidromeRepository implements ResetInterface
             return null;
         }
 
-        $rows = $this->connection()->fetchAllAssociative(
-            'SELECT id FROM media_file
-             WHERE np_normalize(artist) = :a
-               AND np_normalize(title) = :t
-               AND np_normalize(album) = :al
-             LIMIT 2',
-            ['a' => $artistN, 't' => $titleN, 'al' => $albumN],
-        );
+        // Rows of this (artist column, title), from the in-memory index
+        // (issue #282) — was a full `np_normalize` table scan per call.
+        $candidates = array_values(array_filter(
+            $this->diagnosisIndex()['byTitleNorm'][$titleN] ?? [],
+            static fn (array $r) => $r['a'] === $artistN,
+        ));
 
-        if (count($rows) === 1) {
-            return (string) $rows[0]['id'];
+        $exact = array_values(array_filter($candidates, static fn (array $r) => self::normalize($r['album']) === $albumN));
+        if (count($exact) === 1) {
+            return $exact[0]['id'];
         }
-        if (count($rows) > 1) {
+        if (count($exact) > 1) {
             // Exact album is ambiguous (same track title on two rows with
             // the identical normalized album) — bail rather than guess.
             return null;
@@ -3397,16 +3408,9 @@ class NavidromeRepository implements ResetInterface
             return null;
         }
 
-        $candidates = $this->connection()->fetchAllAssociative(
-            'SELECT id, album FROM media_file
-             WHERE np_normalize(artist) = :a AND np_normalize(title) = :t',
-            ['a' => $artistN, 't' => $titleN],
-        );
-
         $matchId = null;
         foreach ($candidates as $row) {
-            $candAlbumN = self::normalize(self::stripAlbumDecorations((string) ($row['album'] ?? '')));
-            if ($candAlbumN !== $strippedAlbumN) {
+            if (self::normalize(self::stripAlbumDecorations($row['album'])) !== $strippedAlbumN) {
                 continue;
             }
             if ($matchId !== null) {
@@ -3414,7 +3418,7 @@ class NavidromeRepository implements ResetInterface
                 // — ambiguous, don't guess.
                 return null;
             }
-            $matchId = (string) $row['id'];
+            $matchId = $row['id'];
         }
 
         return $matchId;
@@ -3517,14 +3521,12 @@ class NavidromeRepository implements ResetInterface
 
     private function lookupExactArtistTitle(string $artistNormalized, string $titleNormalized): ?string
     {
-        $sql = 'SELECT id FROM media_file
-                WHERE np_normalize(artist) = :a
-                  AND np_normalize(title) = :t
-                ORDER BY (np_normalize(album_artist) = :a) DESC, id ASC
-                LIMIT 1';
-        $id = $this->connection()->fetchOne($sql, ['a' => $artistNormalized, 't' => $titleNormalized]);
-
-        return is_string($id) && $id !== '' ? $id : null;
+        // `artist` column = a, album_artist = a first, then lowest id.
+        return $this->pickByTitle(
+            $titleNormalized,
+            static fn (array $r) => $r['a'] === $artistNormalized,
+            static fn (array $r) => $r['aa'] === $artistNormalized,
+        );
     }
 
     /**
@@ -3547,14 +3549,11 @@ class NavidromeRepository implements ResetInterface
             return null;
         }
 
-        $sql = 'SELECT id FROM media_file
-                WHERE np_normalize(title) = :t
-                  AND (np_normalize(artist) = :a OR np_normalize(album_artist) = :a)
-                ORDER BY (np_normalize(artist) = :a) DESC, id ASC
-                LIMIT 1';
-        $id = $this->connection()->fetchOne($sql, ['a' => $artistNormalized, 't' => $titleNormalized]);
-
-        return is_string($id) && $id !== '' ? $id : null;
+        return $this->pickByTitle(
+            $titleNormalized,
+            static fn (array $r) => $r['a'] === $artistNormalized || $r['aa'] === $artistNormalized,
+            static fn (array $r) => $r['a'] === $artistNormalized,
+        );
     }
 
     /**
@@ -3576,25 +3575,23 @@ class NavidromeRepository implements ResetInterface
             return null;
         }
 
-        $sql = 'SELECT id FROM media_file
-                WHERE np_normalize(title) = :t
-                  AND (
-                      np_normalize(artist) LIKE :feat
-                      OR np_normalize(artist) LIKE :ft
-                      OR np_normalize(artist) LIKE :featuring
-                      OR np_normalize(artist) LIKE :with
-                  )
-                ORDER BY id ASC
-                LIMIT 1';
-        $id = $this->connection()->fetchOne($sql, [
-            't' => $titleNormalized,
-            'feat' => $artistNormalized . ' feat %',
-            'ft' => $artistNormalized . ' ft %',
-            'featuring' => $artistNormalized . ' featuring %',
-            'with' => $artistNormalized . ' with %',
-        ]);
+        $prefixes = array_map(
+            static fn (string $marker) => $artistNormalized . ' ' . $marker . ' ',
+            ['feat', 'ft', 'featuring', 'with'],
+        );
 
-        return is_string($id) && $id !== '' ? $id : null;
+        return $this->pickByTitle(
+            $titleNormalized,
+            static function (array $r) use ($prefixes): bool {
+                foreach ($prefixes as $prefix) {
+                    if (str_starts_with($r['a'], $prefix)) {
+                        return true;
+                    }
+                }
+
+                return false;
+            },
+        );
     }
 
     /**
@@ -3617,15 +3614,42 @@ class NavidromeRepository implements ResetInterface
      */
     private function lookupExactArtistTitleRequiringAlbumArtist(string $artistNormalized, string $titleNormalized): ?string
     {
-        $sql = 'SELECT id FROM media_file
-                WHERE np_normalize(artist) = :a
-                  AND np_normalize(title) = :t
-                  AND np_normalize(album_artist) = :a
-                ORDER BY id ASC
-                LIMIT 1';
-        $id = $this->connection()->fetchOne($sql, ['a' => $artistNormalized, 't' => $titleNormalized]);
+        return $this->pickByTitle(
+            $titleNormalized,
+            static fn (array $r) => $r['a'] === $artistNormalized && $r['aa'] === $artistNormalized,
+        );
+    }
 
-        return is_string($id) && $id !== '' ? $id : null;
+    /**
+     * In-memory replacement of the cascade's `SELECT id FROM media_file WHERE
+     * np_normalize(title) = :t AND … ORDER BY <preferred> DESC, id ASC LIMIT 1`
+     * (issue #282): rows of the normalized title kept by `$keep`, those
+     * satisfying `$preferred` first, then the lowest id (binary order, as
+     * SQLite). Same answers, without a full table scan per lookup.
+     *
+     * @param callable(array{id: string, a: string, aa: string, album: string}): bool $keep
+     * @param (callable(array{id: string, a: string, aa: string, album: string}): bool)|null $preferred
+     */
+    private function pickByTitle(string $titleNormalized, callable $keep, ?callable $preferred = null): ?string
+    {
+        $best = null;
+        $bestPreferred = false;
+        foreach ($this->diagnosisIndex()['byTitleNorm'][$titleNormalized] ?? [] as $row) {
+            if (!$keep($row)) {
+                continue;
+            }
+            $isPreferred = $preferred !== null && $preferred($row);
+            if (
+                $best === null
+                || ($isPreferred && !$bestPreferred)
+                || ($isPreferred === $bestPreferred && strcmp($row['id'], $best) < 0)
+            ) {
+                $best = $row['id'];
+                $bestPreferred = $isPreferred;
+            }
+        }
+
+        return $best;
     }
 
     /**
