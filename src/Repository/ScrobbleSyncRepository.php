@@ -38,6 +38,42 @@ class ScrobbleSyncRepository extends ServiceEntityRepository
     }
 
     /**
+     * Matched rows of $target that a relink may move (issue #285): status
+     * `matched` only — rows WE wrote; `duplicate` rows point at native
+     * Navidrome plays and are never touched — and not resolved by a manual
+     * alias or an MBID (`alias`, `mbid`, and the empty strategy, which is how
+     * alias matches were stored before 1.8.0). Optional case-insensitive
+     * substring filters on the scrobbled artist, title, album. Oldest first,
+     * scrobble joined.
+     *
+     * @return list<ScrobbleSync>
+     */
+    public function matchedForRelink(string $target, ?string $artist, ?string $title, ?string $album, int $limit): array
+    {
+        $qb = $this->createQueryBuilder('ss')
+            ->addSelect('s')
+            ->join('ss.scrobble', 's')
+            ->where('ss.target = :target')
+            ->andWhere('ss.status = :status')
+            ->andWhere('ss.strategy IS NOT NULL')
+            ->andWhere('ss.strategy NOT IN (:trusted)')
+            ->setParameter('target', $target)
+            ->setParameter('status', ScrobbleSync::STATUS_MATCHED)
+            ->setParameter('trusted', ['alias', 'mbid', ''])
+            ->orderBy('s.playedAt', 'ASC')
+            ->setMaxResults(max(1, $limit));
+        foreach (['artist' => $artist, 'title' => $title, 'album' => $album] as $field => $value) {
+            if ($value !== null && $value !== '') {
+                $qb->andWhere(sprintf('LOWER(s.%s) LIKE LOWER(:%s)', $field, $field))
+                    ->setParameter($field, '%' . $value . '%');
+            }
+        }
+
+        /** @var list<ScrobbleSync> */
+        return $qb->getQuery()->getResult();
+    }
+
+    /**
      * Stream pending rows for $target, oldest scrobble first.
      *
      * @return iterable<ScrobbleSync>

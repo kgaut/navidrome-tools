@@ -9,6 +9,22 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+## [1.9.0] - 2026-11-03
+
+### Ajouté
+
+- **Déplacer des écoutes déjà écrites dans Navidrome** (issue #285). Le matching
+  actuel est rejoué sur les écoutes écrites par navidrome-tools (`matched`,
+  hors alias et MBID). Celles qu'il envoie sur un autre morceau sont retirées
+  de l'ancien et réécrites sur le nouveau (ou passent en `duplicate` si
+  l'écoute y est déjà), puis les compteurs des deux morceaux sont recalculés.
+  Les écoutes enregistrées par Navidrome lui-même ne sont jamais touchées.
+  Sauvegarde avant écriture. Commande `app:scrobbles:relink` (`--dry-run`,
+  filtres sur l'écoute et sur l'album actuel). Outils MCP
+  `matched_relink_preview` et `matched_relink` (écriture mise en file : le
+  worker arrête Navidrome le temps de l'écriture). Sert à réparer l'historique
+  rattaché aux versions instrumentales avant #284.
+
 ## [1.8.2] - 2026-11-03
 
 ### Corrigé
@@ -375,7 +391,8 @@ L'ancienne POC reste accessible via le tag `poc-v0`.
   `BackupService`, sessions persistantes ; CI (phpcs, PHPStan, PHPUnit, lint
   Twig, build Docker).
 
-[Non publié]: https://github.com/kgaut/navidrome-tools/compare/1.8.2...HEAD
+[Non publié]: https://github.com/kgaut/navidrome-tools/compare/1.9.0...HEAD
+[1.9.0]: https://github.com/kgaut/navidrome-tools/compare/1.8.2...1.9.0
 [1.8.2]: https://github.com/kgaut/navidrome-tools/compare/1.8.1...1.8.2
 [1.8.1]: https://github.com/kgaut/navidrome-tools/compare/1.8.0...1.8.1
 [1.8.0]: https://github.com/kgaut/navidrome-tools/compare/1.7.0...1.8.0
