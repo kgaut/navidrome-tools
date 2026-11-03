@@ -10,8 +10,10 @@ composer dump-autoload --no-dev --optimize --working-dir=/app --no-interaction -
 rm -rf "${CACHE_DIR}/${APP_ENV:-prod}"
 php bin/console cache:warmup --env="${APP_ENV:-prod}"
 
-# Apply Doctrine migrations on every boot (idempotent).
-php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration --env="${APP_ENV:-prod}" || {
+# Apply Doctrine migrations on every boot (idempotent). Web, worker and cli
+# share the SQLite base in var/: a file lock on that volume serializes them,
+# the second one finds nothing left to migrate (issue #287).
+flock var/.migrations.lock php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration --env="${APP_ENV:-prod}" || {
     echo "Migration failed" >&2
     exit 1
 }
