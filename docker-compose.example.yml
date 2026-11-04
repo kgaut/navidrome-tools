@@ -43,8 +43,10 @@ services:
       MCP_ALLOWED_HOSTS: localhost   # ex: navidrome-tools.example.com
     volumes:
       - navidrome-tools-data:/app/var
-      # Base Navidrome en lecture seule (écriture gérée par app:scrobbles:sync-navidrome)
-      - /path/to/navidrome/data/navidrome.db:/data/navidrome.db:ro
+      # Base Navidrome : monter le DOSSIER, jamais le fichier seul (#298). La base
+      # est en WAL : -wal et -shm doivent être ceux que voit Navidrome, sinon une
+      # écriture (sync, relink…, y compris en CLI dans ce conteneur) corrompt la base.
+      - /path/to/navidrome/data:/data
       # Optionnel : base Strawberry (lecture/écriture pour le sync playcount)
       # - /path/to/strawberry/data:/data/strawberry
       # Optionnel : socket Docker pour start/stop Navidrome depuis l'UI
@@ -83,7 +85,7 @@ services:
       NOTIFY_ON: error
     volumes:
       - navidrome-tools-data:/app/var   # MÊME volume que le service web
-      - /path/to/navidrome/data/navidrome.db:/data/navidrome.db  # RW pour le sync
+      - /path/to/navidrome/data:/data   # le DOSSIER de la base, comme Navidrome (#298)
       # - /path/to/strawberry/data:/data/strawberry
       # - /var/run/docker.sock:/var/run/docker.sock
 

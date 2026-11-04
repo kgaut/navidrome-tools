@@ -27,6 +27,15 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 ### Corrigé
 
+- **Écriture refusée si `navidrome.db` est monté comme fichier seul** (issue
+  #298). C'est la cause de la corruption du 03/11/2026. La base est en WAL, et
+  avec un montage du fichier seul (et non de son dossier), les `-wal` et `-shm`
+  de navidrome-tools étaient propres à son conteneur. Ses écritures ignoraient
+  le WAL de Navidrome, que Navidrome a ensuite rejoué par-dessus. Les
+  sauvegardes, écrites dans la couche du conteneur, disparaissaient à chaque
+  recréation. Toute écriture (sync, rematch, relink, loves, wipe) vérifie
+  désormais `/proc/self/mountinfo` et refuse un montage de fichier seul. À
+  faire : monter le DOSSIER de la base, ex. `./data/navidrome:/data`.
 - **Sauvegardes de `navidrome.db` : une copie non vérifiée pouvait évincer les
   sauvegardes saines** (issue #297). `backup()` élaguait au-delà de 3
   sauvegardes sans contrôler la copie. Après une corruption, chaque nouvelle

@@ -138,9 +138,13 @@ Trois rôles via `APP_MODE` :
 
 Points d'attention (prod) :
 
-- Monter `navidrome.db` en **lecture seule** (`:ro`) ; les commandes qui écrivent
-  (sync) arrêtent d'abord le conteneur Navidrome (`NAVIDROME_CONTAINER_NAME` +
-  accès au socket Docker).
+- Monter le **dossier** de `navidrome.db` (ex. `/path/to/navidrome/data:/data`),
+  **jamais le fichier seul**. La base est en WAL, et un montage du fichier seul
+  donne au conteneur ses propres `-wal`/`-shm`, invisibles de Navidrome : toute
+  écriture corrompt alors la base. Les écritures le détectent et refusent
+  (#298). Les commandes qui écrivent (sync, relink…) arrêtent d'abord le
+  conteneur Navidrome (`NAVIDROME_CONTAINER_NAME` + accès au socket Docker).
+  Les sauvegardes `navidrome.db.backup-*` sont écrites dans ce même dossier.
 - Ne **pas** partager `APP_CACHE_DIR` entre les conteneurs web et worker.
 - `NAVIDROME_USER` doit correspondre au compte Navidrome réel (sinon les
   commandes de sync échouent avec « user not found »).
