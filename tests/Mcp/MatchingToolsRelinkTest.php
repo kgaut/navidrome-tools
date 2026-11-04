@@ -35,10 +35,10 @@ class MatchingToolsRelinkTest extends TestCase
         $guard->expects($this->once())->method('assertCanWrite');
         $bus = $this->createMock(MessageBusInterface::class);
         $bus->expects($this->once())->method('dispatch')
-            ->with($this->callback(static fn (RelinkMatchedMessage $m) => $m->artist === 'IAM' && $m->fromAlbum === 'Instrumentales' && $m->limit === 2000))
+            ->with($this->callback(static fn (RelinkMatchedMessage $m) => $m->artist === 'IAM' && $m->fromAlbum === 'Instrumentales' && $m->limit === 2000 && $m->contains))
             ->willReturnCallback(static fn (object $m) => new Envelope($m));
 
-        $out = $this->tools($bus, $guard)->relink(artist: ' IAM ', from_album: 'Instrumentales', limit: 99999);
+        $out = $this->tools($bus, $guard)->relink(artist: ' IAM ', from_album: 'Instrumentales', limit: 99999, contains: true);
 
         $this->assertTrue($out['queued']);
     }
@@ -46,7 +46,7 @@ class MatchingToolsRelinkTest extends TestCase
     public function testPreviewSummarizesThePlan(): void
     {
         $relinker = $this->createMock(MatchedRelinker::class);
-        $relinker->method('plan')->with('IAM', null, null, null, 500)->willReturn([
+        $relinker->method('plan')->with('IAM', null, null, null, 500, false)->willReturn([
             'considered' => 3,
             'truncated' => false,
             'moves' => [['sync_id' => 1, 'from' => 'a', 'to' => 'b', 'strategy' => 'triplet', 'played_at' => new \DateTimeImmutable()]],

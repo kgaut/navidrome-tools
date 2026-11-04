@@ -213,8 +213,9 @@ class MatchingTools
         description: 'Écoutes DÉJÀ matchées et écrites dans Navidrome que le matching actuel enverrait sur un autre morceau '
             . '(ex. écoutes d\'un album rattachées à sa version instrumentale avant un correctif). Ne concerne que les écoutes '
             . 'écrites par navidrome-tools, hors alias et MBID ; les écoutes enregistrées par Navidrome lui-même ne sont '
-            . 'jamais déplacées. Filtres (sous-chaîne, insensible à la casse ; au moins un parmi artist, album, from_album) : '
-            . 'artist, title, album = album scrobblé ; from_album = album du morceau actuellement visé (ex. '
+            . 'jamais déplacées. Filtres (insensibles à la casse ; au moins un parmi artist, album, from_album) : '
+            . 'artist, title, album = valeurs scrobblées, EXACTES sauf contains: true (sous-chaîne : « ABC » attrape aussi '
+            . '« XABCY ») ; from_album = album du morceau actuellement visé, toujours en sous-chaîne (ex. '
             . '« Instrumentales »). limit = écoutes examinées (500 par défaut, ramené à 2000). Renvoie les déplacements '
             . 'groupés (album actuel → nouvel album, nombre d\'écoutes), le nombre d\'écoutes qui deviendraient non '
             . 'matchées et celui des écoutes dont le morceau enregistré a disparu de la bibliothèque (stale_target ; '
@@ -228,15 +229,16 @@ class MatchingTools
         ?string $album = null,
         ?string $from_album = null,
         int $limit = 500,
+        bool $contains = false,
     ): array {
         [$artist, $title, $album, $from_album] = $this->relinkFilters($artist, $title, $album, $from_album);
         $limit = self::clamp($limit, MatchedRelinker::MAX_SCROBBLES);
 
-        $plan = $this->relinker->plan($artist, $title, $album, $from_album, $limit);
+        $plan = $this->relinker->plan($artist, $title, $album, $from_album, $limit, $contains);
         $groups = array_slice($plan['groups'], 0, self::MAX_RELINK_GROUPS);
 
         return [
-            'filters' => ['artist' => $artist, 'title' => $title, 'album' => $album, 'from_album' => $from_album],
+            'filters' => ['artist' => $artist, 'title' => $title, 'album' => $album, 'from_album' => $from_album, 'contains' => $contains],
             'limit' => $limit,
             'considered' => $plan['considered'],
             'truncated' => $plan['truncated'],
@@ -265,7 +267,7 @@ class MatchingTools
     #[McpTool(
         name: 'matched_relink',
         description: 'ÉCRITURE (scope mcp_write). Applique matched_relink_preview avec les mêmes filtres (au moins un parmi '
-            . 'artist, album, from_album ; limit 500 par défaut, ramené à 2000) : chaque écoute concernée est retirée de son '
+            . 'artist, album, from_album ; contains comme pour l\'aperçu ; limit 500 par défaut, ramené à 2000) : chaque écoute concernée est retirée de son '
             . 'morceau actuel et réécrite sur le nouveau, et les compteurs d\'écoutes des deux morceaux sont recalculés. Le '
             . 'travail est mis en file pour le worker, qui arrête Navidrome le temps de l\'écriture (une à deux minutes, '
             . 'sauvegarde préalable) : la réponse est immédiate, l\'écriture suit. Vérifier ensuite avec '
@@ -278,16 +280,17 @@ class MatchingTools
         ?string $album = null,
         ?string $from_album = null,
         int $limit = 500,
+        bool $contains = false,
     ): array {
         $this->guard->assertCanWrite();
         [$artist, $title, $album, $from_album] = $this->relinkFilters($artist, $title, $album, $from_album);
         $limit = self::clamp($limit, MatchedRelinker::MAX_SCROBBLES);
 
-        $this->bus->dispatch(new RelinkMatchedMessage($artist, $title, $album, $from_album, $limit));
+        $this->bus->dispatch(new RelinkMatchedMessage($artist, $title, $album, $from_album, $limit, $contains));
 
         return [
             'queued' => true,
-            'filters' => ['artist' => $artist, 'title' => $title, 'album' => $album, 'from_album' => $from_album],
+            'filters' => ['artist' => $artist, 'title' => $title, 'album' => $album, 'from_album' => $from_album, 'contains' => $contains],
             'limit' => $limit,
             'message' => 'Déplacement mis en file : le worker arrête Navidrome, sauvegarde, déplace puis redémarre (une à deux '
                 . 'minutes). Vérifier ensuite avec matched_relink_preview et les mêmes filtres (0 déplacement attendu).',

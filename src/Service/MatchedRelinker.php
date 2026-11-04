@@ -50,7 +50,8 @@ class MatchedRelinker
 
     /**
      * Read-only plan. `$fromAlbum` filters on the album of the CURRENT target
-     * (substring, case-insensitive), the other filters on the scrobble.
+     * (substring, case-insensitive), the other filters on the scrobble
+     * (case-insensitive, exact unless `$contains`, issue #300).
      *
      * @return array{
      *     considered: int,
@@ -62,9 +63,9 @@ class MatchedRelinker
      *     api_errors: int
      * }
      */
-    public function plan(?string $artist, ?string $title, ?string $album, ?string $fromAlbum, int $limit): array
+    public function plan(?string $artist, ?string $title, ?string $album, ?string $fromAlbum, int $limit, bool $contains = false): array
     {
-        [$rows, $truncated] = $this->candidates($artist, $title, $album, $fromAlbum, $limit);
+        [$rows, $truncated] = $this->candidates($artist, $title, $album, $fromAlbum, $limit, $contains);
         $targetIds = array_values(array_unique(array_map(static fn (ScrobbleSync $s) => (string) $s->getTargetId(), $rows)));
         $albums = $this->albumsOf($targetIds);
 
@@ -247,7 +248,7 @@ class MatchedRelinker
      *
      * @return array{0: list<ScrobbleSync>, 1: bool}
      */
-    private function candidates(?string $artist, ?string $title, ?string $album, ?string $fromAlbum, int $limit): array
+    private function candidates(?string $artist, ?string $title, ?string $album, ?string $fromAlbum, int $limit, bool $contains): array
     {
         $filtered = $fromAlbum !== null && $fromAlbum !== '';
         $kept = [];
@@ -260,6 +261,7 @@ class MatchedRelinker
                 $album,
                 $filtered ? self::PAGE : $limit + 1 - count($kept),
                 $afterId,
+                $contains,
             );
             if ($page === []) {
                 return [$kept, false];

@@ -36,9 +36,10 @@ class RelinkMatchedCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addOption('artist', null, InputOption::VALUE_REQUIRED, 'Scrobbled artist (substring, case-insensitive).')
-            ->addOption('title', null, InputOption::VALUE_REQUIRED, 'Scrobbled title (substring).')
-            ->addOption('album', null, InputOption::VALUE_REQUIRED, 'Scrobbled album (substring).')
+            ->addOption('artist', null, InputOption::VALUE_REQUIRED, 'Scrobbled artist (exact, case-insensitive; see --contains).')
+            ->addOption('title', null, InputOption::VALUE_REQUIRED, 'Scrobbled title (exact, case-insensitive; see --contains).')
+            ->addOption('album', null, InputOption::VALUE_REQUIRED, 'Scrobbled album (exact, case-insensitive; see --contains).')
+            ->addOption('contains', null, InputOption::VALUE_NONE, '--artist, --title and --album match a substring instead (« ABC » also matches « XABCY »).')
             ->addOption('from-album', null, InputOption::VALUE_REQUIRED, 'Album of the CURRENT Navidrome target (substring), e.g. "Instrumentales".')
             ->addOption('limit', null, InputOption::VALUE_REQUIRED, 'Max matched scrobbles examined.', (string) MatchedRelinker::MAX_SCROBBLES)
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Show the planned moves, write nothing.')
@@ -70,7 +71,7 @@ class RelinkMatchedCommand extends Command
             }
         }
 
-        $plan = $this->relinker->plan($artist, $title, $album, $fromAlbum, $limit);
+        $plan = $this->relinker->plan($artist, $title, $album, $fromAlbum, $limit, (bool) $input->getOption('contains'));
         $io->table(
             ['Écoutes', 'Artiste', 'Titre', 'Album scrobblé', 'Album actuel', '→ Nouvel album', 'Stratégie'],
             array_map(static fn (array $g) => [
