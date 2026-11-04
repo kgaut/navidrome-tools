@@ -443,8 +443,9 @@ morceaux. Sauvegarde avant écriture. Commencer par `--dry-run`.
 
 | Option | Description |
 |---|---|
-| `--artist`, `--title`, `--album` | filtres sur l'écoute scrobblée (sous-chaîne) |
-| `--from-album` | filtre sur l'album du morceau **actuel** (ex. `Instrumentales`) |
+| `--artist`, `--title`, `--album` | filtres sur l'écoute scrobblée (valeur exacte, insensible à la casse) |
+| `--contains` | ces trois filtres deviennent des sous-chaînes (`ABC` attrape aussi `XABCY`) |
+| `--from-album` | filtre sur l'album du morceau **actuel**, en sous-chaîne (ex. `Instrumentales`) |
 | `--limit` | écoutes examinées (défaut `2000`) |
 | `--dry-run` | affiche les déplacements prévus, n'écrit rien |
 | `--force` / `--auto-stop` | comme pour `sync-navidrome` |

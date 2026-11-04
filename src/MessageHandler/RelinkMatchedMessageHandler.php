@@ -31,7 +31,7 @@ class RelinkMatchedMessageHandler
             reference: 'matched',
             label: 'Navidrome relink' . self::describe($message),
             action: function (RunHistory $entry) use ($message): array {
-                $plan = $this->relinker->plan($message->artist, $message->title, $message->album, $message->fromAlbum, $message->limit);
+                $plan = $this->relinker->plan($message->artist, $message->title, $message->album, $message->fromAlbum, $message->limit, $message->contains);
                 $written = $plan['moves'] === []
                     ? ['moved' => 0, 'duplicates' => 0, 'missing_old' => 0, 'backup' => null]
                     : $this->container->runWithNavidromeStopped(fn () => $this->relinker->apply($plan['moves'], $entry));
@@ -61,6 +61,7 @@ class RelinkMatchedMessageHandler
             return '';
         }
 
-        return ' [' . implode(', ', array_map(static fn (string $k, string $v) => $k . '=' . $v, array_keys($parts), $parts)) . ']';
+        return ' [' . implode(', ', array_map(static fn (string $k, string $v) => $k . '=' . $v, array_keys($parts), $parts))
+            . ($m->contains ? ', contains' : '') . ']';
     }
 }

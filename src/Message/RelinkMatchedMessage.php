@@ -15,6 +15,7 @@ final class RelinkMatchedMessage
         public readonly ?string $album,
         public readonly ?string $fromAlbum,
         public readonly int $limit,
+        public readonly bool $contains = false,
     ) {
     }
 }

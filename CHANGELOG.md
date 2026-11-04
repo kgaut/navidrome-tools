@@ -9,6 +9,15 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+### Corrigé
+
+- **`relink` : les filtres `--artist`, `--title`, `--album` étaient des
+  sous-chaînes** (issue #300) : un artiste dont le nom est contenu dans celui
+  d'un autre attrapait aussi les écoutes de l'autre, sur un outil qui écrit.
+  Ils sont désormais exacts (insensibles à la casse) ; `--contains` (CLI) ou
+  `contains: true` (MCP `matched_relink_preview` / `matched_relink`) rétablit
+  la recherche par sous-chaîne. `--from-album` reste une sous-chaîne.
+
 ## [1.11.0] - 2026-11-04
 
 ### Ajouté
