@@ -9,6 +9,39 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+### Ajouté
+
+- **Réconcilier `data.db` avec `navidrome.db` après une perte d'écritures**
+  (issue #298), par exemple après la restauration d'une sauvegarde plus
+  ancienne. Commande `app:scrobbles:reconcile-written` (`--dry-run`) et outil MCP
+  `matched_reconcile` (`dry_run` par défaut). Pour chaque écoute tenue pour
+  écrite :
+  - présente dans Navidrome sur son morceau (±60 s) : rien ;
+  - absente, mais un seul autre morceau joué à la même seconde : la cible
+    devient ce morceau (déplacement annulé) ;
+  - aucune écoute à cette seconde : retour en `pending`, et le prochain sync la
+    réécrit ;
+  - plusieurs morceaux à cette seconde : laissée.
+
+  Navidrome n'est que lu.
+
+### Corrigé
+
+- **Sauvegardes de `navidrome.db` : une copie non vérifiée pouvait évincer les
+  sauvegardes saines** (issue #297). `backup()` élaguait au-delà de 3
+  sauvegardes sans contrôler la copie. Après une corruption, chaque nouvelle
+  copie, corrompue elle aussi, repoussait les sauvegardes saines hors de la
+  rétention. La copie passe désormais un `quick_check`. Si elle échoue, elle est
+  supprimée, rien n'est élagué et l'opération s'arrête avant toute écriture.
+- **Gardes d'écriture inopérantes avec `NAVIDROME_CONTAINER_NAME` vide**
+  (issue #296). Le statut était tenu pour sûr et `--auto-stop` ne faisait rien
+  : relink, sync et rematch écrivaient sans aucune vérification. Sans nom de
+  conteneur, Navidrome est désormais sondé sur `NAVIDROME_URL` (toute réponse
+  HTTP = démarré) : l'écriture est refusée s'il répond. La sauvegarde et le
+  `quick_check` s'appliquent aussi dans ce cas.
+- Le web et le worker ne gardent plus `navidrome.db` ouverte d'une requête ou
+  d'un message à l'autre (#298).
+
 ## [1.10.1] - 2026-11-03
 
 ### Corrigé

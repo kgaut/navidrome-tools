@@ -8,8 +8,9 @@ namespace App\Navidrome;
  *  1. {@see backup()} copies `<dbPath>` (and its `-wal` / `-shm` siblings
  *     when present) to `<dbPath>.backup-<unix_ts>` just before any
  *     write-mutating operation (`app:lastfm:process --auto-stop`,
- *     `app:lastfm:rematch --auto-stop`, etc.). Old backups beyond
- *     `$retention` are pruned.
+ *     `app:lastfm:rematch --auto-stop`, etc.). The copy is quick_checked:
+ *     an unsound copy is deleted and throws, and only then are old
+ *     backups beyond `$retention` pruned (issue #297).
  *  2. {@see quickCheck()} opens the file SQLite read-only and runs
  *     `PRAGMA quick_check` — a lightweight structural sanity test that
  *     catches a half-flushed WAL or a SIGKILL-truncated header *before*
@@ -56,6 +57,25 @@ class NavidromeDbBackup
             if (is_file($sibling)) {
                 $this->copyAtomic($sibling, $target . $suffix);
             }
+        }
+
+        // A copy that fails quick_check — the live DB is corrupt, or was
+        // copied mid-write — is dropped and prunes NOTHING: it must never
+        // push the last sound backups out of the retention window, as
+        // happened when every backup taken after a corruption was itself
+        // corrupt (issue #297). The caller gets an exception: do not write
+        // into a DB we cannot snapshot soundly.
+        try {
+            $this->quickCheckFile($target);
+        } catch (\RuntimeException $e) {
+            foreach (['', '-wal', '-shm'] as $suffix) {
+                @unlink($target . $suffix);
+            }
+            throw new \RuntimeException(sprintf(
+                'Sauvegarde de %s non saine (%s) : copie supprimée, aucune sauvegarde existante élaguée. La base est probablement corrompue ; rien n\'a été écrit.',
+                $this->dbPath,
+                $e->getMessage(),
+            ), 0, $e);
         }
 
         $this->prune();

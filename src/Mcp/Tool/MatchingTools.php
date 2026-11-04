@@ -10,6 +10,7 @@ use App\Message\RelinkMatchedMessage;
 use App\Service\AliasManager;
 use App\Service\MatchedRelinker;
 use App\Service\TargetIdRepairer;
+use App\Service\WrittenPlaysReconciler;
 use App\Service\UnmatchedDiagnoser;
 use App\Service\UnmatchedRetrier;
 use Mcp\Capability\Attribute\McpTool;
@@ -39,6 +40,7 @@ class MatchingTools
         private readonly MatchedRelinker $relinker,
         private readonly MessageBusInterface $bus,
         private readonly TargetIdRepairer $targetRepairer,
+        private readonly WrittenPlaysReconciler $reconciler,
     ) {
     }
 
@@ -321,6 +323,39 @@ class MatchingTools
             $report['not_found'],
             $report['ambiguous'],
             $report['title_mismatch'] > 0 ? sprintf(', dont %d au titre différent (alias probables)', $report['title_mismatch']) : '',
+        );
+
+        return $report;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    #[McpTool(
+        name: 'matched_reconcile',
+        description: 'Réaligne le suivi local sur la base Navidrome quand Navidrome a perdu des écritures (restauration d\'une '
+            . 'sauvegarde plus ancienne). Pour chaque écoute tenue pour écrite : présente dans Navidrome sur son morceau → rien ; '
+            . 'absente, mais un seul autre morceau joué à la même seconde → la cible devient ce morceau (déplacement annulé) ; '
+            . 'aucune écoute à cette seconde → remise en attente (pending), le prochain sync la réécrit ; plusieurs morceaux → '
+            . 'laissée. Navidrome n\'est que lu. dry_run = true (défaut) : compte et montre des exemples sans rien écrire. '
+            . 'dry_run = false : ÉCRITURE (scope mcp_write).',
+        annotations: new ToolAnnotations(readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false),
+    )]
+    public function reconcile(bool $dry_run = true): array
+    {
+        if (!$dry_run) {
+            $this->guard->assertCanWrite();
+        }
+        $report = $this->reconciler->run($dry_run);
+        $report['message'] = sprintf(
+            '%d écoute(s) examinée(s) : %d en accord, %d %s, %d %s, %d ambiguë(s) laissée(s).',
+            $report['examined'],
+            $report['in_line'],
+            $report['retargeted'],
+            $dry_run ? 'cible(s) à corriger' : 'cible(s) corrigée(s)',
+            $report['requeued'],
+            $dry_run ? 'à remettre en pending' : 'remise(s) en pending (réécrites au prochain sync)',
+            $report['ambiguous'],
         );
 
         return $report;

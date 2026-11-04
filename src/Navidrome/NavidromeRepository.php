@@ -46,12 +46,19 @@ class NavidromeRepository implements ResetInterface
      * Drops the in-memory library index between two messages of a
      * long-lived worker (`kernel.reset`): otherwise tracks added to the
      * library after the first lookup stay invisible to the matcher and the
-     * diagnoser until the worker restarts (issue #278).
+     * diagnoser until the worker restarts (issue #278). Also closes the
+     * connection to navidrome.db.
      */
     public function reset(): void
     {
         $this->diagnosisIndexCache = null;
         $this->mediaFileExistsCache = [];
+        // Do not keep navidrome.db open between two requests / messages of
+        // a long-lived process (web, worker): Navidrome is stopped and
+        // restarted around our writes, and a connection held across that
+        // by another of our processes is a needless variable (issue #298
+        // follow-up, cause of the 03/11 corruption not established).
+        $this->closeWriteConnection();
     }
 
     public function isAvailable(): bool
@@ -4085,6 +4092,32 @@ class NavidromeRepository implements ResetInterface
             } elseif ($out[$ts] !== $mfid) {
                 $out[$ts] = '';
             }
+        }
+
+        return $out;
+    }
+
+    /**
+     * The user's plays by second (issue #298): `submission_time` → every
+     * `media_file_id` played at that second, joined with "\x1f" (compact:
+     * ~255k rows in production). Read-only.
+     *
+     * @return array<int, string>
+     */
+    public function scrobbleTracksBySecond(string $userId): array
+    {
+        if (!$this->hasScrobblesTable()) {
+            return [];
+        }
+
+        $out = [];
+        $rows = $this->connection()->iterateNumeric(
+            'SELECT submission_time, media_file_id FROM scrobbles WHERE user_id = ?',
+            [$userId],
+        );
+        foreach ($rows as [$ts, $mfid]) {
+            $ts = (int) $ts;
+            $out[$ts] = isset($out[$ts]) ? $out[$ts] . "\x1f" . $mfid : (string) $mfid;
         }
 
         return $out;

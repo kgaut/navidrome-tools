@@ -39,33 +39,67 @@ class ScrobbleSyncRepository extends ServiceEntityRepository
     }
 
     /**
-     * One page of the rows written to Navidrome (`matched`, `duplicate`) with
+     * One page of the rows written to Navidrome (`$statuses`, by default
+     * `matched` and `duplicate`) with
      * the scrobble they come from, by id after `$afterId` (issue #291).
      * Plain DBAL, page fully fetched: the caller writes between pages.
      *
+     * @param list<string> $statuses
+     *
      * @return list<array{id: int, played_at: string, target_id: ?string, artist: string, title: string}>
      */
-    public function writtenNavidromePage(int $afterId, int $size): array
+    public function writtenNavidromePage(int $afterId, int $size, array $statuses = [ScrobbleSync::STATUS_MATCHED, ScrobbleSync::STATUS_DUPLICATE]): array
     {
         /** @var list<array{id: int|string, played_at: string, target_id: ?string, artist: string, title: string}> $rows */
         $rows = $this->em->getConnection()->fetchAllAssociative(
             'SELECT ss.id, s.played_at, ss.target_id, s.artist, s.title
                FROM scrobble_sync ss
                JOIN scrobbles s ON s.id = ss.scrobble_id
-              WHERE ss.target = :target AND ss.status IN (:matched, :duplicate) AND ss.id > :after
+              WHERE ss.target = :target AND ss.status IN (:statuses) AND ss.id > :after
               ORDER BY ss.id
               LIMIT :size',
             [
                 'target' => ScrobbleSync::TARGET_NAVIDROME,
-                'matched' => ScrobbleSync::STATUS_MATCHED,
-                'duplicate' => ScrobbleSync::STATUS_DUPLICATE,
+                'statuses' => $statuses,
                 'after' => $afterId,
                 'size' => $size,
             ],
-            ['after' => \Doctrine\DBAL\ParameterType::INTEGER, 'size' => \Doctrine\DBAL\ParameterType::INTEGER],
+            [
+                'statuses' => \Doctrine\DBAL\ArrayParameterType::STRING,
+                'after' => \Doctrine\DBAL\ParameterType::INTEGER,
+                'size' => \Doctrine\DBAL\ParameterType::INTEGER,
+            ],
         );
 
         return array_map(static fn (array $r) => ['id' => (int) $r['id']] + $r, $rows);
+    }
+
+    /**
+     * Put the given scrobble_sync rows back to `pending` (issue #298), as a
+     * rematch would: target, strategy, sync and run cleared, so the next
+     * sync re-matches and re-writes them. One transaction.
+     *
+     * @param list<int> $ids
+     */
+    public function resetIdsToPending(array $ids): int
+    {
+        if ($ids === []) {
+            return 0;
+        }
+
+        return (int) $this->em->getConnection()->transactional(static function (Connection $conn) use ($ids): int {
+            $n = 0;
+            foreach (array_chunk($ids, 500) as $chunk) {
+                $n += (int) $conn->executeStatement(
+                    'UPDATE scrobble_sync
+                        SET status = ?, target_id = NULL, strategy = NULL, attempted_at = NULL, synced_at = NULL, run_id = NULL
+                      WHERE id IN (' . implode(',', array_fill(0, count($chunk), '?')) . ')',
+                    array_merge([ScrobbleSync::STATUS_PENDING], $chunk),
+                );
+            }
+
+            return $n;
+        });
     }
 
     /**
