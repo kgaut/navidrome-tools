@@ -9,6 +9,8 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+## [1.11.0] - 2026-11-04
+
 ### Ajouté
 
 - **Réconcilier `data.db` avec `navidrome.db` après une perte d'écritures**
@@ -495,7 +497,8 @@ L'ancienne POC reste accessible via le tag `poc-v0`.
   `BackupService`, sessions persistantes ; CI (phpcs, PHPStan, PHPUnit, lint
   Twig, build Docker).
 
-[Non publié]: https://github.com/kgaut/navidrome-tools/compare/1.10.1...HEAD
+[Non publié]: https://github.com/kgaut/navidrome-tools/compare/1.11.0...HEAD
+[1.11.0]: https://github.com/kgaut/navidrome-tools/compare/1.10.1...1.11.0
 [1.10.1]: https://github.com/kgaut/navidrome-tools/compare/1.10.0...1.10.1
 [1.10.0]: https://github.com/kgaut/navidrome-tools/compare/1.9.1...1.10.0
 [1.9.1]: https://github.com/kgaut/navidrome-tools/compare/1.9.0...1.9.1
