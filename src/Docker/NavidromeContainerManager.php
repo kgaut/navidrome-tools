@@ -10,7 +10,17 @@ class NavidromeContainerManager
         private readonly DockerCli $cli,
         private readonly NavidromeContainerConfig $config,
         private readonly NavidromeDbBackup $backup,
+        private readonly ?NavidromeLiveness $liveness = null,
     ) {
+    }
+
+    /**
+     * Container not configured: the only signal left is whether Navidrome
+     * answers on its URL (issue #296). True = running, writes refused.
+     */
+    private function unmanagedNavidromeIsUp(): bool
+    {
+        return $this->liveness?->isUp() === true;
     }
 
     public function isConfigured(): bool
@@ -21,7 +31,9 @@ class NavidromeContainerManager
     public function getStatus(): ContainerStatus
     {
         if (!$this->config->isConfigured()) {
-            return ContainerStatus::Disabled;
+            // Was always Disabled, i.e. « safe to write », even with
+            // Navidrome running (#296).
+            return $this->unmanagedNavidromeIsUp() ? ContainerStatus::Running : ContainerStatus::Disabled;
         }
 
         try {
@@ -79,7 +91,10 @@ class NavidromeContainerManager
 
         $name = $this->config->containerName;
         $message = match ($status) {
-            ContainerStatus::Running => sprintf(
+            ContainerStatus::Running => $name === '' ? sprintf(
+                'Navidrome répond sur NAVIDROME_URL : il tourne. NAVIDROME_CONTAINER_NAME est vide, l\'outil ne peut ni le vérifier ni l\'arrêter : '
+                . 'arrêtez Navidrome avant une opération qui écrit dans sa base, ou renseignez NAVIDROME_CONTAINER_NAME (avec le socket Docker) pour --auto-stop.',
+            ) : sprintf(
                 'Le conteneur Navidrome « %s » tourne actuellement. Arrêtez-le depuis le dashboard ou via `docker stop %s` avant de lancer une opération qui écrit dans la DB Navidrome.',
                 $name,
                 $name,
@@ -148,8 +163,20 @@ class NavidromeContainerManager
      */
     public function runWithNavidromeStopped(callable $action, bool $skipPreCheck = false): mixed
     {
+        $weStoppedIt = false;
         if (!$this->config->isConfigured()) {
-            return $action();
+            // Nothing to stop. This used to run the action straight away —
+            // writing with Navidrome running when it was up (#296). Refuse
+            // when it answers on its URL; otherwise keep the backup and
+            // quick_check below, as for a managed container.
+            if ($this->unmanagedNavidromeIsUp()) {
+                throw new NavidromeContainerException(
+                    'Navidrome répond sur NAVIDROME_URL mais NAVIDROME_CONTAINER_NAME est vide : impossible de l\'arrêter automatiquement. '
+                    . 'Arrêtez Navidrome avant l\'opération, ou renseignez NAVIDROME_CONTAINER_NAME (avec le socket Docker). Rien n\'a été écrit.',
+                );
+            }
+
+            return $this->runOnStoppedDb($action, $skipPreCheck, false);
         }
 
         $status = $this->getStatus();
@@ -160,13 +187,24 @@ class NavidromeContainerManager
             ));
         }
 
-        $weStoppedIt = false;
         if ($status === ContainerStatus::Running) {
             $this->stop();
             $weStoppedIt = true;
             $this->waitUntilStopped($this->config->stopWaitCeilingSeconds);
         }
 
+        return $this->runOnStoppedDb($action, $skipPreCheck, $weStoppedIt);
+    }
+
+    /**
+     * Backup, pre-check, action, post-check, restart — Navidrome already down.
+     *
+     * @template T
+     * @param  callable(): T $action
+     * @return T
+     */
+    private function runOnStoppedDb(callable $action, bool $skipPreCheck, bool $weStoppedIt): mixed
+    {
         // Backup + quick_check apply whether we stopped Navidrome ourselves
         // or it was already down — either way we're about to mutate the
         // file and we want a rollback artefact + a sanity check first.

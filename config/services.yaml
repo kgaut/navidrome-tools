@@ -407,6 +407,10 @@ services:
             $cacheTtlDays: '%lastfm.match_cache_ttl_days%'
             $lastFmApiKey: '%lastfm.api_key%'
 
+    App\Docker\NavidromeLiveness:
+        arguments:
+            $baseUrl: '%navidrome.url%'
+
     App\Docker\NavidromeContainerConfig:
         arguments:
             $containerName: '%navidrome.container_name%'

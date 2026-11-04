@@ -138,9 +138,13 @@ Trois rôles via `APP_MODE` :
 
 Points d'attention (prod) :
 
-- Monter `navidrome.db` en **lecture seule** (`:ro`) ; les commandes qui écrivent
-  (sync) arrêtent d'abord le conteneur Navidrome (`NAVIDROME_CONTAINER_NAME` +
-  accès au socket Docker).
+- Monter le **dossier** de `navidrome.db` (ex. `/path/to/navidrome/data:/data`),
+  **jamais le fichier seul**. La base est en WAL, et un montage du fichier seul
+  donne au conteneur ses propres `-wal`/`-shm`, invisibles de Navidrome : toute
+  écriture corrompt alors la base. Les écritures le détectent et refusent
+  (#298). Les commandes qui écrivent (sync, relink…) arrêtent d'abord le
+  conteneur Navidrome (`NAVIDROME_CONTAINER_NAME` + accès au socket Docker).
+  Les sauvegardes `navidrome.db.backup-*` sont écrites dans ce même dossier.
 - Ne **pas** partager `APP_CACHE_DIR` entre les conteneurs web et worker.
 - `NAVIDROME_USER` doit correspondre au compte Navidrome réel (sinon les
   commandes de sync échouent avec « user not found »).
@@ -196,7 +200,7 @@ d'environnement Docker en prod) :
 | `NAVIDROME_URL` | `http://navidrome:4533` | URL de l'instance (covers, liens) |
 | `NAVIDROME_USER` | `admin` | **compte Navidrome** dont on importe l'historique |
 | `NAVIDROME_PASSWORD` | — | mot de passe (API Subsonic) |
-| `NAVIDROME_CONTAINER_NAME` | — | nom du conteneur Docker à arrêter avant écriture (vide = check désactivé) |
+| `NAVIDROME_CONTAINER_NAME` | — | nom du conteneur Docker à arrêter avant écriture. Vide : l'outil ne peut ni vérifier l'état du conteneur ni l'arrêter ; toute écriture est alors refusée si Navidrome répond sur `NAVIDROME_URL` (arrêter Navidrome soi-même avant) |
 | `NAVIDROME_STOP_TIMEOUT_SECONDS` | `60` | délai d'arrêt propre (checkpoint WAL) avant SIGKILL |
 | `NAVIDROME_STOP_WAIT_CEILING_SECONDS` | `30` | attente max de confirmation d'arrêt |
 
@@ -337,6 +341,7 @@ chez le client. Scopes : `mcp` (lecture) et `mcp_write` (outils d'écriture).
 | `matched_relink_preview` | écoutes déjà écrites que le matching actuel enverrait ailleurs |
 | `matched_relink` ✍️ | les déplace (mis en file : le worker arrête Navidrome le temps de l'écriture) |
 | `matched_targets_repair` (✍️ hors `dry_run`) | remet d'aplomb les cibles des écoutes écrites dont le morceau a disparu |
+| `matched_reconcile` (✍️ hors `dry_run`) | réaligne le suivi local sur Navidrome après une perte d'écritures (restauration) |
 
 ✍️ = écriture : listés pour tout jeton, **refusés à l'exécution** sans `mcp_write`
 (rien n'est écrit). Une erreur métier (nom pris, id inconnu…) revient comme
@@ -450,6 +455,17 @@ Navidrome les garde, quand le morceau enregistré a disparu de la bibliothèque
 (identifiants renouvelés par Navidrome). La correspondance se fait à la même
 seconde ; une écoute sans correspondance, ou ambiguë, est laissée. Navidrome
 n'est que lu. À lancer avant `relink`. Option : `--dry-run`.
+
+#### `app:scrobbles:reconcile-written`
+Réaligne `data.db` sur `navidrome.db` quand Navidrome a perdu des écritures
+(restauration d'une sauvegarde plus ancienne). Pour chaque écoute tenue pour
+écrite :
+- présente dans Navidrome : rien ;
+- revenue sur un autre morceau à la même seconde : la cible suit ;
+- absente : retour en `pending`, réécrite au prochain sync ;
+- ambiguë : laissée.
+
+Navidrome n'est que lu. Option : `--dry-run`.
 
 #### `app:scrobbles:rematch`
 Re-joue la cascade de matching sur les scrobbles **déjà en attente** (`pending`).

@@ -39,19 +39,60 @@ class NavidromeRepository implements ResetInterface
     public function __construct(
         private readonly string $dbPath,
         private readonly string $userName,
+        private readonly string $mountInfoPath = '/proc/self/mountinfo',
     ) {
+    }
+
+    /**
+     * True when navidrome.db is bind-mounted as a single FILE rather than
+     * through its directory (issue #298, root cause of the 03/11/2026
+     * corruption). In WAL mode SQLite keeps `-wal` and `-shm` next to the
+     * database: with a file mount they land in THIS container's own layer,
+     * while Navidrome uses the ones of the real directory — two WALs, two
+     * indexes, no shared locks. Our writes ignore Navidrome's WAL, which
+     * Navidrome then replays over them. Read from /proc/self/mountinfo
+     * (Linux); false when it cannot be read.
+     */
+    public function isSingleFileMount(): bool
+    {
+        $mountInfo = @file($this->mountInfoPath, FILE_IGNORE_NEW_LINES);
+        if ($mountInfo === false) {
+            return false;
+        }
+        $candidates = array_unique(array_filter([$this->dbPath, realpath($this->dbPath) ?: null]));
+        foreach ($mountInfo as $line) {
+            $fields = explode(' ', $line);
+            // id parent major:minor root MOUNT_POINT options …; octal escapes (\040 = space).
+            $mountPoint = isset($fields[4]) ? (string) preg_replace_callback(
+                '/\\\\([0-7]{3})/',
+                static fn (array $m) => chr((int) octdec($m[1])),
+                $fields[4],
+            ) : '';
+            if (in_array($mountPoint, $candidates, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
      * Drops the in-memory library index between two messages of a
      * long-lived worker (`kernel.reset`): otherwise tracks added to the
      * library after the first lookup stay invisible to the matcher and the
-     * diagnoser until the worker restarts (issue #278).
+     * diagnoser until the worker restarts (issue #278). Also closes the
+     * connection to navidrome.db.
      */
     public function reset(): void
     {
         $this->diagnosisIndexCache = null;
         $this->mediaFileExistsCache = [];
+        // Do not keep navidrome.db open between two requests / messages of
+        // a long-lived process (web, worker): Navidrome is stopped and
+        // restarted around our writes, and a connection held across that
+        // by another of our processes is a needless variable (issue #298
+        // follow-up, cause of the 03/11 corruption not established).
+        $this->closeWriteConnection();
     }
 
     public function isAvailable(): bool
@@ -3955,6 +3996,15 @@ class NavidromeRepository implements ResetInterface
      */
     public function beginWriteTransaction(): void
     {
+        // Every write into navidrome.db (sync, rematch, relink, loves,
+        // wipe) starts here (#298).
+        if ($this->isSingleFileMount()) {
+            throw new \RuntimeException(sprintf(
+                '%s est monté comme fichier seul : ses -wal et -shm ne sont pas ceux de Navidrome, écrire corromprait la base. '
+                . 'Monter le DOSSIER de la base (ex. ./data/navidrome:/data) dans les conteneurs navidrome-tools. Rien n\'a été écrit.',
+                $this->dbPath,
+            ));
+        }
         $this->connection()->executeStatement('BEGIN IMMEDIATE');
     }
 
@@ -4085,6 +4135,32 @@ class NavidromeRepository implements ResetInterface
             } elseif ($out[$ts] !== $mfid) {
                 $out[$ts] = '';
             }
+        }
+
+        return $out;
+    }
+
+    /**
+     * The user's plays by second (issue #298): `submission_time` → every
+     * `media_file_id` played at that second, joined with "\x1f" (compact:
+     * ~255k rows in production). Read-only.
+     *
+     * @return array<int, string>
+     */
+    public function scrobbleTracksBySecond(string $userId): array
+    {
+        if (!$this->hasScrobblesTable()) {
+            return [];
+        }
+
+        $out = [];
+        $rows = $this->connection()->iterateNumeric(
+            'SELECT submission_time, media_file_id FROM scrobbles WHERE user_id = ?',
+            [$userId],
+        );
+        foreach ($rows as [$ts, $mfid]) {
+            $ts = (int) $ts;
+            $out[$ts] = isset($out[$ts]) ? $out[$ts] . "\x1f" . $mfid : (string) $mfid;
         }
 
         return $out;
