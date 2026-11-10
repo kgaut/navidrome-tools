@@ -9,6 +9,15 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+### Ajouté
+
+- **MCP : renommer et supprimer une playlist Navidrome** (issue #305). Outils
+  d'écriture `playlist_rename` et `playlist_delete` (scope `mcp_write`), sur une
+  playlist du compte configuré désignée par son id (`playlists_list`).
+  `playlist_delete` exige le nom actuel exact et rend les ids des morceaux pour
+  pouvoir la recréer. Refusés sur une playlist générée (le cron la recréerait),
+  et le renommage vers le nom d'une playlist générée ou d'une autre playlist.
+
 ### Sécurité
 
 - **Dépendances Symfony vulnérables mises à jour** (issue #303) : composants
