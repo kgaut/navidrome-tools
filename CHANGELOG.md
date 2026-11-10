@@ -9,6 +9,13 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+### Sécurité
+
+- **Dépendances Symfony vulnérables mises à jour** (issue #303) : composants
+  7.4 passés en **7.4.23** (`config`, `filesystem`, `framework-bundle`,
+  `http-client`, `http-foundation`, `http-kernel`, `routing`, `security-http`,
+  `validator`, `yaml`…). `composer audit` : aucun avis restant.
+
 ## [1.11.1] - 2026-11-04
 
 ### Corrigé
