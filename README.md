@@ -336,6 +336,7 @@ chez le client. Scopes : `mcp` (lecture) et `mcp_write` (outils d'écriture).
 | `matching_summary`, `unmatched_list`, `unmatched_diagnose` | état du matching, non-matchés et diagnostic |
 | `library_search`, `playlists_list` | recherche dans la bibliothèque (ids), playlists connues |
 | `playlist_create` ✍️ | playlist Navidrome à partir d'une liste d'ids |
+| `playlist_rename`, `playlist_delete` ✍️ | renommer / supprimer une playlist Navidrome du compte (pas une playlist générée) |
 | `described_playlist_create` ✍️ | playlist décrite par une phrase (AudioMuse), régénérée par le cron |
 | `alias_create_track`, `alias_create_artist`, `unmatched_retry`, `unmatched_retry_many` ✍️ | réconciliation (relance d'un couple ou d'une série de groupes) |
 | `matched_relink_preview` | écoutes déjà écrites que le matching actuel enverrait ailleurs |

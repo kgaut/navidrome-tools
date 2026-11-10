@@ -145,6 +145,130 @@ class PlaylistToolsTest extends TestCase
         $this->assertSame('decrite-7', $result['slug']);
     }
 
+    public function testRenameRenamesAnOwnedPlaylist(): void
+    {
+        $this->subsonic->method('findOwnedPlaylist')->with('pl-9')->willReturn(self::playlist('pl-9'));
+        $this->subsonic->method('findPlaylistByName')->willReturn(null);
+        $this->subsonic->expects($this->once())->method('updatePlaylist')->with('pl-9', 'Pour courir', null);
+
+        $result = $this->tools()->rename('pl-9', '  Pour courir ');
+
+        $this->assertSame('Ma playlist', $result['previous_name']);
+        $this->assertSame('Pour courir', $result['name']);
+    }
+
+    public function testRenameRefusesUnknownOrForeignPlaylist(): void
+    {
+        $this->subsonic->method('findOwnedPlaylist')->willReturn(null);
+        $this->subsonic->expects($this->never())->method('updatePlaylist');
+
+        $this->expectException(ToolCallException::class);
+        $this->expectExceptionMessage('pl-x');
+        $this->tools()->rename('pl-x', 'Pour courir');
+    }
+
+    public function testRenameRefusesAGeneratedPlaylist(): void
+    {
+        $this->subsonic->method('findOwnedPlaylist')->willReturn(self::playlist('pl-1', 'Top du mois dernier'));
+        $this->subsonic->expects($this->never())->method('updatePlaylist');
+
+        $this->expectException(ToolCallException::class);
+        $this->expectExceptionMessage('top-mois');
+        $this->tools()->rename('pl-1', 'Autre nom');
+    }
+
+    public function testRenameRefusesTheNameOfAGeneratedPlaylist(): void
+    {
+        $this->subsonic->method('findOwnedPlaylist')->willReturn(self::playlist('pl-9'));
+        $this->subsonic->expects($this->never())->method('updatePlaylist');
+
+        $this->expectException(ToolCallException::class);
+        $this->expectExceptionMessage('écrasée');
+        $this->tools()->rename('pl-9', 'TOP du mois dernier');
+    }
+
+    public function testRenameRefusesTheNameOfAnotherPlaylist(): void
+    {
+        $this->subsonic->method('findOwnedPlaylist')->willReturn(self::playlist('pl-9'));
+        $this->subsonic->method('findPlaylistByName')->with('Pour courir')->willReturn(self::playlist('pl-2', 'Pour courir'));
+        $this->subsonic->expects($this->never())->method('updatePlaylist');
+
+        $this->expectException(ToolCallException::class);
+        $this->expectExceptionMessage('pl-2');
+        $this->tools()->rename('pl-9', 'Pour courir');
+    }
+
+    public function testRenameToTheSameNameWritesNothing(): void
+    {
+        $this->subsonic->method('findOwnedPlaylist')->willReturn(self::playlist('pl-9'));
+        $this->subsonic->expects($this->never())->method('updatePlaylist');
+
+        $result = $this->tools()->rename('pl-9', 'Ma playlist');
+
+        $this->assertStringContainsString('rien n\'a été modifié', $result['message']);
+    }
+
+    public function testRenameStopsAtTheWriteGuard(): void
+    {
+        $this->guard->method('assertCanWrite')->willThrowException(new ToolCallException('mcp_write'));
+        $this->subsonic->expects($this->never())->method('findOwnedPlaylist');
+
+        $this->expectException(ToolCallException::class);
+        $this->tools()->rename('pl-9', 'Pour courir');
+    }
+
+    public function testDeleteDeletesAndReturnsTrackIds(): void
+    {
+        $this->subsonic->method('findOwnedPlaylist')->with('pl-9')->willReturn(self::playlist('pl-9'));
+        $this->subsonic->method('getPlaylist')->with('pl-9')->willReturn(self::playlist('pl-9') + [
+            'tracks' => [self::track('mf-2'), self::track('mf-1')],
+        ]);
+        $this->subsonic->expects($this->once())->method('deletePlaylist')->with('pl-9');
+
+        $result = $this->tools()->delete('pl-9', 'Ma playlist');
+
+        $this->assertSame(['mf-2', 'mf-1'], $result['track_ids']);
+        $this->assertSame(2, $result['track_count']);
+    }
+
+    public function testDeleteRefusesWhenTheNameDoesNotMatch(): void
+    {
+        $this->subsonic->method('findOwnedPlaylist')->willReturn(self::playlist('pl-9'));
+        $this->subsonic->expects($this->never())->method('deletePlaylist');
+
+        $this->expectException(ToolCallException::class);
+        $this->expectExceptionMessage('« Ma playlist », pas « ma playlist »');
+        $this->tools()->delete('pl-9', 'ma playlist');
+    }
+
+    public function testDeleteRefusesAGeneratedPlaylist(): void
+    {
+        $this->subsonic->method('findOwnedPlaylist')->willReturn(self::playlist('pl-1', 'Top du mois dernier'));
+        $this->subsonic->expects($this->never())->method('deletePlaylist');
+
+        $this->expectException(ToolCallException::class);
+        $this->expectExceptionMessage('Désactiver sa définition');
+        $this->tools()->delete('pl-1', 'Top du mois dernier');
+    }
+
+    public function testDeleteRefusesUnknownOrForeignPlaylist(): void
+    {
+        $this->subsonic->method('findOwnedPlaylist')->willReturn(null);
+        $this->subsonic->expects($this->never())->method('deletePlaylist');
+
+        $this->expectException(ToolCallException::class);
+        $this->tools()->delete('pl-x', 'Ma playlist');
+    }
+
+    public function testDeleteStopsAtTheWriteGuard(): void
+    {
+        $this->guard->method('assertCanWrite')->willThrowException(new ToolCallException('mcp_write'));
+        $this->subsonic->expects($this->never())->method('deletePlaylist');
+
+        $this->expectException(ToolCallException::class);
+        $this->tools()->delete('pl-9', 'Ma playlist');
+    }
+
     private function tools(): PlaylistTools
     {
         return new PlaylistTools($this->navidrome, $this->subsonic, $this->generator, $this->creator, $this->audioMuse, $this->guard);
@@ -153,11 +277,19 @@ class PlaylistToolsTest extends TestCase
     /**
      * @return array{id: string, name: string, owner: string, songCount: int, duration: int, public: bool, created: ?string, changed: ?string, comment: string}
      */
-    private static function playlist(string $id): array
+    private static function playlist(string $id, string $name = 'Ma playlist'): array
     {
         return [
-            'id' => $id, 'name' => 'Ma playlist', 'owner' => 'admin', 'songCount' => 4, 'duration' => 0,
+            'id' => $id, 'name' => $name, 'owner' => 'admin', 'songCount' => 4, 'duration' => 0,
             'public' => false, 'created' => null, 'changed' => null, 'comment' => '',
         ];
+    }
+
+    /**
+     * @return array{id: string, title: string, artist: string, album: string, duration: int, playCount: int, year: ?int, starred: ?string}
+     */
+    private static function track(string $id): array
+    {
+        return ['id' => $id, 'title' => 't', 'artist' => 'a', 'album' => 'b', 'duration' => 0, 'playCount' => 0, 'year' => null, 'starred' => null];
     }
 }

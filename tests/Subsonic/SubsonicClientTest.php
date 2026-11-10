@@ -291,6 +291,50 @@ class SubsonicClientTest extends TestCase
         $client->updatePlaylist('', comment: 'x');
     }
 
+    public function testDeletePlaylistSendsId(): void
+    {
+        $captured = null;
+        $http = new MockHttpClient(function (string $method, string $url) use (&$captured): MockResponse {
+            $captured = $url;
+
+            return new MockResponse($this->envelope(['status' => 'ok']));
+        });
+        $client = new SubsonicClient($http, 'http://nd:4533', 'admin', 'pwd');
+
+        $client->deletePlaylist('pl-9');
+
+        $this->assertNotNull($captured);
+        $this->assertStringContainsString('/rest/deletePlaylist.view?', $captured);
+        $this->assertStringContainsString('id=pl-9', $captured);
+    }
+
+    public function testDeletePlaylistRejectsEmptyId(): void
+    {
+        $client = new SubsonicClient(new MockHttpClient([]), 'http://nd:4533', 'admin', 'pwd');
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('non-empty playlistId');
+        $client->deletePlaylist('');
+    }
+
+    public function testFindOwnedPlaylistMatchesIdAndOwner(): void
+    {
+        $payload = $this->envelope([
+            'status' => 'ok',
+            'playlists' => [
+                'playlist' => [
+                    ['id' => 'pl-1', 'name' => 'A', 'owner' => 'someone-else'],
+                    ['id' => 'pl-2', 'name' => 'B', 'owner' => 'admin'],
+                ],
+            ],
+        ]);
+        $client = new SubsonicClient(new MockHttpClient([new MockResponse($payload), new MockResponse($payload)]), 'http://nd:4533', 'admin', 'pwd');
+
+        $this->assertSame('B', $client->findOwnedPlaylist('pl-2')['name'] ?? null);
+        // Another user's playlist is out of reach.
+        $this->assertNull($client->findOwnedPlaylist('pl-1'));
+    }
+
     public function testFindPlaylistByNameMatchesNameAndOwner(): void
     {
         $payload = $this->envelope([

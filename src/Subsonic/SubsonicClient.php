@@ -202,6 +202,41 @@ class SubsonicClient
     }
 
     /**
+     * Delete a playlist (Subsonic `deletePlaylist`). Irreversible; callers
+     * check ownership first (issue #305).
+     */
+    public function deletePlaylist(string $playlistId): void
+    {
+        if ($playlistId === '') {
+            throw new \RuntimeException('deletePlaylist requires a non-empty playlistId.');
+        }
+
+        $this->call('deletePlaylist', ['id' => $playlistId]);
+    }
+
+    /**
+     * Find one playlist owned by the configured user by its id. Returns the
+     * normalized {@see getPlaylists()} row, or null when the id is unknown
+     * or belongs to another user (issue #305).
+     *
+     * @return array{
+     *     id: string, name: string, owner: string,
+     *     songCount: int, duration: int, public: bool,
+     *     created: ?string, changed: ?string, comment: string
+     * }|null
+     */
+    public function findOwnedPlaylist(string $playlistId): ?array
+    {
+        foreach ($this->getPlaylists() as $p) {
+            if ($p['id'] === $playlistId && $p['owner'] === $this->user) {
+                return $p;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Find one playlist owned by the configured user whose name matches
      * exactly (case-sensitive, as Navidrome stores it). Returns the
      * normalized {@see getPlaylists()} row or null. Used by the generator

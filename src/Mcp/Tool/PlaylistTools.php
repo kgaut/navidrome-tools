@@ -114,14 +114,13 @@ class PlaylistTools
         if ($name === '' || mb_strlen($name) > self::MAX_NAME_LENGTH) {
             throw new ToolCallException(sprintf('name est obligatoire (%d caractères au plus).', self::MAX_NAME_LENGTH));
         }
-        foreach ($this->generator->listDefinitions() as $definition) {
-            if (mb_strtolower($definition['name']) === mb_strtolower($name)) {
-                throw new ToolCallException(sprintf(
-                    '« %s » est le nom d\'une playlist générée (%s) : elle serait écrasée au prochain cron. Choisir un autre nom.',
-                    $name,
-                    $definition['slug'],
-                ));
-            }
+        $definition = $this->generatedDefinitionNamed($name);
+        if ($definition !== null) {
+            throw new ToolCallException(sprintf(
+                '« %s » est le nom d\'une playlist générée (%s) : elle serait écrasée au prochain cron. Choisir un autre nom.',
+                $name,
+                $definition['slug'],
+            ));
         }
 
         $ids = [];
@@ -181,6 +180,104 @@ class PlaylistTools
      * @return array<string, mixed>
      */
     #[McpTool(
+        name: 'playlist_rename',
+        description: 'ÉCRITURE (scope mcp_write). Renomme une playlist Navidrome du compte configuré, désignée par son id '
+            . '(playlists_list → navidrome). name : nouveau nom, 100 caractères au plus. Refusé pour une playlist générée '
+            . '(le cron la retrouve par son nom et la recréerait), si le nouveau nom est celui d\'une playlist générée '
+            . '(elle serait écrasée au cron) ou d\'une autre playlist du compte. Le contenu n\'est pas modifié.',
+        annotations: new ToolAnnotations(readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false),
+    )]
+    public function rename(string $playlist_id, string $name): array
+    {
+        $this->guard->assertCanWrite();
+
+        $name = trim($name);
+        if ($name === '' || mb_strlen($name) > self::MAX_NAME_LENGTH) {
+            throw new ToolCallException(sprintf('name est obligatoire (%d caractères au plus).', self::MAX_NAME_LENGTH));
+        }
+        $playlist = $this->ownedPlaylist($playlist_id);
+        $this->assertNotGenerated($playlist, 'renommée');
+        if ($playlist['name'] === $name) {
+            return [
+                'id' => $playlist['id'],
+                'previous_name' => $playlist['name'],
+                'name' => $name,
+                'message' => sprintf('La playlist s\'appelle déjà « %s » : rien n\'a été modifié.', $name),
+            ];
+        }
+        $definition = $this->generatedDefinitionNamed($name);
+        if ($definition !== null) {
+            throw new ToolCallException(sprintf(
+                '« %s » est le nom d\'une playlist générée (%s) : elle serait écrasée au prochain cron. Choisir un autre nom.',
+                $name,
+                $definition['slug'],
+            ));
+        }
+        $homonym = $this->subsonic->findPlaylistByName($name);
+        if ($homonym !== null && $homonym['id'] !== $playlist['id']) {
+            throw new ToolCallException(sprintf(
+                'Une autre playlist s\'appelle déjà « %s » (id %s, %d morceaux) : choisir un autre nom.',
+                $name,
+                $homonym['id'],
+                $homonym['songCount'],
+            ));
+        }
+
+        $this->subsonic->updatePlaylist($playlist['id'], name: $name);
+
+        return [
+            'id' => $playlist['id'],
+            'previous_name' => $playlist['name'],
+            'name' => $name,
+            'message' => sprintf('Playlist « %s » renommée en « %s ».', $playlist['name'], $name),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    #[McpTool(
+        name: 'playlist_delete',
+        description: 'ÉCRITURE (scope mcp_write), IRRÉVERSIBLE. Supprime une playlist Navidrome du compte configuré, '
+            . 'désignée par son id (playlists_list → navidrome). name : son nom actuel, exact, vérifié avant suppression '
+            . '(garde contre un mauvais id). Refusé pour une playlist générée : le cron la recréerait, désactiver sa '
+            . 'définition à la place. Les morceaux eux-mêmes ne sont pas touchés. La réponse rend les ids des morceaux '
+            . '(track_ids, dans l\'ordre) et le commentaire, de quoi la recréer avec playlist_create.',
+        annotations: new ToolAnnotations(readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false),
+    )]
+    public function delete(string $playlist_id, string $name): array
+    {
+        $this->guard->assertCanWrite();
+
+        $name = trim($name);
+        $playlist = $this->ownedPlaylist($playlist_id);
+        if ($playlist['name'] !== $name) {
+            throw new ToolCallException(sprintf(
+                'La playlist %s s\'appelle « %s », pas « %s » : rien n\'a été supprimé. Vérifier l\'id avec playlists_list.',
+                $playlist['id'],
+                $playlist['name'],
+                $name,
+            ));
+        }
+        $this->assertNotGenerated($playlist, 'supprimée');
+
+        $trackIds = array_map(static fn (array $t): string => $t['id'], $this->subsonic->getPlaylist($playlist['id'])['tracks']);
+        $this->subsonic->deletePlaylist($playlist['id']);
+
+        return [
+            'id' => $playlist['id'],
+            'name' => $playlist['name'],
+            'comment' => $playlist['comment'],
+            'track_count' => count($trackIds),
+            'track_ids' => $trackIds,
+            'message' => sprintf('Playlist « %s » supprimée (%d morceaux).', $playlist['name'], count($trackIds)),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    #[McpTool(
         name: 'described_playlist_create',
         description: 'ÉCRITURE (scope mcp_write). Crée une playlist décrite par une phrase (query, 300 caractères au plus, '
             . 'ex. « piano calme pour travailler ») : AudioMuse cherche les morceaux qui y ressemblent (recherche CLAP). '
@@ -204,5 +301,55 @@ class PlaylistTools
             'name' => $playlist->getName(),
             'message' => sprintf('Playlist décrite « %s » enregistrée ; génération lancée en arrière-plan.', $playlist->getName()),
         ];
+    }
+
+    /**
+     * @return array{slug: string, name: string, description: string, enabled: bool}|null
+     */
+    private function generatedDefinitionNamed(string $name): ?array
+    {
+        foreach ($this->generator->listDefinitions() as $definition) {
+            if (mb_strtolower($definition['name']) === mb_strtolower($name)) {
+                return $definition;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{id: string, name: string, owner: string, songCount: int, duration: int, public: bool, created: ?string, changed: ?string, comment: string}
+     */
+    private function ownedPlaylist(string $playlistId): array
+    {
+        $playlistId = trim($playlistId);
+        if ($playlistId === '') {
+            throw new ToolCallException('playlist_id est obligatoire (id Navidrome, donné par playlists_list).');
+        }
+
+        return $this->subsonic->findOwnedPlaylist($playlistId) ?? throw new ToolCallException(sprintf(
+            'Aucune playlist d\'id « %s » sur le compte Navidrome configuré : rien n\'a été modifié. Les ids sont donnés par playlists_list.',
+            $playlistId,
+        ));
+    }
+
+    /**
+     * The generator finds its playlists by name: renamed or deleted, a
+     * generated playlist would be recreated by the next cron.
+     *
+     * @param array{id: string, name: string} $playlist
+     */
+    private function assertNotGenerated(array $playlist, string $action): void
+    {
+        $definition = $this->generatedDefinitionNamed($playlist['name']);
+        if ($definition !== null) {
+            throw new ToolCallException(sprintf(
+                '« %s » est une playlist générée (%s) : le cron la retrouve par son nom et la recréerait, elle ne peut pas être %s ici. '
+                . 'Désactiver sa définition à la place. Rien n\'a été modifié.',
+                $playlist['name'],
+                $definition['slug'],
+                $action,
+            ));
+        }
     }
 }
