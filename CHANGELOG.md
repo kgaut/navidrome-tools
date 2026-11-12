@@ -9,6 +9,8 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+## [1.13.0] - 2026-11-12
+
 ### Ajouté
 
 - **MCP : lire une playlist et chercher des morceaux proches** (issue #307).
@@ -535,7 +537,8 @@ L'ancienne POC reste accessible via le tag `poc-v0`.
   `BackupService`, sessions persistantes ; CI (phpcs, PHPStan, PHPUnit, lint
   Twig, build Docker).
 
-[Non publié]: https://github.com/kgaut/navidrome-tools/compare/1.12.0...HEAD
+[Non publié]: https://github.com/kgaut/navidrome-tools/compare/1.13.0...HEAD
+[1.13.0]: https://github.com/kgaut/navidrome-tools/compare/1.12.0...1.13.0
 [1.12.0]: https://github.com/kgaut/navidrome-tools/compare/1.11.1...1.12.0
 [1.11.1]: https://github.com/kgaut/navidrome-tools/compare/1.11.0...1.11.1
 [1.11.0]: https://github.com/kgaut/navidrome-tools/compare/1.10.1...1.11.0
