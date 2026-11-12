@@ -2,7 +2,9 @@
 
 namespace App\Tests\Mcp;
 
+use App\AudioMuse\AudioMuseAuthException;
 use App\AudioMuse\AudioMuseClient;
+use App\AudioMuse\AudioMuseNotFoundException;
 use App\Entity\DescribedPlaylist;
 use App\Exception\UserFacingException;
 use App\Mcp\McpWriteGuard;
@@ -269,6 +271,99 @@ class PlaylistToolsTest extends TestCase
         $this->tools()->delete('pl-9', 'Ma playlist');
     }
 
+    public function testGetRefusesAPlaylistThatIsNotVisible(): void
+    {
+        $this->subsonic->method('getPlaylists')->willReturn([self::playlist('pl-1')]);
+        $this->subsonic->expects($this->never())->method('getPlaylist');
+
+        $this->expectException(ToolCallException::class);
+        $this->expectExceptionMessage('playlists_list');
+        $this->tools()->get('pl-404');
+    }
+
+    public function testGetPagesTracksAndSummarizesTheWholePlaylist(): void
+    {
+        $this->subsonic->method('getPlaylists')->willReturn([self::playlist('pl-1')]);
+        $this->subsonic->method('getPlaylist')->with('pl-1')->willReturn(self::playlist('pl-1') + ['tracks' => [
+            ['artist' => 'B', 'year' => 1994] + self::track('mf-1'),
+            ['artist' => 'A', 'year' => 1971] + self::track('mf-2'),
+            ['artist' => 'B', 'year' => 2003] + self::track('mf-3'),
+            ['artist' => 'C', 'year' => 0] + self::track('mf-4'),
+        ]]);
+        $this->navidrome->expects($this->once())->method('getPlayCountsByMediaFileId')
+            ->with(['mf-2', 'mf-3'])->willReturn(['mf-2' => 7, 'mf-3' => 0]);
+
+        $result = $this->tools()->get(' pl-1 ', limit: 2, offset: 1);
+
+        $this->assertSame(4, $result['track_count']);
+        $this->assertSame(['mf-2', 'mf-3'], array_column($result['tracks'], 'id'));
+        $this->assertSame(7, $result['tracks'][0]['play_count']);
+        $this->assertSame(['artist' => 'B', 'track_count' => 2], $result['summary']['artists'][0]);
+        $this->assertSame(['min' => 1971, 'max' => 2003], $result['summary']['years']);
+        $this->assertSame(['1970s' => 1, '1990s' => 1, '2000s' => 1], $result['summary']['decades']);
+        $this->assertStringContainsString('offset', $result['message']);
+    }
+
+    public function testSimilarIsRefusedWithoutAudioMuse(): void
+    {
+        $this->audioMuse->method('isConfigured')->willReturn(false);
+        $this->audioMuse->expects($this->never())->method('similarTracks');
+
+        $this->expectException(ToolCallException::class);
+        $this->expectExceptionMessage('AUDIOMUSE_BASE_URL');
+        $this->tools()->similar(['mf-1']);
+    }
+
+    public function testSimilarMergesNeighboursExcludesSourcesAndRanksThem(): void
+    {
+        $this->audioMuse->method('isConfigured')->willReturn(true);
+        $this->audioMuse->method('similarTracks')->willReturnCallback(static fn (string $seed): array => match ($seed) {
+            'mf-1' => [
+                ['item_id' => 'mf-2', 'distance' => 0.1],
+                ['item_id' => 'x-near', 'distance' => 0.2],
+                ['item_id' => 'x-both', 'distance' => 0.5],
+                ['item_id' => 'x-banned', 'distance' => 0.05],
+            ],
+            'mf-2' => [
+                ['item_id' => 'x-both', 'distance' => 0.4],
+                ['item_id' => 'x-gone', 'distance' => 0.01],
+            ],
+            default => throw new AudioMuseNotFoundException('not analysed'),
+        });
+        $this->navidrome->expects($this->once())->method('getTrackSummaries')
+            ->with(['x-both', 'x-gone', 'x-near'])
+            ->willReturnCallback(static fn (array $ids): array => [
+                'x-both' => self::summary('x-both'),
+                'x-near' => self::summary('x-near'),
+            ]);
+
+        $result = $this->tools()->similar(['mf-1', 'mf-2', 'mf-new'], exclude_ids: ['x-banned']);
+
+        $this->assertSame(['x-both', 'x-near'], array_column($result['items'], 'id'));
+        $this->assertSame(2, $result['items'][0]['seed_count']);
+        $this->assertSame(0.4, $result['items'][0]['distance']);
+        $this->assertSame(['mf-new'], $result['seeds_not_analysed']);
+    }
+
+    public function testSimilarFailsLoudlyOnAudioMuseAuthErrors(): void
+    {
+        $this->audioMuse->method('isConfigured')->willReturn(true);
+        $this->audioMuse->method('similarTracks')->willThrowException(new AudioMuseAuthException('401'));
+
+        $this->expectException(ToolCallException::class);
+        $this->expectExceptionMessage('authentification');
+        $this->tools()->similar(['mf-1']);
+    }
+
+    public function testSimilarRefusesTooManySources(): void
+    {
+        $this->audioMuse->method('isConfigured')->willReturn(true);
+
+        $this->expectException(ToolCallException::class);
+        $this->expectExceptionMessage('50 au plus');
+        $this->tools()->similar(array_map(static fn (int $i): string => 'mf-' . $i, range(1, 51)));
+    }
+
     private function tools(): PlaylistTools
     {
         return new PlaylistTools($this->navidrome, $this->subsonic, $this->generator, $this->creator, $this->audioMuse, $this->guard);
@@ -283,6 +378,14 @@ class PlaylistToolsTest extends TestCase
             'id' => $id, 'name' => $name, 'owner' => 'admin', 'songCount' => 4, 'duration' => 0,
             'public' => false, 'created' => null, 'changed' => null, 'comment' => '',
         ];
+    }
+
+    /**
+     * @return array{id: string, title: string, artist: string, album: string, year: ?int, duration: int, play_count: int}
+     */
+    private static function summary(string $id): array
+    {
+        return ['id' => $id, 'title' => 't', 'artist' => 'a', 'album' => 'b', 'year' => null, 'duration' => 0, 'play_count' => 0];
     }
 
     /**

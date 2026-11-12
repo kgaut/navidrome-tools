@@ -7,7 +7,8 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * {@see NavidromeRepository::searchMediaFiles()} (issue #276, MCP
- * `library_search`) against a real SQLite media_file table.
+ * `library_search`) and {@see NavidromeRepository::getTrackSummaries()}
+ * (issue #307, `library_similar`) against a real SQLite media_file table.
  */
 class NavidromeSearchTest extends TestCase
 {
@@ -63,5 +64,15 @@ class NavidromeSearchTest extends TestCase
         $karma = $this->repo->searchMediaFiles(null, null, 'karma', null, 10)['items'][0];
         $this->assertSame(2, $karma['play_count']);
         $this->assertNull($karma['year']);
+    }
+
+    public function testTrackSummariesAreKeyedByIdAndSkipUnknownIds(): void
+    {
+        $result = $this->repo->getTrackSummaries(['mf-2', 'nope', 'mf-3', 'mf-2', '']);
+
+        $this->assertEqualsCanonicalizing(['mf-2', 'mf-3'], array_keys($result));
+        $this->assertSame('Karma Police', $result['mf-2']['title']);
+        $this->assertSame(2, $result['mf-2']['play_count']);
+        $this->assertSame([], $this->repo->getTrackSummaries([]));
     }
 }

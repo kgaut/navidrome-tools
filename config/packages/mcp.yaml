@@ -8,8 +8,10 @@ mcp:
                 Outils de navidrome-tools : statistiques d'écoute (Navidrome et Last.fm), matching des scrobbles Last.fm
                 vers la bibliothèque Navidrome, réconciliation (alias, nouvelle tentative) et playlists écrites dans
                 Navidrome. Pour une playlist à partir de morceaux précis : library_search ou stats_top pour obtenir les
-                ids, puis playlist_create. Pour une ambiance décrite en mots : described_playlist_create. Les outils
-                marqués ÉCRITURE exigent le scope mcp_write.
+                ids, puis playlist_create. Pour une playlist inspirée d'une autre : playlist_get (morceaux et profil de la
+                source), puis library_similar (morceaux proches, AudioMuse) ou library_search sur ses artistes, puis
+                playlist_create. Pour une ambiance décrite en mots : described_playlist_create. Les outils marqués
+                ÉCRITURE exigent le scope mcp_write.
             registry: 'App\Mcp\'
             http:
                 path: /mcp

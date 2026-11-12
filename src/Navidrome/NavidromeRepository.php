@@ -2761,21 +2761,67 @@ class NavidromeRepository implements ResetInterface
             $types,
         );
 
+        return [
+            'total' => $total,
+            'items' => $this->trackSummaries($rows),
+        ];
+    }
+
+    /**
+     * Same track rows as {@see searchMediaFiles()} for a given set of ids,
+     * keyed by id. Unknown ids and files flagged missing are left out
+     * (issue #307).
+     *
+     * @param list<string> $ids
+     *
+     * @return array<string, array{id: string, title: string, artist: string, album: string, year: ?int, duration: int, play_count: int}>
+     */
+    public function getTrackSummaries(array $ids): array
+    {
+        $ids = array_values(array_unique(array_filter($ids, static fn (string $i): bool => $i !== '')));
+        if ($ids === []) {
+            return [];
+        }
+
+        $missing = in_array('missing', $this->mediaFileColumns(), true) ? ' AND (mf.missing IS NULL OR mf.missing = 0)' : '';
+        $out = [];
+        foreach (array_chunk($ids, 500) as $chunk) {
+            /** @var list<array<string, mixed>> $rows */
+            $rows = $this->connection()->fetchAllAssociative(
+                sprintf(
+                    'SELECT mf.id, mf.title, mf.artist, mf.album, mf.year, mf.duration FROM media_file mf WHERE mf.id IN (%s)%s',
+                    implode(',', array_fill(0, count($chunk), '?')),
+                    $missing,
+                ),
+                $chunk,
+            );
+            foreach ($this->trackSummaries($rows) as $item) {
+                $out[$item['id']] = $item;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows media_file rows (id, title, artist, album, year, duration)
+     *
+     * @return list<array{id: string, title: string, artist: string, album: string, year: ?int, duration: int, play_count: int}>
+     */
+    private function trackSummaries(array $rows): array
+    {
         $ids = array_map(static fn (array $r): string => (string) $r['id'], $rows);
         $plays = $this->getPlayCountsByMediaFileId($ids);
 
-        return [
-            'total' => $total,
-            'items' => array_map(static fn (array $r): array => [
-                'id' => (string) $r['id'],
-                'title' => (string) ($r['title'] ?? ''),
-                'artist' => (string) ($r['artist'] ?? ''),
-                'album' => (string) ($r['album'] ?? ''),
-                'year' => isset($r['year']) && (int) $r['year'] > 0 ? (int) $r['year'] : null,
-                'duration' => (int) ($r['duration'] ?? 0),
-                'play_count' => (int) ($plays[(string) $r['id']] ?? 0),
-            ], $rows),
-        ];
+        return array_map(static fn (array $r): array => [
+            'id' => (string) $r['id'],
+            'title' => (string) ($r['title'] ?? ''),
+            'artist' => (string) ($r['artist'] ?? ''),
+            'album' => (string) ($r['album'] ?? ''),
+            'year' => isset($r['year']) && (int) $r['year'] > 0 ? (int) $r['year'] : null,
+            'duration' => (int) ($r['duration'] ?? 0),
+            'play_count' => (int) ($plays[(string) $r['id']] ?? 0),
+        ], $rows);
     }
 
     /**
