@@ -335,6 +335,7 @@ chez le client. Scopes : `mcp` (lecture) et `mcp_write` (outils d'écriture).
 | `stats_overview`, `stats_daily`, `stats_top` | statistiques d'écoute (Navidrome, Last.fm) |
 | `matching_summary`, `unmatched_list`, `unmatched_diagnose` | état du matching, non-matchés et diagnostic |
 | `library_search`, `playlists_list` | recherche dans la bibliothèque (ids), playlists connues |
+| `playlist_get`, `library_similar` | contenu et profil d'une playlist ; morceaux proches d'une liste d'ids (AudioMuse) |
 | `playlist_create` ✍️ | playlist Navidrome à partir d'une liste d'ids |
 | `playlist_rename`, `playlist_delete` ✍️ | renommer / supprimer une playlist Navidrome du compte (pas une playlist générée) |
 | `described_playlist_create` ✍️ | playlist décrite par une phrase (AudioMuse), régénérée par le cron |

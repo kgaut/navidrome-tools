@@ -2,7 +2,10 @@
 
 namespace App\Mcp\Tool;
 
+use App\AudioMuse\AudioMuseAuthException;
 use App\AudioMuse\AudioMuseClient;
+use App\AudioMuse\AudioMuseException;
+use App\AudioMuse\AudioMuseNotFoundException;
 use App\Mcp\McpToolSupport;
 use App\Mcp\McpWriteGuard;
 use App\Navidrome\NavidromeRepository;
@@ -24,6 +27,11 @@ class PlaylistTools
     private const MAX_SEARCH = 100;
     private const MAX_PLAYLIST_TRACKS = 500;
     private const MAX_NAME_LENGTH = 100;
+    private const MAX_PLAYLIST_PAGE = 500;
+    private const MAX_SUMMARY_ARTISTS = 15;
+    private const MAX_SIMILAR_SEEDS = 50;
+    private const MAX_SIMILAR_PER_TRACK = 50;
+    private const MAX_SIMILAR_RESULTS = 200;
 
     public function __construct(
         private readonly NavidromeRepository $navidrome,
@@ -87,6 +95,158 @@ class PlaylistTools
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    #[McpTool(
+        name: 'playlist_get',
+        description: 'Contenu d\'une playlist Navidrome désignée par son id (playlists_list → navidrome) : nom, '
+            . 'commentaire, propriétaire, nombre de morceaux, durée (s), et ses morceaux dans l\'ordre (id, titre, artiste, '
+            . 'album, année, durée, nombre d\'écoutes), paginés par limit (100 par défaut, ramené à 500) et offset. '
+            . 'summary porte sur toute la playlist : artistes les plus présents (nombre de morceaux), années min/max, '
+            . 'morceaux par décennie. Pour une playlist inspirée d\'une autre : passer ses ids à library_similar, ou '
+            . 'chercher ses artistes avec library_search, puis playlist_create.',
+        annotations: new ToolAnnotations(readOnlyHint: true, openWorldHint: false),
+    )]
+    public function get(string $playlist_id, int $limit = 100, int $offset = 0): array
+    {
+        $playlistId = trim($playlist_id);
+        if ($playlistId === '') {
+            throw new ToolCallException('playlist_id est obligatoire (id Navidrome, donné par playlists_list).');
+        }
+        $known = array_filter($this->subsonic->getPlaylists(), static fn (array $p): bool => $p['id'] === $playlistId);
+        if ($known === []) {
+            throw new ToolCallException(sprintf(
+                'Aucune playlist d\'id « %s » visible du compte Navidrome configuré. Les ids sont donnés par playlists_list.',
+                $playlistId,
+            ));
+        }
+
+        $playlist = $this->subsonic->getPlaylist($playlistId);
+        $tracks = $playlist['tracks'];
+        $limit = self::clamp($limit, self::MAX_PLAYLIST_PAGE);
+        $offset = max(0, $offset);
+        $page = array_slice($tracks, $offset, $limit);
+        $plays = $this->navidrome->getPlayCountsByMediaFileId(array_map(static fn (array $t): string => $t['id'], $page));
+
+        return [
+            'id' => $playlist['id'],
+            'name' => $playlist['name'],
+            'comment' => $playlist['comment'],
+            'owner' => $playlist['owner'],
+            'track_count' => count($tracks),
+            'duration' => $playlist['duration'],
+            'summary' => self::summarize($tracks),
+            'limit' => $limit,
+            'offset' => $offset,
+            'tracks' => array_map(static fn (array $t): array => [
+                'id' => $t['id'],
+                'title' => $t['title'],
+                'artist' => $t['artist'],
+                'album' => $t['album'],
+                'year' => $t['year'] !== null && $t['year'] > 0 ? $t['year'] : null,
+                'duration' => $t['duration'],
+                'play_count' => (int) ($plays[$t['id']] ?? 0),
+            ], $page),
+            'message' => self::limitNote(count($page), $limit, count($tracks)),
+        ];
+    }
+
+    /**
+     * @param list<string>      $track_ids
+     * @param list<string>|null $exclude_ids
+     *
+     * @return array<string, mixed>
+     */
+    #[McpTool(
+        name: 'library_similar',
+        description: 'Morceaux de la bibliothèque proches sonorement d\'une liste de morceaux (track_ids : 1 à 50, ceux '
+            . 'd\'une playlist via playlist_get par exemple), selon AudioMuse. Les voisins de chaque morceau (per_track, '
+            . '10 par défaut, ramené à 50) sont fusionnés et classés : d\'abord les morceaux proches de plusieurs sources '
+            . '(seed_count), puis par distance croissante. Les ids sources et exclude_ids sont écartés. Rend jusqu\'à limit '
+            . 'morceaux (50 par défaut, ramené à 200) détaillés comme library_search, à passer à playlist_create. '
+            . 'seeds_not_analysed : sources pas encore analysées par AudioMuse. Refusé si AudioMuse n\'est pas configuré.',
+        annotations: new ToolAnnotations(readOnlyHint: true, openWorldHint: true),
+    )]
+    public function similar(
+        #[Schema(items: ['type' => 'string'], minItems: 1)]
+        array $track_ids,
+        int $per_track = 10,
+        int $limit = 50,
+        #[Schema(items: ['type' => 'string'])]
+        ?array $exclude_ids = null,
+    ): array {
+        if (!$this->audioMuse->isConfigured()) {
+            throw new ToolCallException('AudioMuse n\'est pas configuré sur cette instance (AUDIOMUSE_BASE_URL) : recherche de morceaux proches impossible.');
+        }
+        $seeds = self::idList($track_ids, 'track_ids');
+        if ($seeds === []) {
+            throw new ToolCallException('track_ids est vide.');
+        }
+        if (count($seeds) > self::MAX_SIMILAR_SEEDS) {
+            throw new ToolCallException(sprintf('Trop de morceaux sources : %d au plus.', self::MAX_SIMILAR_SEEDS));
+        }
+        $perTrack = self::clamp($per_track, self::MAX_SIMILAR_PER_TRACK);
+        $limit = self::clamp($limit, self::MAX_SIMILAR_RESULTS);
+        $excluded = array_fill_keys([...$seeds, ...self::idList($exclude_ids ?? [], 'exclude_ids')], true);
+
+        /** @var array<string, array{seed_count: int, distance: float}> $candidates */
+        $candidates = [];
+        $notAnalysed = [];
+        $failed = [];
+        foreach ($seeds as $seed) {
+            try {
+                $neighbours = $this->audioMuse->similarTracks($seed, $perTrack);
+            } catch (AudioMuseAuthException $e) {
+                throw new ToolCallException('AudioMuse refuse l\'authentification : vérifier sa configuration. ' . $e->getMessage(), 0, $e);
+            } catch (AudioMuseNotFoundException) {
+                $notAnalysed[] = $seed;
+                continue;
+            } catch (AudioMuseException) {
+                $failed[] = $seed;
+                continue;
+            }
+            foreach ($neighbours as $row) {
+                $id = $row['item_id'];
+                if (isset($excluded[$id])) {
+                    continue;
+                }
+                $candidates[$id] ??= ['seed_count' => 0, 'distance' => $row['distance']];
+                $candidates[$id]['seed_count']++;
+                $candidates[$id]['distance'] = min($candidates[$id]['distance'], $row['distance']);
+            }
+        }
+        if ($failed !== [] && count($failed) === count($seeds)) {
+            throw new ToolCallException('AudioMuse n\'a répondu pour aucun des morceaux sources : réessayer plus tard.');
+        }
+
+        uksort($candidates, static fn (string $a, string $b): int => [$candidates[$b]['seed_count'], $candidates[$a]['distance']]
+            <=> [$candidates[$a]['seed_count'], $candidates[$b]['distance']]);
+        // AudioMuse may know files Navidrome dropped since: keep only those still in the library.
+        $known = $this->navidrome->getTrackSummaries(array_map('strval', array_keys($candidates)));
+        $items = [];
+        foreach ($candidates as $id => $score) {
+            if (!isset($known[$id])) {
+                continue;
+            }
+            $items[] = $known[$id] + ['seed_count' => $score['seed_count'], 'distance' => round($score['distance'], 4)];
+            if (count($items) >= $limit) {
+                break;
+            }
+        }
+
+        return [
+            'per_track' => $perTrack,
+            'limit' => $limit,
+            'items' => $items,
+            'seeds_not_analysed' => $notAnalysed,
+            'seeds_failed' => $failed,
+            'message' => self::limitNote(count($items), $limit)
+                . ($notAnalysed !== [] ? sprintf(' %d source(s) pas encore analysée(s) par AudioMuse.', count($notAnalysed)) : '')
+                . ($failed !== [] ? sprintf(' %d source(s) ignorée(s) : AudioMuse en erreur.', count($failed)) : ''),
+        ];
+    }
+
+    /**
      * @param list<string> $track_ids
      *
      * @return array<string, mixed>
@@ -123,14 +283,7 @@ class PlaylistTools
             ));
         }
 
-        $ids = [];
-        foreach ($track_ids as $id) {
-            if (!is_string($id) || trim($id) === '') {
-                throw new ToolCallException('track_ids ne doit contenir que des chaînes non vides.');
-            }
-            $ids[trim($id)] = true;
-        }
-        $ids = array_keys($ids);
+        $ids = self::idList($track_ids, 'track_ids');
         if ($ids === []) {
             throw new ToolCallException('track_ids est vide.');
         }
@@ -301,6 +454,66 @@ class PlaylistTools
             'name' => $playlist->getName(),
             'message' => sprintf('Playlist décrite « %s » enregistrée ; génération lancée en arrière-plan.', $playlist->getName()),
         ];
+    }
+
+    /**
+     * Whole-playlist profile, to draw inspiration without paging through it.
+     *
+     * @param list<array{artist: string, year: ?int}> $tracks
+     *
+     * @return array{artists: list<array{artist: string, track_count: int}>, years: array{min: ?int, max: ?int}, decades: array<string, int>}
+     */
+    private static function summarize(array $tracks): array
+    {
+        $artists = [];
+        $years = [];
+        foreach ($tracks as $t) {
+            $artist = trim($t['artist']);
+            if ($artist !== '') {
+                $artists[$artist] = ($artists[$artist] ?? 0) + 1;
+            }
+            if ($t['year'] !== null && $t['year'] > 0) {
+                $years[] = $t['year'];
+            }
+        }
+        uksort($artists, static fn (string $a, string $b): int => [$artists[$b], $a] <=> [$artists[$a], $b]);
+        $decades = [];
+        foreach ($years as $year) {
+            $decade = sprintf('%ds', intdiv($year, 10) * 10);
+            $decades[$decade] = ($decades[$decade] ?? 0) + 1;
+        }
+        ksort($decades);
+        $top = [];
+        foreach (array_slice($artists, 0, self::MAX_SUMMARY_ARTISTS, true) as $name => $count) {
+            $top[] = ['artist' => (string) $name, 'track_count' => $count];
+        }
+
+        return [
+            'artists' => $top,
+            'years' => ['min' => $years === [] ? null : min($years), 'max' => $years === [] ? null : max($years)],
+            'decades' => $decades,
+        ];
+    }
+
+    /**
+     * Trimmed, de-duplicated list of ids, in the given order.
+     *
+     * @param array<mixed> $ids
+     *
+     * @return list<string>
+     */
+    private static function idList(array $ids, string $field): array
+    {
+        $out = [];
+        foreach ($ids as $id) {
+            if (!is_string($id) || trim($id) === '') {
+                throw new ToolCallException(sprintf('%s ne doit contenir que des chaînes non vides.', $field));
+            }
+            $out[trim($id)] = true;
+        }
+
+        // array_keys() turns numeric-string keys into ints: cast them back.
+        return array_map('strval', array_keys($out));
     }
 
     /**

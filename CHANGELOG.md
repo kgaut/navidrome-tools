@@ -9,6 +9,15 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+### Ajouté
+
+- **MCP : lire une playlist et chercher des morceaux proches** (issue #307).
+  Nouveaux outils de lecture : `playlist_get` rend le contenu d'une playlist
+  Navidrome (paginé) et son profil (artistes les plus présents, années,
+  décennies). `library_similar` propose les morceaux proches sonorement d'une
+  liste d'ids (AudioMuse), fusionnés et classés, sources exclues. De quoi créer
+  une playlist inspirée d'une autre avec `playlist_create`.
+
 ## [1.12.0] - 2026-11-10
 
 ### Ajouté
