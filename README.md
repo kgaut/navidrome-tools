@@ -208,7 +208,7 @@ d'environnement Docker en prod) :
 
 | Variable | Défaut | Description |
 |---|---|---|
-| `LASTFM_API_KEY` / `LASTFM_API_SECRET` | — | clés API (https://www.last.fm/api) |
+| `LASTFM_API_KEY` / `LASTFM_API_SECRET` | — | clés API (https://www.last.fm/api) ; **abonnement Last.fm Pro requis** depuis le 01/12/2026 |
 | `LASTFM_USER` | — | utilisateur Last.fm par défaut |
 | `LASTFM_PAGE_DELAY_SECONDS` | `10` | délai entre pages (rate limit) |
 | `LASTFM_FUZZY_MAX_DISTANCE` | `0` | distance Levenshtein du matching fuzzy (0 = désactivé) |

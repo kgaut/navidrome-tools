@@ -3,11 +3,13 @@
 namespace App\Tests\LastFm;
 
 use App\LastFm\LastFmClient;
+use App\LastFm\LastFmKeyRejectedException;
 use App\LastFm\LastFmScrobble;
 use App\LastFm\LastFmTrackInfo;
 use App\LastFm\MatchResult;
 use App\LastFm\ScrobbleMatcher;
 use App\Navidrome\NavidromeRepository;
+use App\Repository\LastFmMatchCacheRepository;
 use App\Tests\Navidrome\NavidromeFixtureFactory;
 use PHPUnit\Framework\TestCase;
 
@@ -105,6 +107,40 @@ class ScrobbleMatcherCorrectionTest extends TestCase
         $result = $matcher->match($this->scrobble('Nobody', 'Nothing'));
 
         $this->assertSame(MatchResult::STATUS_UNMATCHED, $result->status);
+    }
+
+    public function testRejectedKeySkipsLastFmStepWithoutCachingNegative(): void
+    {
+        // #309: once Last.fm refuses the key, local matching keeps working,
+        // Last.fm is not asked again, and misses are not memoized (they
+        // were not checked against Last.fm).
+        $navidrome = $this->seed([
+            ['id' => 'mf-1', 'title' => 'Get Lucky', 'artist' => 'Daft Punk'],
+        ]);
+
+        $client = $this->createMock(LastFmClient::class);
+        $client->expects($this->once())
+            ->method('trackGetCorrection')
+            ->willThrowException(new LastFmKeyRejectedException(10, 'Invalid API key'));
+        $client->expects($this->never())->method('trackGetInfo');
+
+        $cache = $this->createMock(LastFmMatchCacheRepository::class);
+        $cache->method('findByCouple')->willReturn(null);
+        $cache->expects($this->never())->method('recordNegative');
+        $cache->expects($this->once())->method('recordPositive');
+
+        $matcher = new ScrobbleMatcher(
+            navidrome: $navidrome,
+            cacheRepository: $cache,
+            lastFmClient: $client,
+            lastFmApiKey: 'k',
+        );
+
+        $this->assertSame(MatchResult::STATUS_UNMATCHED, $matcher->match($this->scrobble('Nobody', 'Nothing'))->status);
+        $this->assertSame(MatchResult::STATUS_UNMATCHED, $matcher->match($this->scrobble('Someone', 'Else'))->status);
+        $matched = $matcher->match($this->scrobble('Daft Punk', 'Get Lucky'));
+        $this->assertSame(MatchResult::STATUS_MATCHED, $matched->status);
+        $this->assertSame('mf-1', $matched->mediaFileId);
     }
 
     private function scrobble(string $artist, string $title): LastFmScrobble

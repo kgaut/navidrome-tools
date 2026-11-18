@@ -184,9 +184,13 @@ class LastFmClient
             ]);
             $body = $response->toArray(throw: true);
         } catch (\Throwable $e) {
-            throw new \RuntimeException('Last.fm auth.getMobileSession failed: ' . SecretRedactor::redact($e->getMessage()), 0, $e);
+            throw $this->rejectedKeyFrom($e)
+                ?? new \RuntimeException('Last.fm auth.getMobileSession failed: ' . SecretRedactor::redact($e->getMessage()), 0, $e);
         }
 
+        if (isset($body['error']) && LastFmKeyRejectedException::isKeyRejectedCode((int) $body['error'])) {
+            throw new LastFmKeyRejectedException((int) $body['error'], (string) ($body['message'] ?? 'unknown'));
+        }
         if (isset($body['error'])) {
             throw new \RuntimeException(sprintf(
                 'Last.fm auth error %s: %s',
@@ -331,9 +335,12 @@ class LastFmClient
             ]);
             $body = $response->toArray(throw: true);
         } catch (\Throwable $e) {
-            throw new \RuntimeException(sprintf('Last.fm %s failed for "%s — %s": %s', $method, $artist, $title, SecretRedactor::redact($e->getMessage())), 0, $e);
+            throw $this->rejectedKeyFrom($e) ?? new \RuntimeException(sprintf('Last.fm %s failed for "%s — %s": %s', $method, $artist, $title, SecretRedactor::redact($e->getMessage())), 0, $e);
         }
 
+        if (isset($body['error']) && LastFmKeyRejectedException::isKeyRejectedCode((int) $body['error'])) {
+            throw new LastFmKeyRejectedException((int) $body['error'], (string) ($body['message'] ?? 'unknown'));
+        }
         if (isset($body['error'])) {
             throw new \RuntimeException(sprintf('Last.fm %s error %s: %s', $method, $body['error'], $body['message'] ?? 'unknown'));
         }
@@ -355,6 +362,13 @@ class LastFmClient
                 $body = $response->toArray(throw: true);
                 break;
             } catch (\Throwable $e) {
+                // A refused key comes back as an HTTP 4xx whose JSON body
+                // carries the Last.fm error code: surface it as such rather
+                // than as an opaque request failure (#309). Never retried.
+                $rejected = $this->rejectedKeyFrom($e);
+                if ($rejected !== null) {
+                    throw $rejected;
+                }
                 if ($attempt < self::MAX_ATTEMPTS && $this->isTransientHttpError($e)) {
                     if ($this->pageDelaySeconds > 0) {
                         sleep($this->pageDelaySeconds);
@@ -372,10 +386,32 @@ class LastFmClient
         }
 
         if (isset($body['error'])) {
-            throw new LastFmApiException((int) $body['error'], (string) ($body['message'] ?? 'unknown'));
+            throw LastFmApiException::fromError((int) $body['error'], (string) ($body['message'] ?? 'unknown'));
         }
 
         return $body;
+    }
+
+    /**
+     * Last.fm answers a refused key with an HTTP error status *and* a JSON
+     * body `{"error": 10|26, "message": …}`. The HTTP client throws on the
+     * status before the body is read, so read it here (#309).
+     */
+    private function rejectedKeyFrom(\Throwable $e): ?LastFmKeyRejectedException
+    {
+        if (!$e instanceof HttpExceptionInterface) {
+            return null;
+        }
+        try {
+            $body = json_decode($e->getResponse()->getContent(false), true);
+        } catch (\Throwable) {
+            return null;
+        }
+        if (!is_array($body) || !isset($body['error']) || !LastFmKeyRejectedException::isKeyRejectedCode((int) $body['error'])) {
+            return null;
+        }
+
+        return new LastFmKeyRejectedException((int) $body['error'], (string) ($body['message'] ?? 'unknown'));
     }
 
     private function isTransientHttpError(\Throwable $e): bool

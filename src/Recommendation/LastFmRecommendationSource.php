@@ -4,6 +4,7 @@ namespace App\Recommendation;
 
 use App\LastFm\LastFmApiException;
 use App\LastFm\LastFmClient;
+use App\LastFm\LastFmKeyRejectedException;
 
 /**
  * Last.fm `artist.getSimilar` recommendation source. For each seed artist we
@@ -46,6 +47,10 @@ final class LastFmRecommendationSource implements RecommendationSourceInterface
         foreach ($seeds as $seed) {
             try {
                 $similar = $this->client->artistGetSimilar($this->apiKey, $seed->name, $this->perSeedLimit);
+            } catch (LastFmKeyRejectedException) {
+                // Refused key (#309): every other seed would fail the same
+                // way. Give up on this source only — the others still run.
+                break;
             } catch (LastFmApiException) {
                 // A bad / unknown seed name shouldn't abort the whole run.
                 continue;

@@ -9,6 +9,16 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+### Corrigé
+
+- **Last.fm : clé d'API refusée gérée proprement** (issue #309). Depuis le
+  1er décembre 2026, une clé d'API Last.fm exige un abonnement Last.fm Pro.
+  Une clé refusée (erreurs 10 et 26, y compris en HTTP 403) lève désormais une
+  erreur explicite, sans retry Messenger (un seul run en échec, une seule
+  notification). Le matching continue sans l'étape de correction Last.fm et
+  n'enregistre pas de faux négatifs en cache ; la source de recommandation
+  Last.fm s'arrête, les autres continuent.
+
 ## [1.13.0] - 2026-11-12
 
 ### Ajouté
