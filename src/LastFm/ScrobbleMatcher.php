@@ -37,6 +37,16 @@ use App\Repository\LastFmMatchCacheRepository;
  */
 class ScrobbleMatcher
 {
+    /**
+     * Set once Last.fm refuses the API key (#309): the correction step is
+     * then skipped for the rest of the process (the worker restarts hourly,
+     * so a subscription taken later is picked up without manual action).
+     */
+    private bool $lastFmKeyRejected = false;
+
+    /** Whether the cascade of the current match() skipped the Last.fm step on a refused key. */
+    private bool $lastFmStepSkipped = false;
+
     public function __construct(
         private readonly NavidromeRepository $navidrome,
         private readonly ?LastFmAliasRepository $aliasRepository = null,
@@ -131,6 +141,7 @@ class ScrobbleMatcher
         }
 
         $cacheStatus = $this->cacheRepository !== null ? MatchResult::CACHE_MISS : null;
+        $this->lastFmStepSkipped = false;
         [$mfid, $strategy] = $this->runCascade($scrobble);
 
         if ($mfid !== null && $strategy !== null) {
@@ -139,7 +150,11 @@ class ScrobbleMatcher
             return MatchResult::matched($mfid, $strategy, $cacheStatus);
         }
 
-        $this->cacheRepository?->recordNegative($scrobble->artist, $scrobble->title);
+        // A miss without the Last.fm step is not a real negative: don't
+        // memoize it, so the full cascade runs again once the key works.
+        if (!$this->lastFmStepSkipped) {
+            $this->cacheRepository?->recordNegative($scrobble->artist, $scrobble->title);
+        }
 
         return MatchResult::unmatched($cacheStatus);
     }
@@ -150,7 +165,11 @@ class ScrobbleMatcher
      * strategy string matches one of `LastFmMatchCacheEntry::STRATEGY_*`
      * so `match()` can persist it as-is.
      *
+     * Impure: it flags {@see $lastFmStepSkipped} for the caller.
+     *
      * @return array{0: ?string, 1: ?string}
+     *
+     * @phpstan-impure
      */
     private function runCascade(LastFmScrobble $scrobble): array
     {
@@ -166,47 +185,19 @@ class ScrobbleMatcher
         // that don't configure the client don't make HTTP calls. Negative
         // results get cached (in the caller) so we don't re-query on every
         // rematch run — that's what makes #17 scale beyond the rate limit.
-        if ($this->lastFmClient !== null && $this->lastFmApiKey !== null && $this->lastFmApiKey !== '') {
-            // (1) Light first probe : `track.getCorrection` returns ONLY
-            //     the autocorrected spelling — a much smaller payload than
-            //     `track.getInfo`. Most step-7 recoveries are spelling
-            //     corrections, so this resolves the common case without
-            //     ever paying for the heavy call.
-            $correction = $this->lastFmClient->trackGetCorrection(
-                $this->lastFmApiKey,
-                $scrobble->artist,
-                $scrobble->title,
-            );
-            if ($correction->hasCorrection()) {
-                $result = $this->runCorrectedDbCascade($scrobble, $correction);
+        if ($this->lastFmKeyRejected) {
+            $this->lastFmStepSkipped = true;
+        } elseif ($this->lastFmClient !== null && $this->lastFmApiKey !== null && $this->lastFmApiKey !== '') {
+            try {
+                $result = $this->runLastFmCorrection($scrobble);
                 if ($result[0] !== null) {
                     return $result;
                 }
-            }
-
-            // (2) Fallback : `track.getInfo` for the MBID path that
-            //     getCorrection cannot provide (Last.fm sometimes maps the
-            //     scrobble's recording-MBID to the canonical track-MBID),
-            //     plus its own correction in the rarer case getInfo's
-            //     autocorrect succeeds where getCorrection returned nothing.
-            $info = $this->lastFmClient->trackGetInfo(
-                $this->lastFmApiKey,
-                $scrobble->artist,
-                $scrobble->title,
-            );
-            if ($info->hasMbid()) {
-                /** @var string $mbid (hasMbid() guards against null/empty) */
-                $mbid = $info->mbid;
-                $mfid = $this->navidrome->findMediaFileByMbid($mbid);
-                if ($mfid !== null) {
-                    return [$mfid, LastFmMatchCacheEntry::STRATEGY_LASTFM_CORRECTION];
-                }
-            }
-            if ($info->hasCorrection()) {
-                $result = $this->runCorrectedDbCascade($scrobble, $info);
-                if ($result[0] !== null) {
-                    return $result;
-                }
+            } catch (LastFmKeyRejectedException) {
+                // Refused key (Last.fm Pro required since 2026-12-01): the
+                // local steps keep working, only this one is lost.
+                $this->lastFmKeyRejected = true;
+                $this->lastFmStepSkipped = true;
             }
         }
 
@@ -219,6 +210,65 @@ class ScrobbleMatcher
             );
             if ($mfid !== null) {
                 return [$mfid, LastFmMatchCacheEntry::STRATEGY_FUZZY];
+            }
+        }
+
+        return [null, null];
+    }
+
+    /**
+     * Step 7 of the cascade: ask Last.fm for the canonical spelling (and
+     * MBID) of the scrobble, then re-run the local lookups against it.
+     *
+     * @return array{0: ?string, 1: ?string}
+     *
+     * @throws LastFmKeyRejectedException when Last.fm refuses the API key
+     */
+    private function runLastFmCorrection(LastFmScrobble $scrobble): array
+    {
+        /** @var LastFmClient $client */
+        $client = $this->lastFmClient;
+        $apiKey = (string) $this->lastFmApiKey;
+
+        // (1) Light first probe : `track.getCorrection` returns ONLY
+        //     the autocorrected spelling — a much smaller payload than
+        //     `track.getInfo`. Most step-7 recoveries are spelling
+        //     corrections, so this resolves the common case without
+        //     ever paying for the heavy call.
+        $correction = $client->trackGetCorrection(
+            $apiKey,
+            $scrobble->artist,
+            $scrobble->title,
+        );
+        if ($correction->hasCorrection()) {
+            $result = $this->runCorrectedDbCascade($scrobble, $correction);
+            if ($result[0] !== null) {
+                return $result;
+            }
+        }
+
+        // (2) Fallback : `track.getInfo` for the MBID path that
+        //     getCorrection cannot provide (Last.fm sometimes maps the
+        //     scrobble's recording-MBID to the canonical track-MBID),
+        //     plus its own correction in the rarer case getInfo's
+        //     autocorrect succeeds where getCorrection returned nothing.
+        $info = $client->trackGetInfo(
+            $apiKey,
+            $scrobble->artist,
+            $scrobble->title,
+        );
+        if ($info->hasMbid()) {
+            /** @var string $mbid (hasMbid() guards against null/empty) */
+            $mbid = $info->mbid;
+            $mfid = $this->navidrome->findMediaFileByMbid($mbid);
+            if ($mfid !== null) {
+                return [$mfid, LastFmMatchCacheEntry::STRATEGY_LASTFM_CORRECTION];
+            }
+        }
+        if ($info->hasCorrection()) {
+            $result = $this->runCorrectedDbCascade($scrobble, $info);
+            if ($result[0] !== null) {
+                return $result;
             }
         }
 

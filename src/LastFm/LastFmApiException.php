@@ -24,4 +24,15 @@ class LastFmApiException extends \RuntimeException
     ) {
         parent::__construct(sprintf('Last.fm API error %d: %s', $errorCode, $errorMessage));
     }
+
+    /**
+     * Builds the exception matching a Last.fm `error` payload: a refused key
+     * gets its own unrecoverable type ({@see LastFmKeyRejectedException}).
+     */
+    public static function fromError(int $errorCode, string $errorMessage): self
+    {
+        return LastFmKeyRejectedException::isKeyRejectedCode($errorCode)
+            ? new LastFmKeyRejectedException($errorCode, $errorMessage)
+            : new self($errorCode, $errorMessage);
+    }
 }

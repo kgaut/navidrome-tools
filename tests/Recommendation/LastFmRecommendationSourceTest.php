@@ -4,6 +4,7 @@ namespace App\Tests\Recommendation;
 
 use App\LastFm\LastFmApiException;
 use App\LastFm\LastFmClient;
+use App\LastFm\LastFmKeyRejectedException;
 use App\Recommendation\ArtistSeed;
 use App\Recommendation\LastFmRecommendationSource;
 use PHPUnit\Framework\TestCase;
@@ -78,5 +79,18 @@ class LastFmRecommendationSourceTest extends TestCase
 
         $this->assertCount(1, $rows);
         $this->assertSame('Good Match', $rows[0]['name']);
+    }
+
+    public function testRejectedKeyStopsTheSourceWithoutThrowing(): void
+    {
+        // #309: every seed would fail the same way — one call, then stop.
+        $client = $this->createMock(LastFmClient::class);
+        $client->expects($this->once())
+            ->method('artistGetSimilar')
+            ->willThrowException(new LastFmKeyRejectedException(10, 'Invalid API key'));
+
+        $source = new LastFmRecommendationSource($client, 'key');
+
+        $this->assertSame([], $source->recommend([new ArtistSeed('A', 1.0), new ArtistSeed('B', 0.5)]));
     }
 }
