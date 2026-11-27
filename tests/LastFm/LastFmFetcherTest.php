@@ -35,6 +35,7 @@ class LastFmFetcherTest extends TestCase
                 loved BOOLEAN NOT NULL DEFAULT 0,
                 image_url CLOB DEFAULT NULL,
                 fetched_at DATETIME NOT NULL,
+                source VARCHAR(32) DEFAULT 'lastfm' NOT NULL,
                 UNIQUE (lastfm_user, played_at, artist, title)
             )
         SQL);

@@ -14,6 +14,10 @@ use Doctrine\ORM\Mapping as ORM;
 class RunHistory
 {
     public const TYPE_LASTFM_FETCH = 'lastfm-fetch';
+    public const TYPE_LISTENBRAINZ_FETCH = 'listenbrainz-fetch';
+    public const TYPE_LOVES_PULL = 'loves-pull';
+    public const TYPE_LOVES_PUSH = 'loves-push';
+    public const TYPE_LOVED_FLAGS = 'loved-flags';
     public const TYPE_LASTFM_LOVED_SYNC = 'lastfm-loved-sync';
     public const TYPE_LOVES_LASTFM_TO_NAVIDROME = 'loves-lastfm-to-navidrome';
     public const TYPE_LOVES_NAVIDROME_TO_LASTFM = 'loves-navidrome-to-lastfm';

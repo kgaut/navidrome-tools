@@ -51,6 +51,21 @@ class ScrobbleRepository extends ServiceEntityRepository
     }
 
     /**
+     * Most recent played_at across every user and source, or null on an empty
+     * table. Starting point of the first fetch from a new source (#310).
+     */
+    public function getLastPlayedAtOverall(): ?\DateTimeImmutable
+    {
+        $result = $this->getEntityManager()->getConnection()->fetchOne('SELECT MAX(played_at) FROM scrobbles');
+
+        if ($result === false || $result === null) {
+            return null;
+        }
+
+        return new \DateTimeImmutable((string) $result, new \DateTimeZone('UTC'));
+    }
+
+    /**
      * Insert a scrobble using raw DBAL INSERT OR IGNORE for performance and
      * idempotency. Returns true when the row was inserted, false when it was
      * rejected by the unique constraint (duplicate).
@@ -68,6 +83,7 @@ class ScrobbleRepository extends ServiceEntityRepository
         bool $loved,
         ?string $imageUrl,
         string $fetchedAt,
+        string $source = 'lastfm',
     ): bool {
         $utc = new \DateTimeZone('UTC');
 
@@ -75,11 +91,11 @@ class ScrobbleRepository extends ServiceEntityRepository
             'INSERT OR IGNORE INTO scrobbles
                 (lastfm_user, artist, title, album, album_artist,
                  mbid_track, mbid_artist, mbid_album,
-                 played_at, loved, image_url, fetched_at)
+                 played_at, loved, image_url, fetched_at, source)
              VALUES
                 (:user, :artist, :title, :album, :album_artist,
                  :mbid_track, :mbid_artist, :mbid_album,
-                 :played_at, :loved, :image_url, :fetched_at)',
+                 :played_at, :loved, :image_url, :fetched_at, :source)',
             [
                 'user' => $user,
                 'artist' => $artist,
@@ -93,6 +109,7 @@ class ScrobbleRepository extends ServiceEntityRepository
                 'loved' => $loved ? 1 : 0,
                 'image_url' => $imageUrl,
                 'fetched_at' => $fetchedAt,
+                'source' => $source,
             ],
         );
 
@@ -209,6 +226,24 @@ class ScrobbleRepository extends ServiceEntityRepository
      * « known by Navidrome-tools » as matched even when every existing
      * scrobble was already flagged.
      */
+    /**
+     * True when the exact row of the UNIQUE constraint (user, played_at,
+     * artist, title) is already stored — what insertOrIgnore() would reject.
+     * Lets a dry-run fetch forecast duplicates (#310).
+     */
+    public function existsExact(string $user, \DateTimeImmutable $playedAt, string $artist, string $title): bool
+    {
+        return $this->getEntityManager()->getConnection()->fetchOne(
+            'SELECT 1 FROM scrobbles WHERE lastfm_user = :u AND played_at = :p AND artist = :a AND title = :t LIMIT 1',
+            [
+                'u' => $user,
+                'p' => $playedAt->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i:s'),
+                'a' => $artist,
+                't' => $title,
+            ],
+        ) !== false;
+    }
+
     public function hasScrobble(string $user, string $artist, string $title, ?string $mbidTrack): bool
     {
         $conn = $this->getEntityManager()->getConnection();

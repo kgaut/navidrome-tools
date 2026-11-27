@@ -64,7 +64,7 @@ nd_stop
 take_backup
 
 # === 1. Écritures Navidrome (conteneur arrêté) ===============================
-run_write "loves Last.fm → Navidrome" "${PHP_BIN[@]}" bin/console app:loves:lastfm-to-navidrome --no-interaction
+run_write "loves source → Navidrome" "${PHP_BIN[@]}" bin/console app:loves:pull --no-interaction
 
 # === 2. Redémarrage du conteneur ============================================
 if ! nd_start_if_stopped; then
@@ -73,9 +73,9 @@ if ! nd_start_if_stopped; then
 fi
 
 # === 3. Reste du cycle (conteneur relancé, best-effort) ======================
-run_aux "fetch Last.fm"              "${PHP_BIN[@]}" bin/console app:lastfm:fetch --no-interaction
-run_aux "sync loved Last.fm"         "${PHP_BIN[@]}" bin/console app:lastfm:loved:sync --no-interaction
-run_aux "loves Navidrome → Last.fm"  "${PHP_BIN[@]}" bin/console app:loves:navidrome-to-lastfm --no-interaction
+run_aux "fetch écoutes"             "${PHP_BIN[@]}" bin/console app:scrobbles:fetch --no-interaction
+run_aux "loved → scrobbles"          "${PHP_BIN[@]}" bin/console app:loves:flag-scrobbles --no-interaction
+run_aux "loves Navidrome → source"   "${PHP_BIN[@]}" bin/console app:loves:push --no-interaction
 run_aux "alias resolubles"           "${PHP_BIN[@]}" bin/console app:aliases:generate --no-interaction
 run_aux "alias MusicBrainz"          "${PHP_BIN[@]}" bin/console app:aliases:musicbrainz --no-interaction
 run_aux "stats Navidrome"            "${PHP_BIN[@]}" bin/console app:navidrome:stats:compute --no-interaction

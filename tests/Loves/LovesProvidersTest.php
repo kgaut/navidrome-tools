@@ -1,0 +1,131 @@
+<?php
+
+namespace App\Tests\Loves;
+
+use App\LastFm\LastFmClient;
+use App\LastFm\LastFmLovedTrack;
+use App\Loves\ActiveLovesProvider;
+use App\Loves\LastFmLovesProvider;
+use App\Loves\ListenBrainzLovesProvider;
+use App\Loves\LovedFlagsSync;
+use App\Loves\LovesProviderInterface;
+use App\Navidrome\NavidromeRepository;
+use App\Recommendation\ListenBrainzClient;
+use App\Repository\ScrobbleRepository;
+use App\Service\LastFmSessionService;
+use App\Service\LovesSyncService;
+use PHPUnit\Framework\TestCase;
+use Symfony\Component\HttpClient\MockHttpClient;
+use Symfony\Component\HttpClient\Response\MockResponse;
+
+/**
+ * Issue #310: loves follow SCROBBLE_SOURCE; ListenBrainz needs a recording
+ * MBID to write.
+ */
+class LovesProvidersTest extends TestCase
+{
+    public function testActiveProviderFollowsTheSource(): void
+    {
+        $sessions = $this->createMock(LastFmSessionService::class);
+        $sessions->method('get')->willReturn('sk');
+        $make = fn (string $name) => (new ActiveLovesProvider(
+            $this->createMock(LastFmClient::class),
+            $sessions,
+            new ListenBrainzClient(new MockHttpClient([]), 'bob', ListenBrainzClient::DEFAULT_BASE_URL, 'tok'),
+            $name,
+            'key',
+            'secret',
+            'alice',
+        ))->get();
+
+        $lastFm = $make('lastfm');
+        $this->assertInstanceOf(LastFmLovesProvider::class, $lastFm);
+        $this->assertTrue($lastFm->canWrite());
+
+        $lb = $make('listenbrainz');
+        $this->assertInstanceOf(ListenBrainzLovesProvider::class, $lb);
+        $this->assertSame('bob', $lb->user());
+        $this->assertTrue($lb->canWrite());
+    }
+
+    public function testListenBrainzCannotWriteWithoutToken(): void
+    {
+        $this->assertFalse((new ListenBrainzLovesProvider(new ListenBrainzClient(new MockHttpClient([]), 'bob')))->canWrite());
+    }
+
+    public function testListenBrainzLoveUsesTheTagThenTheLookup(): void
+    {
+        $requests = [];
+        $http = new MockHttpClient(function (string $method, string $url) use (&$requests): MockResponse {
+            $requests[] = $method . ' ' . parse_url($url, \PHP_URL_PATH);
+
+            return str_contains($url, '/metadata/lookup/')
+                ? new MockResponse('{}')
+                : new MockResponse('{"status":"ok"}');
+        });
+        $provider = new ListenBrainzLovesProvider(new ListenBrainzClient($http, 'bob', ListenBrainzClient::DEFAULT_BASE_URL, 'tok'));
+
+        $this->assertTrue($provider->love('A', 'T', 'rec-tag'));
+        $this->assertFalse($provider->love('Unknown', 'Track', null));
+        $this->assertSame([
+            'POST /1/feedback/recording-feedback',
+            'GET /1/metadata/lookup/',
+        ], $requests);
+    }
+
+    public function testPushSkipsTracksLovedByMbidAndCountsUnidentifiedAsUnmatched(): void
+    {
+        $navidrome = $this->createMock(NavidromeRepository::class);
+        $navidrome->method('iterateStarredMediaFiles')->willReturnCallback(static function (): \Generator {
+            yield ['id' => '1', 'artist' => 'A', 'title' => 'Renamed', 'album' => '', 'mbid' => 'rec-1', 'starred_at' => null];
+            yield ['id' => '2', 'artist' => 'B', 'title' => 'New', 'album' => '', 'mbid' => 'rec-2', 'starred_at' => null];
+            yield ['id' => '3', 'artist' => 'C', 'title' => 'Unknown', 'album' => '', 'mbid' => null, 'starred_at' => null];
+        });
+        $loved = [];
+        $provider = $this->provider([new LastFmLovedTrack('A', 'Original', 'rec-1', null)], $loved);
+
+        $report = (new LovesSyncService($navidrome, $this->createMock(LastFmClient::class)))->pushFromNavidrome($provider);
+
+        $this->assertSame(3, $report->considered);
+        $this->assertSame(1, $report->alreadyInSync);
+        $this->assertSame(1, $report->applied);
+        $this->assertSame(1, $report->unmatched);
+        $this->assertSame([['B', 'New', 'rec-2'], ['C', 'Unknown', null]], $loved);
+    }
+
+    public function testLovedFlagsUseTheProviderUser(): void
+    {
+        $scrobbles = $this->createMock(ScrobbleRepository::class);
+        $scrobbles->expects($this->exactly(2))->method('markLoved')
+            ->with('bob', $this->anything(), $this->anything(), $this->anything())
+            ->willReturnOnConsecutiveCalls(3, 0);
+        $scrobbles->method('hasScrobble')->willReturn(false);
+        $loved = [];
+        $provider = $this->provider([new LastFmLovedTrack('A', 'T', 'rec-1', null), new LastFmLovedTrack('B', 'U', null, null)], $loved);
+
+        $report = (new LovedFlagsSync($scrobbles))->sync($provider);
+
+        $this->assertSame(2, $report->fetched);
+        $this->assertSame(1, $report->matched);
+        $this->assertSame(1, $report->unmatched);
+        $this->assertSame(3, $report->updatedRows);
+    }
+
+    /**
+     * @param list<LastFmLovedTrack>    $existing
+     * @param list<array{0: string, 1: string, 2: ?string}> $loved collects love() calls
+     */
+    private function provider(array $existing, array &$loved): LovesProviderInterface
+    {
+        $provider = $this->createMock(LovesProviderInterface::class);
+        $provider->method('user')->willReturn('bob');
+        $provider->method('iterateLoved')->willReturn($existing);
+        $provider->method('love')->willReturnCallback(static function (string $a, string $t, ?string $m) use (&$loved): bool {
+            $loved[] = [$a, $t, $m];
+
+            return $m !== null;
+        });
+
+        return $provider;
+    }
+}

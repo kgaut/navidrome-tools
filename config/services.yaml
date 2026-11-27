@@ -37,6 +37,8 @@ parameters:
     env(LISTENBRAINZ_USER): ''
     env(LISTENBRAINZ_BASE_URL): 'https://api.listenbrainz.org'
     env(LISTENBRAINZ_TOKEN): ''
+    # Source des écoutes (issue #310) : lastfm (défaut) ou listenbrainz.
+    env(SCROBBLE_SOURCE): 'lastfm'
     # AudioMuse-AI (analyse sonique) — playlist « Mix de la semaine ».
     # Inactive tant que AUDIOMUSE_BASE_URL est vide ; clé = API_TOKEN AudioMuse
     # (Bearer), requise si AUTH_ENABLED=true côté AudioMuse.
@@ -451,6 +453,20 @@ services:
             $user: '%listenbrainz.user%'
             $baseUrl: '%listenbrainz.base_url%'
             $token: '%listenbrainz.token%'
+            $sleeper: null
+
+    App\Scrobble\ActiveScrobbleSource:
+        arguments:
+            $sourceName: '%env(SCROBBLE_SOURCE)%'
+            $lastFmApiKey: '%lastfm.api_key%'
+            $lastFmUser: '%lastfm.user%'
+
+    App\Loves\ActiveLovesProvider:
+        arguments:
+            $sourceName: '%env(SCROBBLE_SOURCE)%'
+            $lastFmApiKey: '%lastfm.api_key%'
+            $lastFmApiSecret: '%lastfm.api_secret%'
+            $lastFmUser: '%lastfm.user%'
 
     App\AudioMuse\AudioMuseClient:
         arguments:

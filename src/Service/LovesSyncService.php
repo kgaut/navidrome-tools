@@ -4,11 +4,13 @@ namespace App\Service;
 
 use App\LastFm\LastFmClient;
 use App\LastFm\LovesSyncReport;
+use App\Loves\LastFmLovesProvider;
+use App\Loves\LovesProviderInterface;
 use App\Navidrome\NavidromeRepository;
 
 /**
- * Bidirectional sync of « loved / starred » flags between Navidrome and
- * Last.fm. Policy: **loved wins** — we only ever add love status, never
+ * Bidirectional sync of « loved / starred » flags between Navidrome and a
+ * loves provider — Last.fm or ListenBrainz (issue #310). Policy: **loved wins** — we only ever add love status, never
  * remove it. Running both directions = union of the two states.
  *
  * Tracks-only (Last.fm has no notion of starred album or artist).
@@ -34,11 +36,21 @@ class LovesSyncService
         bool $dryRun = false,
         ?callable $progress = null,
     ): LovesSyncReport {
+        return $this->pullToNavidrome(new LastFmLovesProvider($this->client, $apiKey, '', null, $lastFmUser), $dryRun, $progress);
+    }
+
+    /**
+     * Provider → Navidrome: star every loved track found in the library.
+     *
+     * @param callable(int, int, int): void|null $progress  fn(considered, applied, unmatched)
+     */
+    public function pullToNavidrome(LovesProviderInterface $provider, bool $dryRun = false, ?callable $progress = null): LovesSyncReport
+    {
         $report = new LovesSyncReport();
 
         $writeOpen = false;
         try {
-            foreach ($this->client->iterateLovedTracks($apiKey, $lastFmUser) as $loved) {
+            foreach ($provider->iterateLoved() as $loved) {
                 $report->considered++;
 
                 $mediaFileId = $this->resolveMediaFileId($loved->artist, $loved->title, $loved->mbid);
@@ -119,11 +131,31 @@ class LovesSyncService
         bool $dryRun = false,
         ?callable $progress = null,
     ): LovesSyncReport {
+        return $this->pushFromNavidrome(
+            new LastFmLovesProvider($this->client, $apiKey, $apiSecret, $sessionKey, $lastFmUser),
+            $dryRun,
+            $progress,
+        );
+    }
+
+    /**
+     * Navidrome → provider: love every starred media_file not loved yet,
+     * known by (artist, title) or by recording MBID. A track the provider
+     * cannot identify counts as unmatched.
+     *
+     * @param callable(int, int, int): void|null $progress  fn(considered, applied, unmatched)
+     */
+    public function pushFromNavidrome(LovesProviderInterface $provider, bool $dryRun = false, ?callable $progress = null): LovesSyncReport
+    {
         $report = new LovesSyncReport();
 
         $alreadyLoved = [];
-        foreach ($this->client->iterateLovedTracks($apiKey, $lastFmUser) as $loved) {
+        $alreadyLovedMbids = [];
+        foreach ($provider->iterateLoved() as $loved) {
             $alreadyLoved[self::normKey($loved->artist, $loved->title)] = true;
+            if ($loved->mbid !== null) {
+                $alreadyLovedMbids[$loved->mbid] = true;
+            }
         }
 
         foreach ($this->navidrome->iterateStarredMediaFiles() as $row) {
@@ -136,7 +168,8 @@ class LovesSyncService
             }
 
             $key = self::normKey($artist, $title);
-            if (isset($alreadyLoved[$key])) {
+            $mbid = $row['mbid'];
+            if (isset($alreadyLoved[$key]) || ($mbid !== null && isset($alreadyLovedMbids[$mbid]))) {
                 $report->alreadyInSync++;
                 if ($progress !== null && $report->considered % 25 === 0) {
                     $progress($report->considered, $report->applied, $report->unmatched);
@@ -154,9 +187,12 @@ class LovesSyncService
             }
 
             try {
-                $this->client->trackLove($apiKey, $apiSecret, $sessionKey, $artist, $title);
-                $report->applied++;
-                $alreadyLoved[$key] = true;
+                if ($provider->love($artist, $title, $mbid)) {
+                    $report->applied++;
+                    $alreadyLoved[$key] = true;
+                } else {
+                    $report->unmatched++;
+                }
             } catch (\Throwable) {
                 $report->errors++;
             }
