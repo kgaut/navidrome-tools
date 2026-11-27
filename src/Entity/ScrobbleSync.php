@@ -8,7 +8,7 @@ use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 
 /**
- * Tracks the sync status of a scrobble for a given target (navidrome, strawberry).
+ * Tracks the sync status of a scrobble for a given target (navidrome — the only one since #313).
  * Created lazily when a sync command runs for the first time on a target.
  *
  * UNIQUE (scrobble_id, target) ensures one status row per scrobble per target.
@@ -21,7 +21,6 @@ use Doctrine\ORM\Mapping as ORM;
 class ScrobbleSync
 {
     public const TARGET_NAVIDROME = 'navidrome';
-    public const TARGET_STRAWBERRY = 'strawberry';
 
     public const STATUS_PENDING = 'pending';
     public const STATUS_MATCHED = 'matched';
@@ -44,7 +43,7 @@ class ScrobbleSync
     #[ORM\Column(length: 16)]
     private string $status = self::STATUS_PENDING;
 
-    /** Navidrome media_file_id or Strawberry rowid, depending on target. */
+    /** Navidrome media_file_id. */
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $targetId = null;
 

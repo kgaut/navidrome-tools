@@ -32,7 +32,6 @@ services:
       LASTFM_FUZZY_MAX_DISTANCE: "0"
       LASTFM_MATCH_CACHE_TTL_DAYS: "30"
       LASTFM_UNMATCHED_RETRY_PER_RUN: "200"
-      STRAWBERRY_DB_PATH: ""         # ex: /data/strawberry/strawberry.db
       BACKUP_RETENTION_DAYS: "7"
       RUN_HISTORY_RETENTION_DAYS: "90"
       NOTIFY_DRIVERS: ""
@@ -47,13 +46,11 @@ services:
       # est en WAL : -wal et -shm doivent être ceux que voit Navidrome, sinon une
       # écriture (sync, relink…, y compris en CLI dans ce conteneur) corrompt la base.
       - /path/to/navidrome/data:/data
-      # Optionnel : base Strawberry (lecture/écriture pour le sync playcount)
-      # - /path/to/strawberry/data:/data/strawberry
       # Optionnel : socket Docker pour start/stop Navidrome depuis l'UI
       # - /var/run/docker.sock:/var/run/docker.sock
 
   # Worker Symfony Messenger — consomme la file des jobs lancés depuis l'UI
-  # (fetch Last.fm, sync Navidrome, sync Strawberry, rematch…).
+  # (fetch Last.fm, sync Navidrome, rematch…).
   # Sans ce service, les boutons de l'UI ne déclenchent rien.
   navidrome-tools-worker:
     image: ghcr.io/kgaut/navidrome-tools:develop
@@ -78,7 +75,6 @@ services:
       LASTFM_FUZZY_MAX_DISTANCE: "0"
       LASTFM_MATCH_CACHE_TTL_DAYS: "30"
       LASTFM_UNMATCHED_RETRY_PER_RUN: "200"
-      STRAWBERRY_DB_PATH: ""
       BACKUP_RETENTION_DAYS: "7"
       RUN_HISTORY_RETENTION_DAYS: "90"
       NOTIFY_DRIVERS: ""
@@ -86,7 +82,6 @@ services:
     volumes:
       - navidrome-tools-data:/app/var   # MÊME volume que le service web
       - /path/to/navidrome/data:/data   # le DOSSIER de la base, comme Navidrome (#298)
-      # - /path/to/strawberry/data:/data/strawberry
       # - /var/run/docker.sock:/var/run/docker.sock
 
 volumes:

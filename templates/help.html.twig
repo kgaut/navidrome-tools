@@ -17,7 +17,7 @@
         <ul class="list-reset" style="display:flex; flex-direction:column; gap:6px;">
             <li><a href="#flow" class="link">Flow type — premier import</a></li>
             <li><a href="#fetch" class="link">Récupérer / mettre à jour l'historique Last.fm</a></li>
-            <li><a href="#sync" class="link">Synchroniser dans Navidrome / Strawberry</a></li>
+            <li><a href="#sync" class="link">Synchroniser dans Navidrome</a></li>
             <li><a href="#rematch" class="link">Rejouer le matching après changement de bibliothèque</a></li>
             <li><a href="#aliases" class="link">Générer / suggérer des alias</a></li>
             <li><a href="#loves" class="link">Synchroniser les loved ↔ starred</a></li>
@@ -73,7 +73,7 @@
 
     {# Sync #}
     <section id="sync" class="card">
-        <div class="card__title">Synchroniser dans Navidrome / Strawberry</div>
+        <div class="card__title">Synchroniser dans Navidrome</div>
         <p class="muted mb-12">
             Écrit dans la base SQLite Navidrome (le conteneur doit être arrêté). <span class="mono">--auto-stop</span> gère l'arrêt
             et le redémarrage du conteneur. Met également à jour <span class="mono">annotation.play_count</span> pour que le
@@ -83,10 +83,7 @@
 <span class="c-write">{{ dc }} php bin/console app:scrobbles:sync-navidrome --auto-stop</span>
 
 <span class="c-comment"># Aperçu sans écrire</span>
-<span class="c-read">{{ dc }} php bin/console app:scrobbles:sync-navidrome --dry-run</span>
-
-<span class="c-comment"># Sync Strawberry (lecture/écriture sur strawberry.db, pas de conteneur à arrêter)</span>
-<span class="c-write">{{ dc }} php bin/console app:scrobbles:sync-strawberry</span></pre>
+<span class="c-read">{{ dc }} php bin/console app:scrobbles:sync-navidrome --dry-run</span></pre>
     </section>
 
     {# Rematch #}
@@ -96,8 +93,7 @@
             Reset les <span class="mono">unmatched</span> → <span class="mono">pending</span> et relance la cascade. À lancer après avoir ajouté
             des pistes à Navidrome, créé des alias manuels ou tourné une commande <span class="mono">app:aliases:*</span>.
         </p>
-        <pre class="code-block"><span class="c-write">{{ dc }} php bin/console app:scrobbles:rematch --target navidrome --auto-stop
-{{ dc }} php bin/console app:scrobbles:rematch --target strawberry</span></pre>
+        <pre class="code-block"><span class="c-write">{{ dc }} php bin/console app:scrobbles:rematch --auto-stop</span></pre>
     </section>
 
     {# Aliases #}

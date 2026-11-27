@@ -10,7 +10,7 @@ use Doctrine\ORM\Mapping as ORM;
 /**
  * A Last.fm scrobble stored locally — the source of truth for all sync operations.
  * Rows are never deleted (except on explicit wipe). New scrobbles fetched from
- * Last.fm are inserted here; matching / syncing to Navidrome or Strawberry happens
+ * Last.fm are inserted here; matching / syncing to Navidrome happens
  * in scrobble_sync rows created lazily by each sync service.
  */
 #[ORM\Entity(repositoryClass: ScrobbleRepository::class)]

@@ -1,6 +1,6 @@
 {
     "name": "kgaut/navidrome-tools",
-    "description": "Navidrome Tools — self-hosted Symfony app: Last.fm scrobble import, Navidrome/Strawberry sync, listening stats.",
+    "description": "Navidrome Tools — self-hosted Symfony app: Last.fm scrobble import, Navidrome sync, listening stats.",
     "type": "project",
     "license": "MIT",
     "require": {

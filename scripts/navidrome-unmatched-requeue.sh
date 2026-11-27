@@ -19,7 +19,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/navidrome-lib.sh"
 NOTIFY_TITLE="navidrome-unmatched-requeue"
 
-# Cible : navidrome (défaut) ou strawberry.
+# Cible : navidrome (seule cible depuis #313).
 : "${REQUEUE_TARGET:=navidrome}"
 
 if ! command -v docker >/dev/null 2>&1; then

@@ -21,7 +21,6 @@ Modules prévus :
 src/
 ├── LastFm/        → fetch Last.fm + matching cascade (ScrobbleMatcher)
 ├── Navidrome/     → bridge DB SQLite, ContainerManager, backup
-├── Strawberry/    → sync playcount, upload/download service
 ├── Message/       → DTOs Messenger
 ├── MessageHandler/→ handlers async (worker)
 ├── Notifier/      → drivers Gotify/Slack/Discord/Pushover

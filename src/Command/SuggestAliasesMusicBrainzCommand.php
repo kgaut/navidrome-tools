@@ -50,7 +50,7 @@ class SuggestAliasesMusicBrainzCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addOption('target', 't', InputOption::VALUE_REQUIRED, 'Unmatched set to scan (navidrome|strawberry).', 'navidrome')
+            ->addOption('target', 't', InputOption::VALUE_REQUIRED, 'Unmatched set to scan (navidrome, the only one since #313).', 'navidrome')
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Preview only — write nothing.')
             ->addOption('interactive', 'i', InputOption::VALUE_NONE, 'Prompt for ambiguous candidates.')
             ->addOption('limit', null, InputOption::VALUE_REQUIRED, 'Max artists to query (0 = no limit).', '0')
@@ -62,8 +62,8 @@ class SuggestAliasesMusicBrainzCommand extends Command
         $io = new SymfonyStyle($input, $output);
 
         $target = (string) $input->getOption('target');
-        if (!in_array($target, [ScrobbleSync::TARGET_NAVIDROME, ScrobbleSync::TARGET_STRAWBERRY], true)) {
-            $io->error(sprintf('Invalid target "%s". Use "navidrome" or "strawberry".', $target));
+        if ($target !== ScrobbleSync::TARGET_NAVIDROME) {
+            $io->error(sprintf('Invalid target "%s". Use "navidrome".', $target));
             return Command::FAILURE;
         }
 

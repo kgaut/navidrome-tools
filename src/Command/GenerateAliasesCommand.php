@@ -41,7 +41,7 @@ class GenerateAliasesCommand extends Command
     {
         $this
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Preview only — write nothing to the DB.')
-            ->addOption('target', 't', InputOption::VALUE_REQUIRED, 'Unmatched set to scan (navidrome|strawberry).', 'navidrome')
+            ->addOption('target', 't', InputOption::VALUE_REQUIRED, 'Unmatched set to scan (navidrome, the only one since #313).', 'navidrome')
             ->addOption('no-artist-mbid', null, InputOption::VALUE_NONE, 'Disable artist aliases via shared MusicBrainz artist id.')
             ->addOption('no-album-exact', null, InputOption::VALUE_NONE, 'Disable track aliases via album MBID + exact title.')
             ->addOption('no-album-fuzzy', null, InputOption::VALUE_NONE, 'Disable track aliases via album MBID + fuzzy title.')
@@ -56,8 +56,8 @@ class GenerateAliasesCommand extends Command
         $io = new SymfonyStyle($input, $output);
 
         $target = (string) $input->getOption('target');
-        if (!in_array($target, [ScrobbleSync::TARGET_NAVIDROME, ScrobbleSync::TARGET_STRAWBERRY], true)) {
-            $io->error(sprintf('Invalid target "%s". Use "navidrome" or "strawberry".', $target));
+        if ($target !== ScrobbleSync::TARGET_NAVIDROME) {
+            $io->error(sprintf('Invalid target "%s". Use "navidrome".', $target));
             return Command::FAILURE;
         }
 

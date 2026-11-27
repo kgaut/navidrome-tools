@@ -1,7 +1,7 @@
 FROM dunglas/frankenphp:1-php8.4-alpine
 
 LABEL org.opencontainers.image.title="Navidrome Tools" \
-      org.opencontainers.image.description="Self-hosted Symfony app: Last.fm scrobble import, Navidrome/Strawberry sync, listening stats." \
+      org.opencontainers.image.description="Self-hosted Symfony app: Last.fm scrobble import, Navidrome sync, listening stats." \
       org.opencontainers.image.source="https://github.com/kgaut/navidrome-tools" \
       org.opencontainers.image.licenses="MIT"
 

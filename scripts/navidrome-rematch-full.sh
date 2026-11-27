@@ -23,7 +23,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/navidrome-lib.sh"
 NOTIFY_TITLE="navidrome-rematch-full"
 
-# Cible : navidrome (défaut) ou strawberry.
+# Cible : navidrome (seule cible depuis #313).
 : "${REMATCH_TARGET:=navidrome}"
 
 nd_preflight

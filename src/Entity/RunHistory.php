@@ -23,11 +23,8 @@ class RunHistory
     public const TYPE_NAVIDROME_RELINK = 'navidrome-relink';
     public const TYPE_NAVIDROME_REPAIR_TARGETS = 'navidrome-repair-targets';
     public const TYPE_NAVIDROME_RECONCILE = 'navidrome-reconcile';
-    public const TYPE_STRAWBERRY_REQUEUE = 'strawberry-requeue';
     public const TYPE_NAVIDROME_ALIAS_MUSICBRAINZ = 'navidrome-alias-musicbrainz';
     public const TYPE_NAVIDROME_WIPE = 'navidrome-wipe';
-    public const TYPE_STRAWBERRY_SYNC = 'strawberry-sync';
-    public const TYPE_STRAWBERRY_REMATCH = 'strawberry-rematch';
     public const TYPE_STATS = 'stats';
     public const TYPE_PLAYLIST_GENERATE = 'playlist-generate';
     public const TYPE_RECOMMENDATIONS = 'recommendations';

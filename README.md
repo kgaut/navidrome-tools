@@ -1,8 +1,7 @@
 # Navidrome Tools
 
 Boîte à outils pour **importer son historique d'écoute Last.fm dans
-[Navidrome](https://www.navidrome.org/)** (et accessoirement
-[Strawberry](https://www.strawberrymusicplayer.org/)), synchroniser les
+[Navidrome](https://www.navidrome.org/)**, synchroniser les
 favoris (loved ↔ starred), et produire des statistiques d'écoute.
 
 Le cœur du projet est un **moteur de matching** qui résout chaque scrobble
@@ -39,7 +38,7 @@ pour que les compteurs de lecture reflètent l'historique Last.fm.
   Levenshtein optionnel.
 - **Alias** manuels et **auto-générés** (track + artiste) pour rattraper les
   divergences de nommage que la cascade ne peut pas résoudre seule.
-- **Sync Navidrome / Strawberry** : insertion des écoutes matchées, avec
+- **Sync Navidrome** : insertion des écoutes matchées, avec
   arrêt/redémarrage automatique du conteneur Navidrome, backup et
   `quick_check` SQLite avant écriture.
 - **Favoris** : synchronisation bidirectionnelle loved (Last.fm) ↔ starred
@@ -72,7 +71,6 @@ src/
 ├── Controller/     → interface web
 ├── LastFm/         → client API + cascade de matching (ScrobbleMatcher)
 ├── Navidrome/      → bridge DB SQLite, sync, backup
-├── Strawberry/     → sync playcount, upload/download
 ├── Docker/         → arrêt/démarrage du conteneur Navidrome
 ├── Message/ + MessageHandler/  → jobs asynchrones (worker Messenger)
 ├── Service/        → AliasGenerator, stats, backup, run history…
@@ -232,11 +230,10 @@ Optionnel. Quand renseigné, la page **`/lastfm/scrobbles`** affiche un lien « 
 |---|---|---|
 | `LIDARR_URL` | — | URL de votre Lidarr (vide = liens masqués) |
 
-### Strawberry / Backups / Historique / Notifications
+### Backups / Historique / Notifications
 
 | Variable | Défaut | Description |
 |---|---|---|
-| `STRAWBERRY_DB_PATH` | — | chemin de `strawberry.db` (vide = désactivé) |
 | `BACKUP_RETENTION_DAYS` | `7` | rétention des backups |
 | `RUN_HISTORY_RETENTION_DAYS` | `90` | rétention de l'historique des runs |
 | `NOTIFY_DRIVERS` | — | drivers actifs (`gotify,slack,discord,pushover`) |
@@ -259,7 +256,6 @@ Authentification par utilisateur unique (`APP_AUTH_USER` / `APP_AUTH_PASSWORD`).
 | `/lastfm/import` | import d'historique Last.fm |
 | `/lastfm/scrobbles` | historique paginé des scrobbles avec filtres (année / mois / jour / artiste / titre / statut), statut de matching Navidrome par ligne, pochette + ♥ loved + liens externes (Last.fm, MusicBrainz, Lidarr, Navidrome) |
 | `/navidrome/sync`, `/navidrome/rematch`, `/navidrome/unmatched` | matching/sync Navidrome |
-| `/strawberry/*` | sync Strawberry (upload/download de la base) |
 | `/lastfm/aliases`, `/lastfm/artist-aliases` | gestion des alias (piste / artiste) |
 | `/navidrome/container/{start,stop}` | contrôle du conteneur Navidrome |
 | `/history` | historique des runs |
@@ -431,7 +427,7 @@ traiter le backlog.
 
 | Option | Description |
 |---|---|
-| `--target` / `-t` | `navidrome` (défaut) ou `strawberry` |
+| `--target` / `-t` | `navidrome` (défaut, seule cible depuis 2.0.0) |
 
 #### `app:scrobbles:relink`
 Déplace des écoutes **déjà écrites** dans Navidrome vers le morceau que choisit
@@ -477,7 +473,7 @@ non destructif, relançable sans risque, éventuellement par lots via `--limit`.
 
 | Option | Description |
 |---|---|
-| `--target` / `-t` | `navidrome` (défaut) ou `strawberry` |
+| `--target` / `-t` | `navidrome` (défaut, seule cible depuis 2.0.0) |
 | `--dry-run` | matche sans écrire |
 | `--limit` | nombre max de lignes (`0` = illimité) |
 | `--force` | outrepasse le pré-vol conteneur Navidrome |
@@ -537,22 +533,11 @@ pour appliquer les alias créés.
 
 | Option | Description |
 |---|---|
-| `--target` / `-t` | `navidrome` (défaut) ou `strawberry` |
+| `--target` / `-t` | `navidrome` (défaut, seule cible depuis 2.0.0) |
 | `--dry-run` | aperçu (échantillon + résumé), n'écrit rien |
 | `-i` / `--interactive` | prompt pour trancher les candidats ambigus |
 | `--limit` | nombre max d'artistes à requêter (`0` = illimité) |
 | `--rate-limit-ms` | délai entre requêtes MB (défaut `1100` ; warning sous `1000`) |
-
-#### `app:scrobbles:sync-strawberry`
-Synchronise les scrobbles en attente dans la base Strawberry (`playcount` /
-`lastplayed`).
-
-| Option | Description |
-|---|---|
-| `--dry-run` | matche sans écrire |
-| `--limit` | nombre max de lignes |
-| `--retry-unmatched` | re-tente aussi les `unmatched` |
-| `--db-path` | surcharge `STRAWBERRY_DB_PATH` |
 
 ### Favoris (loved / starred)
 

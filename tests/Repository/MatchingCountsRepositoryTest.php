@@ -53,14 +53,14 @@ class MatchingCountsRepositoryTest extends TestCase
         $this->assertSame(2, $this->repo->countUnmatchedGroups(ScrobbleSync::TARGET_NAVIDROME, 'a'));
         $this->assertSame(1, $this->repo->countUnmatchedGroups(ScrobbleSync::TARGET_NAVIDROME, null, 'z'));
         $this->assertSame(2, $this->repo->countUnmatchedGroups(ScrobbleSync::TARGET_NAVIDROME, null, null, '2024-03'));
-        $this->assertSame(0, $this->repo->countUnmatchedGroups(ScrobbleSync::TARGET_STRAWBERRY));
+        $this->assertSame(0, $this->repo->countUnmatchedGroups('other-target'));
     }
 
     public function testCountByStatusAndStrategy(): void
     {
         $this->assertSame(['matched' => 3, 'unmatched' => 4], $this->repo->countByStatus(ScrobbleSync::TARGET_NAVIDROME));
         $this->assertSame(['couple' => 2, 'mbid' => 1], $this->repo->countMatchedByStrategy(ScrobbleSync::TARGET_NAVIDROME));
-        $this->assertSame([], $this->repo->countByStatus(ScrobbleSync::TARGET_STRAWBERRY));
+        $this->assertSame([], $this->repo->countByStatus('other-target'));
     }
 
     private function row(int $id, string $artist, string $title, string $day, string $status, ?string $strategy = null): void

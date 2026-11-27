@@ -108,7 +108,6 @@ parameters:
     lidarr.monitor: '%env(LIDARR_MONITOR)%'
     lidarr.search_on_add: '%env(bool:LIDARR_SEARCH_ON_ADD)%'
     help.compose_service: '%env(default::HELP_COMPOSE_SERVICE)%'
-    strawberry.db_path: '%env(resolve:STRAWBERRY_DB_PATH)%'
     playlists.default_limit: '%env(int:PLAYLIST_DEFAULT_LIMIT)%'
     playlist.retour.max_years: '%env(int:PLAYLIST_RETOUR_MAX_YEARS)%'
     playlist.retour.window_days: '%env(int:PLAYLIST_RETOUR_WINDOW_DAYS)%'
@@ -420,14 +419,6 @@ services:
     App\Navidrome\NavidromeDbBackup:
         arguments:
             $dbPath: '%navidrome.db_path%'
-
-    App\Strawberry\StrawberryRepository:
-        arguments:
-            $dbPath: '%strawberry.db_path%'
-
-    App\Strawberry\StrawberryUploadService:
-        arguments:
-            $varDir: '%kernel.project_dir%/var'
 
     App\Twig\LidarrExtension:
         arguments:

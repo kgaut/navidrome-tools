@@ -9,8 +9,6 @@ use App\Entity\ScrobbleSync;
 use App\Navidrome\NavidromeSyncReport;
 use App\Navidrome\NavidromeSyncService;
 use App\Service\RunHistoryRecorder;
-use App\Strawberry\StrawberrySyncReport;
-use App\Strawberry\StrawberrySyncService;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -35,13 +33,12 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  */
 #[AsCommand(
     name: 'app:scrobbles:rematch',
-    description: 'Re-attempt matching for unmatched scrobbles (navidrome or strawberry).',
+    description: 'Re-attempt matching for unmatched scrobbles (navidrome).',
 )]
 class RematchCommand extends Command
 {
     public function __construct(
         private readonly NavidromeSyncService $navidromeSync,
-        private readonly StrawberrySyncService $strawberrySync,
         private readonly RunHistoryRecorder $recorder,
         private readonly NavidromeContainerManager $container,
     ) {
@@ -51,7 +48,7 @@ class RematchCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addOption('target', 't', InputOption::VALUE_REQUIRED, 'Target: navidrome or strawberry.', 'navidrome')
+            ->addOption('target', 't', InputOption::VALUE_REQUIRED, 'Target: navidrome (the only one since #313).', 'navidrome')
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Match pending rows without writing.')
             ->addOption('limit', null, InputOption::VALUE_REQUIRED, 'Max rows to process (0 = no limit).', '0')
             ->addOption('force', 'f', InputOption::VALUE_NONE, 'Bypass Navidrome container pre-flight.')
@@ -68,12 +65,12 @@ class RematchCommand extends Command
         $force = (bool) $input->getOption('force');
         $autoStop = (bool) $input->getOption('auto-stop');
 
-        if (!in_array($target, [ScrobbleSync::TARGET_NAVIDROME, ScrobbleSync::TARGET_STRAWBERRY], true)) {
-            $io->error(sprintf('Invalid target "%s". Use "navidrome" or "strawberry".', $target));
+        if ($target !== ScrobbleSync::TARGET_NAVIDROME) {
+            $io->error(sprintf('Invalid target "%s". Use "navidrome".', $target));
             return Command::FAILURE;
         }
 
-        if ($target === ScrobbleSync::TARGET_NAVIDROME && !$dryRun && !$autoStop) {
+        if (!$dryRun && !$autoStop) {
             try {
                 $this->container->assertSafeToWrite($force);
             } catch (NavidromeContainerException $e) {
@@ -83,9 +80,7 @@ class RematchCommand extends Command
         }
 
         $label = sprintf('%s rematch%s', $target, $dryRun ? ' [dry-run]' : '');
-        $type = $target === ScrobbleSync::TARGET_NAVIDROME
-            ? RunHistory::TYPE_NAVIDROME_REMATCH
-            : RunHistory::TYPE_STRAWBERRY_REMATCH;
+        $type = RunHistory::TYPE_NAVIDROME_REMATCH;
 
         // Avancement (compteurs) affiché tous les 50 scrobbles — toujours visible.
         $progress = function (int $c, int $m, int $d, int $u) use ($io): void {
@@ -109,37 +104,23 @@ class RematchCommand extends Command
                 type: $type,
                 reference: 'unmatched',
                 label: $label,
-                action: function (RunHistory $entry) use ($target, $limit, $dryRun, $progress, $onMatch): NavidromeSyncReport|StrawberrySyncReport {
+                action: function (RunHistory $entry) use ($limit, $dryRun, $progress, $onMatch): NavidromeSyncReport {
                     // Ne reset PLUS les non-matchés ni ne purge le cache : on
                     // ne fait que ré-jouer la cascade sur les lignes déjà en
                     // attente. Pour re-queuer les non-matchés,
                     // `app:scrobbles:requeue-unmatched`.
-                    if ($target === ScrobbleSync::TARGET_NAVIDROME) {
-                        return $this->navidromeSync->process(limit: $limit, dryRun: $dryRun, run: $entry, progress: $progress, onMatch: $onMatch);
-                    }
-                    // Strawberry : progression à 3 compteurs (sans doublons),
-                    // signature différente — pas d'affichage détaillé ici.
-                    return $this->strawberrySync->process(limit: $limit, dryRun: $dryRun, run: $entry);
+                    return $this->navidromeSync->process(limit: $limit, dryRun: $dryRun, run: $entry, progress: $progress, onMatch: $onMatch);
                 },
-                extractMetrics: static function (NavidromeSyncReport|StrawberrySyncReport $r): array {
-                    if ($r instanceof NavidromeSyncReport) {
-                        return [
-                            'considered' => $r->considered,
-                            'matched' => $r->matched,
-                            'duplicates' => $r->duplicates,
-                            'unmatched' => $r->unmatched,
-                            'api_errors' => $r->apiErrors,
-                        ];
-                    }
-                    return [
-                        'considered' => $r->considered,
-                        'matched' => $r->matched,
-                        'unmatched' => $r->unmatched,
-                    ];
-                },
+                extractMetrics: static fn (NavidromeSyncReport $r): array => [
+                    'considered' => $r->considered,
+                    'matched' => $r->matched,
+                    'duplicates' => $r->duplicates,
+                    'unmatched' => $r->unmatched,
+                    'api_errors' => $r->apiErrors,
+                ],
             );
 
-            $report = ($target === ScrobbleSync::TARGET_NAVIDROME && $autoStop && !$dryRun)
+            $report = ($autoStop && !$dryRun)
                 ? $this->container->runWithNavidromeStopped($runProcess)
                 : $runProcess();
         } catch (\Throwable $e) {
@@ -147,17 +128,13 @@ class RematchCommand extends Command
             return Command::FAILURE;
         }
 
-        $matched = $report instanceof NavidromeSyncReport ? $report->matched : $report->matched;
-        $unmatched = $report instanceof NavidromeSyncReport ? $report->unmatched : $report->unmatched;
-
         $io->success(sprintf(
-            '%s rematch done. matched=%d unmatched=%d',
-            ucfirst($target),
-            $matched,
-            $unmatched,
+            'Navidrome rematch done. matched=%d unmatched=%d',
+            $report->matched,
+            $report->unmatched,
         ));
 
-        if ($report instanceof NavidromeSyncReport && $report->apiErrors > 0) {
+        if ($report->apiErrors > 0) {
             $io->warning(sprintf(
                 '%d scrobble(s) ignoré(s) sur erreur API Last.fm (laissés en pending, relancez pour réessayer).%s',
                 $report->apiErrors,
