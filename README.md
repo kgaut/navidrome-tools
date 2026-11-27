@@ -213,6 +213,19 @@ d'environnement Docker en prod) :
 | `LASTFM_MATCH_CACHE_TTL_DAYS` | `30` | durée de vie des entrées négatives du cache de matching |
 | `LASTFM_UNMATCHED_RETRY_PER_RUN` | `200` | à chaque sync Navidrome, nombre max de couples non matchés dont l'échec a expiré (TTL ci-dessus) retentés, les plus écoutés d'abord ; `0` = désactivé |
 
+### Source des écoutes (Last.fm ou ListenBrainz)
+
+| Variable | Défaut | Description |
+|---|---|---|
+| `SCROBBLE_SOURCE` | `lastfm` | source des écoutes et des coups de cœur : `lastfm` ou `listenbrainz` |
+| `LISTENBRAINZ_USER` | — | utilisateur ListenBrainz (aussi utilisé par les recommandations) |
+| `LISTENBRAINZ_TOKEN` | — | jeton utilisateur (https://listenbrainz.org/settings/) : relève les quotas en lecture, **requis** pour écrire les coups de cœur |
+
+Avec `listenbrainz`, le premier `app:scrobbles:fetch` part d'une seconde après
+la dernière écoute déjà en base (raccord) : l'historique Last.fm importé reste
+tel quel, rien n'est réimporté. Une écoute présente des deux côtés (même
+seconde, même artiste, même titre, même utilisateur) n'est stockée qu'une fois.
+
 ### MusicBrainz
 
 Utilisé par `app:aliases:musicbrainz` (lookup en ligne pour la génération d'alias).
@@ -378,7 +391,18 @@ claude mcp add --transport http navidrome-tools https://<host>/mcp
 Toutes via `php bin/console <commande>`. Ajouter `--dry-run` (quand dispo) pour
 simuler sans écrire, et `-v` pour plus de détail.
 
-### Récupération Last.fm
+### Récupération des écoutes
+
+#### `app:scrobbles:fetch`
+Importe les écoutes de la source active (`SCROBBLE_SOURCE`) dans la table
+locale `scrobbles` (incrémental, adapté au crontab). Premier fetch ListenBrainz :
+raccord sur la dernière écoute en base.
+
+| Option | Description |
+|---|---|
+| `--date-min` / `--date-max` | borne la fenêtre `YYYY-MM-DD` (date-max inclut tout le jour) ; sert au rattrapage d'une période |
+| `--max-scrobbles` | plafond d'écoutes récupérées (`0` = pas de limite) |
+| `--dry-run` | n'écrit rien ; compte aussi les doublons prévus |
 
 #### `app:lastfm:fetch [user]`
 Importe l'historique de scrobbles Last.fm dans la table locale `scrobbles`
@@ -540,6 +564,36 @@ pour appliquer les alias créés.
 | `--rate-limit-ms` | délai entre requêtes MB (défaut `1100` ; warning sous `1000`) |
 
 ### Favoris (loved / starred)
+
+Les trois commandes `app:loves:*` génériques suivent `SCROBBLE_SOURCE`
+(Last.fm : loved tracks ; ListenBrainz : feedback « aimé »). Politique « loved
+gagne » : on n'enlève jamais un coup de cœur ni une étoile.
+
+#### `app:loves:pull`
+Étoile dans Navidrome les morceaux aimés sur la source (MBID, sinon artiste +
+titre). Écrit dans la base Navidrome : `--auto-stop`.
+
+| Option | Description |
+|---|---|
+| `--auto-stop` · `--dry-run` | — |
+
+#### `app:loves:push`
+Aime sur la source les morceaux étoilés dans Navidrome. Last.fm : session key
+(`app:lastfm:auth`). ListenBrainz : `LISTENBRAINZ_TOKEN` et un MBID de
+recording, pris dans les tags Navidrome ou trouvé par une recherche
+ListenBrainz retenue seulement si artiste et titre sont identiques ; sinon le
+morceau est compté `unmatched`.
+
+| Option | Description |
+|---|---|
+| `--dry-run` | n'écrit rien (les morceaux non identifiables ne sont détectés qu'en réel) |
+
+#### `app:loves:flag-scrobbles`
+Marque comme « loved » les écoutes locales des morceaux aimés sur la source.
+
+| Option | Description |
+|---|---|
+| `--dry-run` | — |
 
 #### `app:lastfm:loved:sync [user]`
 Marque rétroactivement comme « loved » les scrobbles locaux dont le titre est
