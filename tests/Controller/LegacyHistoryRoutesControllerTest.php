@@ -16,12 +16,14 @@ class LegacyHistoryRoutesControllerTest extends WebTestCase
         $client = static::createClient();
         $client->loginUser(new EnvUser('admin', 'x'));
 
-        foreach ([
+        $moved = [
             '/lastfm/stats' => '/listens/stats',
             '/lastfm/top-artists?period=all' => '/listens/top-artists?period=all',
             '/lastfm/scrobbles?year=2025' => '/listens?year=2025',
             '/lastfm/import' => '/listens/import',
-        ] as $old => $new) {
+        ];
+
+        foreach ($moved as $old => $new) {
             $client->request('GET', $old);
 
             $this->assertSame(301, $client->getResponse()->getStatusCode(), $old);
