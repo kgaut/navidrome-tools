@@ -61,6 +61,10 @@ class Scrobble
     #[ORM\Column(type: UtcDateTimeImmutableType::NAME)]
     private \DateTimeImmutable $fetchedAt;
 
+    /** Service the listen was fetched from (`lastfm`, `listenbrainz`) — issue #310. */
+    #[ORM\Column(length: 32, options: ['default' => 'lastfm'])]
+    private string $source = 'lastfm';
+
     public function __construct(
         string $lastfmUser,
         string $artist,
@@ -139,5 +143,10 @@ class Scrobble
     public function getFetchedAt(): \DateTimeImmutable
     {
         return $this->fetchedAt;
+    }
+
+    public function getSource(): string
+    {
+        return $this->source;
     }
 }

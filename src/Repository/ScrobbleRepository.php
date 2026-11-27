@@ -68,6 +68,7 @@ class ScrobbleRepository extends ServiceEntityRepository
         bool $loved,
         ?string $imageUrl,
         string $fetchedAt,
+        string $source = 'lastfm',
     ): bool {
         $utc = new \DateTimeZone('UTC');
 
@@ -75,11 +76,11 @@ class ScrobbleRepository extends ServiceEntityRepository
             'INSERT OR IGNORE INTO scrobbles
                 (lastfm_user, artist, title, album, album_artist,
                  mbid_track, mbid_artist, mbid_album,
-                 played_at, loved, image_url, fetched_at)
+                 played_at, loved, image_url, fetched_at, source)
              VALUES
                 (:user, :artist, :title, :album, :album_artist,
                  :mbid_track, :mbid_artist, :mbid_album,
-                 :played_at, :loved, :image_url, :fetched_at)',
+                 :played_at, :loved, :image_url, :fetched_at, :source)',
             [
                 'user' => $user,
                 'artist' => $artist,
@@ -93,6 +94,7 @@ class ScrobbleRepository extends ServiceEntityRepository
                 'loved' => $loved ? 1 : 0,
                 'image_url' => $imageUrl,
                 'fetched_at' => $fetchedAt,
+                'source' => $source,
             ],
         );
 

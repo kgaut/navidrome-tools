@@ -9,6 +9,15 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+### Ajouté
+
+- **Source d'écoutes interchangeable** (issue #310, en cours). Le fetch passe
+  par une interface de source (`ScrobbleSourceInterface`), dont Last.fm est la
+  première implémentation ; chaque écoute enregistre le service dont elle vient
+  (nouvelle colonne `scrobbles.source`, `lastfm` pour l'existant). Prépare
+  ListenBrainz comme source (ADR
+  `0310-scrobbles-listenbrainz-source-unique-raccord-par-horodatage`).
+
 ### Supprimé
 
 - **Intégration Strawberry retirée** (issue #313, **rupture**). Plus de
