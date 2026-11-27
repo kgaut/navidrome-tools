@@ -218,6 +218,7 @@ d'environnement Docker en prod) :
 | Variable | Défaut | Description |
 |---|---|---|
 | `SCROBBLE_SOURCE` | `lastfm` | source des écoutes et des coups de cœur : `lastfm` ou `listenbrainz` |
+| `HISTORY_USER` | — | compte filtré par les statistiques de l'historique d'écoutes ; vide = toute la table, toutes sources et tous comptes confondus |
 | `LISTENBRAINZ_USER` | — | utilisateur ListenBrainz (aussi utilisé par les recommandations) |
 | `LISTENBRAINZ_TOKEN` | — | jeton utilisateur (https://listenbrainz.org/settings/) : relève les quotas en lecture, **requis** pour écrire les coups de cœur |
 
@@ -237,7 +238,7 @@ Utilisé par `app:aliases:musicbrainz` (lookup en ligne pour la génération d'a
 
 ### Lidarr
 
-Optionnel. Quand renseigné, la page **`/lastfm/scrobbles`** affiche un lien « ⇗ Lidarr » sur chaque scrobble non matché — il ouvre l'écran *Add new* de votre instance pré-rempli avec le nom de l'artiste (ou artiste + album quand l'album est connu).
+Optionnel. Quand renseigné, la page **`/listens`** affiche un lien « ⇗ Lidarr » sur chaque scrobble non matché — il ouvre l'écran *Add new* de votre instance pré-rempli avec le nom de l'artiste (ou artiste + album quand l'album est connu).
 
 | Variable | Défaut | Description |
 |---|---|---|
@@ -265,9 +266,9 @@ Authentification par utilisateur unique (`APP_AUTH_USER` / `APP_AUTH_PASSWORD`).
 | Route | Page |
 |---|---|
 | `/` | dashboard (état, compteurs, actions rapides) |
-| `/stats`, `/lastfm/stats`, `/navidrome/stats` | statistiques (incluant la **disparité** Last.fm ↔ Navidrome sur `/navidrome/stats` : top mois et années avec le plus d'écoutes Last.fm sans équivalent Navidrome, bornés au premier scrobble Navidrome) |
-| `/lastfm/import` | import d'historique Last.fm |
-| `/lastfm/scrobbles` | historique paginé des scrobbles avec filtres (année / mois / jour / artiste / titre / statut), statut de matching Navidrome par ligne, pochette + ♥ loved + liens externes (Last.fm, MusicBrainz, Lidarr, Navidrome) |
+| `/stats`, `/listens/stats`, `/navidrome/stats` | statistiques ; `/listens/…` = historique d'écoutes (Last.fm puis ListenBrainz), incluant la **disparité** historique ↔ Navidrome sur `/navidrome/stats` : top mois et années avec le plus d'écoutes sans équivalent Navidrome, bornés au premier scrobble Navidrome. Les anciennes adresses `/lastfm/…` redirigent |
+| `/listens/import` | fetch des écoutes de la source active (`SCROBBLE_SOURCE`) |
+| `/listens` | historique paginé des écoutes avec filtres (année / mois / jour / artiste / titre / statut), statut de matching Navidrome par ligne, pochette + ♥ loved + liens externes (Last.fm, MusicBrainz, Lidarr, Navidrome) |
 | `/navidrome/sync`, `/navidrome/rematch`, `/navidrome/unmatched` | matching/sync Navidrome |
 | `/lastfm/aliases`, `/lastfm/artist-aliases` | gestion des alias (piste / artiste) |
 | `/navidrome/container/{start,stop}` | contrôle du conteneur Navidrome |
@@ -289,7 +290,7 @@ GET /api/stats/daily?from=YYYY-MM-DD&to=YYYY-MM-DD&source=navidrome|lastfm
 GET /api/stats/daily/{YYYY-MM-DD}?source=navidrome|lastfm
 ```
 
-- `source` : `navidrome` (défaut) ou `lastfm` — la réponse la nomme toujours.
+- `source` : `navidrome` (défaut) ou `history` (historique d'écoutes ; `lastfm` en est l'ancien nom, encore accepté jusqu'à la prochaine version majeure) — la réponse la nomme toujours.
 - `from`/`to` : bornes incluses (défaut : aujourd'hui) ; plage ≤ 366 jours.
 - Les jours sont découpés en **heure locale** (`APP_TIMEZONE`, ex. `Europe/Paris`)
   — pour que SQLite bucketise dans ce fuseau, le conteneur doit tourner avec la
@@ -311,12 +312,12 @@ Points de contrat :
 
 - **un jour sans écoute est servi avec des zéros**, jamais absent ;
 - **`duration_seconds`** vient de Navidrome (`media_file.duration`) ; côté
-  `lastfm` chaque écoute est rapprochée d'un fichier via `scrobble_sync`, d'où
+  `history` chaque écoute est rapprochée d'un fichier via `scrobble_sync`, d'où
   **`duration_coverage_pct`** (part des écoutes du jour dont la durée est connue ;
   100 côté `navidrome`) ;
 - **`loved_added`** = coups de cœur *posés ce jour-là* (`annotation.starred_at`
-  côté Navidrome) — **toujours** cette source, y compris pour `source=lastfm`
-  (la table Last.fm n'a pas de date de « love ») ;
+  côté Navidrome) — **toujours** cette source, y compris pour `source=history`
+  (l'historique d'écoutes n'a pas de date de « love ») ;
 - erreurs : `401 {"error":"Unauthorized"}` (token absent/invalide),
   `400 {"error":"…"}` (source/dates invalides).
 
