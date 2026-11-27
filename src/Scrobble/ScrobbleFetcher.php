@@ -33,6 +33,9 @@ class ScrobbleFetcher
     ): FetchReport {
         $report = new FetchReport();
         $fetchedAt = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('Y-m-d H:i:s');
+        // Dry-run: rows already « inserted » by this run, so the forecast also
+        // counts duplicates inside the source itself.
+        $dryRunSeen = [];
 
         foreach ($source->streamListens($dateMin, $dateMax) as $scrobble) {
             // 0 (or negative) means no cap — `--max-scrobbles=0` is documented
@@ -47,21 +50,28 @@ class ScrobbleFetcher
             }
             $report->lastPlayedAt = $scrobble->playedAt;
 
-            $inserted = $dryRun || $this->scrobbles->insertOrIgnore(
-                user: $source->user(),
-                artist: $scrobble->artist,
-                title: $scrobble->title,
-                album: $scrobble->album !== '' ? $scrobble->album : null,
-                albumArtist: $scrobble->albumArtist !== '' ? $scrobble->albumArtist : null,
-                mbidTrack: $scrobble->mbid,
-                mbidArtist: $scrobble->mbidArtist,
-                mbidAlbum: $scrobble->mbidAlbum,
-                playedAt: $scrobble->playedAt,
-                loved: $scrobble->loved,
-                imageUrl: $scrobble->imageUrl,
-                fetchedAt: $fetchedAt,
-                source: $source->name(),
-            );
+            if ($dryRun) {
+                $key = $scrobble->playedAt->getTimestamp() . "\0" . $scrobble->artist . "\0" . $scrobble->title;
+                $inserted = !isset($dryRunSeen[$key])
+                    && !$this->scrobbles->existsExact($source->user(), $scrobble->playedAt, $scrobble->artist, $scrobble->title);
+                $dryRunSeen[$key] = true;
+            } else {
+                $inserted = $this->scrobbles->insertOrIgnore(
+                    user: $source->user(),
+                    artist: $scrobble->artist,
+                    title: $scrobble->title,
+                    album: $scrobble->album !== '' ? $scrobble->album : null,
+                    albumArtist: $scrobble->albumArtist !== '' ? $scrobble->albumArtist : null,
+                    mbidTrack: $scrobble->mbid,
+                    mbidArtist: $scrobble->mbidArtist,
+                    mbidAlbum: $scrobble->mbidAlbum,
+                    playedAt: $scrobble->playedAt,
+                    loved: $scrobble->loved,
+                    imageUrl: $scrobble->imageUrl,
+                    fetchedAt: $fetchedAt,
+                    source: $source->name(),
+                );
+            }
             if ($inserted) {
                 $report->inserted++;
             } else {

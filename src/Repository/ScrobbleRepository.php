@@ -226,6 +226,24 @@ class ScrobbleRepository extends ServiceEntityRepository
      * « known by Navidrome-tools » as matched even when every existing
      * scrobble was already flagged.
      */
+    /**
+     * True when the exact row of the UNIQUE constraint (user, played_at,
+     * artist, title) is already stored — what insertOrIgnore() would reject.
+     * Lets a dry-run fetch forecast duplicates (#310).
+     */
+    public function existsExact(string $user, \DateTimeImmutable $playedAt, string $artist, string $title): bool
+    {
+        return $this->getEntityManager()->getConnection()->fetchOne(
+            'SELECT 1 FROM scrobbles WHERE lastfm_user = :u AND played_at = :p AND artist = :a AND title = :t LIMIT 1',
+            [
+                'u' => $user,
+                'p' => $playedAt->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i:s'),
+                'a' => $artist,
+                't' => $title,
+            ],
+        ) !== false;
+    }
+
     public function hasScrobble(string $user, string $artist, string $title, ?string $mbidTrack): bool
     {
         $conn = $this->getEntityManager()->getConnection();

@@ -76,6 +76,22 @@ class ScrobbleFetcherTest extends TestCase
         self::assertSame(0, (int) $this->em->getConnection()->fetchOne('SELECT COUNT(*) FROM scrobbles'));
     }
 
+    public function testDryRunForecastsDuplicatesAgainstTheTableAndWithinTheSource(): void
+    {
+        $this->fetcher()->fetch($this->source('lastfm', 'bob', [$this->listen('Artist', 'Stored', '2026-05-01 10:00:00')]));
+
+        $report = $this->fetcher()->fetch($this->source('listenbrainz', 'bob', [
+            $this->listen('Artist', 'Stored', '2026-05-01 10:00:00'),
+            $this->listen('Artist', 'New', '2026-05-01 11:00:00'),
+            $this->listen('Artist', 'New', '2026-05-01 11:00:00'),
+        ]), dryRun: true);
+
+        self::assertSame(3, $report->fetched);
+        self::assertSame(1, $report->inserted);
+        self::assertSame(2, $report->duplicates);
+        self::assertSame(1, (int) $this->em->getConnection()->fetchOne('SELECT COUNT(*) FROM scrobbles'));
+    }
+
     public function testExistingRowsDefaultToLastFm(): void
     {
         $this->em->persist(new Scrobble('alice', 'Artist', 'Old', null, null, null, null, null, new \DateTimeImmutable('2020-01-01')));
