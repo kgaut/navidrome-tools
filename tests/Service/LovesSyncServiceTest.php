@@ -54,6 +54,7 @@ class LovesSyncServiceTest extends TestCase
         $navidrome = $this->createMock(NavidromeRepository::class);
         $navidrome->method('findMediaFileByArtistTitle')->willReturn('mf-1');
         $navidrome->method('findMediaFileByMbid')->willReturn(null);
+        $navidrome->method('isStarred')->willReturn(false);
         $navidrome->expects($this->never())->method('beginWriteTransaction');
         $navidrome->expects($this->never())->method('markStarred');
         $navidrome->expects($this->never())->method('walCheckpointTruncate');
@@ -63,6 +64,30 @@ class LovesSyncServiceTest extends TestCase
 
         $this->assertSame(1, $report->considered);
         $this->assertSame(1, $report->applied);
+    }
+
+    public function testPullDryRunCountsAlreadyStarredAsInSync(): void
+    {
+        $client = $this->createMock(LastFmClient::class);
+        $client->method('iterateLovedTracks')->willReturnCallback(static function (): \Generator {
+            yield new LastFmLovedTrack('Daft Punk', 'Da Funk', null, null);
+            yield new LastFmLovedTrack('Aphex Twin', 'Xtal', null, null);
+        });
+
+        $navidrome = $this->createMock(NavidromeRepository::class);
+        $navidrome->method('findMediaFileByArtistTitle')->willReturnMap([
+            ['Daft Punk', 'Da Funk', 'mf-starred'],
+            ['Aphex Twin', 'Xtal', 'mf-new'],
+        ]);
+        $navidrome->method('findMediaFileByMbid')->willReturn(null);
+        $navidrome->method('isStarred')->willReturnMap([['mf-starred', true], ['mf-new', false]]);
+        $navidrome->expects($this->never())->method('markStarred');
+
+        $report = (new LovesSyncService($navidrome, $client))->pullLastFmToNavidrome('apiKey', 'alice', dryRun: true);
+
+        $this->assertSame(2, $report->considered);
+        $this->assertSame(1, $report->applied);
+        $this->assertSame(1, $report->alreadyInSync);
     }
 
     public function testPushSkipsAlreadyLovedAndCallsTrackLoveOtherwise(): void

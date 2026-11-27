@@ -63,7 +63,11 @@ class LovesSyncService
                 }
 
                 if ($dryRun) {
-                    $report->applied++;
+                    if ($this->navidrome->isStarred($mediaFileId)) {
+                        $report->alreadyInSync++;
+                    } else {
+                        $report->applied++;
+                    }
                     if ($progress !== null && $report->considered % 25 === 0) {
                         $progress($report->considered, $report->applied, $report->unmatched);
                     }

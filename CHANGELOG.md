@@ -9,6 +9,13 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+### Corrigé
+
+- **Coups de cœur : le dry-run de `app:loves:pull` comptait comme « à
+  étoiler » les morceaux déjà étoilés** (issue #310). Il distingue désormais
+  `applied` de `already_in_sync` en lisant l'état Navidrome, comme le run
+  réel. Même correctif pour `app:loves:lastfm-to-navidrome`.
+
 ## [2.0.0] - 2026-11-27
 
 ### Ajouté

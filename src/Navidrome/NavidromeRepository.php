@@ -395,6 +395,20 @@ class NavidromeRepository implements ResetInterface
      * Returns true when the row's state actually changed (newly inserted
      * or promoted from 0→1), false when it was already starred.
      */
+    /**
+     * True when the media_file is already starred for the configured user —
+     * lets a dry-run tell « already in sync » from « would star » (#310).
+     */
+    public function isStarred(string $mediaFileId): bool
+    {
+        return $this->connection()->fetchOne(
+            "SELECT 1 FROM annotation
+              WHERE user_id = :uid AND item_id = :iid AND item_type = 'media_file' AND starred = 1
+              LIMIT 1",
+            ['uid' => $this->resolveUserId(), 'iid' => $mediaFileId],
+        ) !== false;
+    }
+
     public function markStarred(string $mediaFileId, ?\DateTimeInterface $starredAt = null): bool
     {
         $userId = $this->resolveUserId();
