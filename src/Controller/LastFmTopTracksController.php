@@ -18,7 +18,7 @@ class LastFmTopTracksController extends AbstractTopListController
     ) {
     }
 
-    #[Route('/lastfm/top-tracks', name: 'app_lastfm_top_tracks', methods: ['GET'])]
+    #[Route('/listens/top-tracks', name: 'app_lastfm_top_tracks', methods: ['GET'])]
     public function index(Request $request): Response
     {
         return $this->renderTopList($request);

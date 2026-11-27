@@ -18,7 +18,7 @@ class LastFmTopAlbumsController extends AbstractTopListController
     ) {
     }
 
-    #[Route('/lastfm/top-albums', name: 'app_lastfm_top_albums', methods: ['GET'])]
+    #[Route('/listens/top-albums', name: 'app_lastfm_top_albums', methods: ['GET'])]
     public function index(Request $request): Response
     {
         return $this->renderTopList($request);

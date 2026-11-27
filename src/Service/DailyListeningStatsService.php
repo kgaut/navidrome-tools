@@ -23,8 +23,11 @@ use App\Repository\ScrobbleRepository;
 class DailyListeningStatsService
 {
     public const SOURCE_NAVIDROME = 'navidrome';
+    /** The listening history (`scrobbles`), whatever the source it was fetched from (#310). */
+    public const SOURCE_HISTORY = 'history';
+    /** Deprecated alias of SOURCE_HISTORY, accepted until the next major version (#310). */
     public const SOURCE_LASTFM = 'lastfm';
-    public const SOURCES = [self::SOURCE_NAVIDROME, self::SOURCE_LASTFM];
+    public const SOURCES = [self::SOURCE_NAVIDROME, self::SOURCE_HISTORY, self::SOURCE_LASTFM];
 
     public function __construct(
         private readonly NavidromeRepository $navidrome,
@@ -57,7 +60,7 @@ class DailyListeningStatsService
         // loved_added is Navidrome-only (dated starred_at), whatever the source.
         $loved = $this->navidrome->getStarredAddedByDay($fromDay, $toExclusive);
 
-        if ($source === self::SOURCE_LASTFM) {
+        if ($source === self::SOURCE_HISTORY || $source === self::SOURCE_LASTFM) {
             $user = $this->lastfmStats->resolveUser($this->historyUser);
             $agg = $this->scrobbles->getDailyListening($user, $fromDay, $toExclusive);
             $topByDay = NavidromeRepository::reduceTopArtistPerDay(

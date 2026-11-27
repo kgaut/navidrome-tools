@@ -23,7 +23,7 @@ class StatsApiController extends AbstractController
     {
         $source = (string) $request->query->get('source', DailyListeningStatsService::SOURCE_NAVIDROME);
         if (!in_array($source, DailyListeningStatsService::SOURCES, true)) {
-            return $this->error('Invalid "source"; use "navidrome" or "lastfm".');
+            return $this->error('Invalid "source"; use "navidrome" or "history" ("lastfm" is a deprecated alias of "history").');
         }
 
         $tz = new \DateTimeZone($service->timezone());
@@ -52,7 +52,7 @@ class StatsApiController extends AbstractController
     {
         $source = (string) $request->query->get('source', DailyListeningStatsService::SOURCE_NAVIDROME);
         if (!in_array($source, DailyListeningStatsService::SOURCES, true)) {
-            return $this->error('Invalid "source"; use "navidrome" or "lastfm".');
+            return $this->error('Invalid "source"; use "navidrome" or "history" ("lastfm" is a deprecated alias of "history").');
         }
 
         $tz = new \DateTimeZone($service->timezone());

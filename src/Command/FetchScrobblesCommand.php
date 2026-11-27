@@ -2,13 +2,7 @@
 
 namespace App\Command;
 
-use App\Entity\RunHistory;
-use App\LastFm\FetchReport;
-use App\Scrobble\ActiveScrobbleSource;
-use App\Scrobble\ListenBrainzScrobbleSource;
-use App\Scrobble\ScrobbleFetcher;
-use App\Scrobble\SourceFetchWindowResolver;
-use App\Service\RunHistoryRecorder;
+use App\Scrobble\ScrobbleFetchRunner;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -29,10 +23,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 class FetchScrobblesCommand extends Command
 {
     public function __construct(
-        private readonly ActiveScrobbleSource $activeSource,
-        private readonly ScrobbleFetcher $fetcher,
-        private readonly SourceFetchWindowResolver $windowResolver,
-        private readonly RunHistoryRecorder $recorder,
+        private readonly ScrobbleFetchRunner $runner,
     ) {
         parent::__construct();
     }
@@ -49,68 +40,32 @@ class FetchScrobblesCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
-
-        try {
-            $source = $this->activeSource->get();
-        } catch (\InvalidArgumentException $e) {
-            $io->error($e->getMessage());
-            return Command::FAILURE;
-        }
-        if (!$source->isConfigured()) {
-            $io->error(sprintf('Source « %s » non configurée (utilisateur ou clé manquants).', $source->name()));
-            return Command::FAILURE;
-        }
-
         $dryRun = (bool) $input->getOption('dry-run');
-        $maxScrobbles = $input->getOption('max-scrobbles') !== null ? (int) $input->getOption('max-scrobbles') : null;
-        $window = $this->windowResolver->resolve($source, $input->getOption('date-min'), $input->getOption('date-max'));
-        $smartDate = $window['source'] !== 'explicit';
-
-        $io->note(sprintf(
-            'Source %s (%s) — fenêtre : %s → %s (%s)',
-            $source->name(),
-            $source->user(),
-            $window['dateMin']->format('Y-m-d H:i:s'),
-            $window['dateMax']?->format('Y-m-d H:i:s') ?? 'maintenant',
-            $window['source'],
-        ));
-
-        $now = new \DateTimeImmutable();
-        $type = $source->name() === ListenBrainzScrobbleSource::NAME ? RunHistory::TYPE_LISTENBRAINZ_FETCH : RunHistory::TYPE_LASTFM_FETCH;
 
         try {
-            $report = $this->recorder->record(
-                type: $type,
-                reference: $source->user(),
-                label: sprintf('%s fetch %s%s', $source->name(), $source->user(), $dryRun ? ' [dry-run]' : ''),
-                action: fn () => $this->fetcher->fetch(
-                    $source,
-                    $window['dateMin'],
-                    $window['dateMax'],
-                    $maxScrobbles,
-                    $dryRun,
-                    function (int $f, int $i, int $d) use ($io): void {
-                        $io->writeln(sprintf('  fetched=%d inserted=%d duplicates=%d', $f, $i, $d));
-                    },
-                ),
-                extractMetrics: static fn (FetchReport $r) => [
-                    'source' => $source->name(),
-                    'fetched' => $r->fetched,
-                    'inserted' => $r->inserted,
-                    'duplicates' => $r->duplicates,
-                    'window' => $window['source'],
-                    'dry_run' => $dryRun,
-                ],
+            $source = $this->runner->source();
+            $report = $this->runner->run(
+                $input->getOption('date-min'),
+                $input->getOption('date-max'),
+                $input->getOption('max-scrobbles') !== null ? (int) $input->getOption('max-scrobbles') : null,
+                $dryRun,
+                static function (array $window) use ($io, $source): void {
+                    $io->note(sprintf(
+                        'Source %s (%s) — fenêtre : %s → %s (%s)',
+                        $source->name(),
+                        $source->user(),
+                        $window['dateMin']->format('Y-m-d H:i:s'),
+                        $window['dateMax']?->format('Y-m-d H:i:s') ?? 'maintenant',
+                        $window['source'],
+                    ));
+                },
+                static function (int $f, int $i, int $d) use ($io): void {
+                    $io->writeln(sprintf('  fetched=%d inserted=%d duplicates=%d', $f, $i, $d));
+                },
             );
         } catch (\Throwable $e) {
             $io->error($e->getMessage());
             return Command::FAILURE;
-        }
-
-        // Record the fetch only for computed windows. A raccord that found
-        // nothing new still records it: the next run then uses smart date.
-        if ($smartDate && !$dryRun && ($report->fetched > 0 || $window['source'] === 'raccord')) {
-            $this->windowResolver->markFetchedAt($source, $now);
         }
 
         $io->success(sprintf(

@@ -73,6 +73,17 @@ class SourceFetchWindowResolver
         $this->settings->set(self::settingKey($source), $at->format('Y-m-d H:i:s'));
     }
 
+    /** When this source was last fetched with a computed window, or null. */
+    public function lastFetchAt(ScrobbleSourceInterface $source): ?\DateTimeImmutable
+    {
+        $key = $source->name() === LastFmScrobbleSource::NAME
+            ? FetchWindowResolver::SETTING_KEY_PREFIX . $source->user()
+            : self::settingKey($source);
+        $value = $this->settings->get($key);
+
+        return $value !== '' ? new \DateTimeImmutable($value) : null;
+    }
+
     private static function settingKey(ScrobbleSourceInterface $source): string
     {
         return $source->name() . '_last_fetch_' . $source->user();

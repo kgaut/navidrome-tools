@@ -1,11 +1,12 @@
 {% extends 'base.html.twig' %}
-{% block title %}Import Last.fm{% endblock %}
+{% block title %}Import des écoutes{% endblock %}
 
-{% block page_subtitle %}fetch de l'historique · table locale scrobbles{% endblock %}
+{% block page_subtitle %}{% if source_name %}source {{ source_name }} · {{ source_user }} · {% endif %}table locale scrobbles{% endblock %}
 
 {% block body %}
     <div class="banner banner--info">
-        Les scrobbles sont importés dans la table locale <span class="mono">scrobbles</span> (source de vérité).
+        Les écoutes de la source active (<span class="mono">SCROBBLE_SOURCE</span>) sont importées dans la table
+        locale <span class="mono">scrobbles</span> (source de vérité).
         Le worker Messenger traite les messages en arrière-plan — suivez la progression dans
         <a href="{{ path('app_history') }}" class="link">l'historique</a>.
     </div>
@@ -14,24 +15,17 @@
         {# Carte gauche : fetch #}
         <div class="card">
             <div class="card__title">Lancer un fetch</div>
+            {% if source_error %}
+                <div class="banner banner--warning mb-12">{{ source_error }}</div>
+            {% endif %}
             <form method="post" action="{{ path('app_lastfm_import_post') }}">
                 <input type="hidden" name="_token" value="{{ csrf_token('lastfm_fetch') }}">
-
-                <div class="field mb-12">
-                    <label>Utilisateur Last.fm *</label>
-                    <input type="text" name="user" value="{{ default_user }}" required class="input">
-                </div>
-
-                <div class="field mb-12">
-                    <label>API Key *</label>
-                    <input type="text" name="api_key" value="{{ default_api_key }}" required class="input">
-                </div>
 
                 <div class="row gap-16 mb-12">
                     <div class="field" style="flex:1;">
                         <label>Depuis (date-min)</label>
                         <input type="date" name="date_min" class="input">
-                        <span class="muted fs-11">Vide = smart date (depuis le dernier fetch)</span>
+                        <span class="muted fs-11">Vide = depuis le dernier fetch (ou la dernière écoute en base au premier fetch ListenBrainz)</span>
                     </div>
                     <div class="field" style="flex:1;">
                         <label>Jusqu'à (date-max)</label>
@@ -41,7 +35,7 @@
 
                 <div class="row gap-16 mb-12">
                     <div class="field">
-                        <label>Max scrobbles</label>
+                        <label>Max écoutes</label>
                         <input type="number" name="max_scrobbles" min="1" placeholder="∞" class="input" style="width:120px;">
                     </div>
                     <label class="checkbox" style="align-self:flex-end;">
@@ -49,11 +43,11 @@
                     </label>
                 </div>
 
-                <button type="submit" class="btn btn--primary btn--block">↧ Lancer le fetch</button>
+                <button type="submit" class="btn btn--primary btn--block"{% if source_error %} disabled{% endif %}>↧ Lancer le fetch</button>
             </form>
 
             <div class="muted mono fs-12 mt-12">
-                CLI : <span class="t-3">php bin/console app:lastfm:fetch [user] [--date-min=YYYY-MM-DD] [--date-max=YYYY-MM-DD] [--dry-run]</span>
+                CLI : <span class="t-3">php bin/console app:scrobbles:fetch [--date-min=YYYY-MM-DD] [--date-max=YYYY-MM-DD] [--dry-run]</span>
             </div>
         </div>
 
@@ -71,10 +65,7 @@
                         {% endif %}
                     </span>
                 </div>
-                <div class="kv__row"><span class="k">Scrobbles locaux</span><span class="v">{{ total_scrobbles|number_format(0, '.', ' ') }}</span></div>
-                {% if user_scrobbles is not null %}
-                <div class="kv__row"><span class="k">Scrobbles de {{ default_user }}</span><span class="v">{{ user_scrobbles|number_format(0, '.', ' ') }}</span></div>
-                {% endif %}
+                <div class="kv__row"><span class="k">Écoutes locales</span><span class="v">{{ total_scrobbles|number_format(0, '.', ' ') }}</span></div>
                 <div class="kv__row">
                     <span class="k">Quand</span>
                     <span class="v">{% if last_fetch %}{{ last_fetch|date('d/m/Y H:i') }}{% else %}—{% endif %}</span>
@@ -84,7 +75,7 @@
             {% if last_fetch %}
                 <div class="progress"><div class="progress__fill" style="width:100%"></div></div>
             {% else %}
-                <div class="banner banner--warning mt-12">Premier import — récupération de l'historique complet.</div>
+                <div class="banner banner--warning mt-12">Aucun fetch enregistré pour cette source.</div>
             {% endif %}
         </div>
     </div>

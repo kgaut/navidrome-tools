@@ -3,7 +3,8 @@
 namespace App\Controller;
 
 use App\Entity\RunHistory;
-use App\Message\SyncLastFmLovedMessage;
+use App\Loves\ActiveLovesProvider;
+use App\Message\SyncLovedFlagsMessage;
 use App\Service\LastFmStatsService;
 use App\Service\RunHistoryRecorder;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -17,13 +18,12 @@ class LastFmStatsController extends AbstractController
     public function __construct(
         private readonly LastFmStatsService $statsService,
         private readonly RunHistoryRecorder $recorder,
-        private readonly string $defaultUser,
         private readonly string $historyUser,
-        private readonly string $defaultApiKey,
+        private readonly ActiveLovesProvider $lovesProviders,
     ) {
     }
 
-    #[Route('/lastfm/stats', name: 'app_lastfm_stats', methods: ['GET'])]
+    #[Route('/listens/stats', name: 'app_lastfm_stats', methods: ['GET'])]
     public function index(): Response
     {
         $user = $this->historyUser !== '' ? $this->historyUser : null;
@@ -32,11 +32,11 @@ class LastFmStatsController extends AbstractController
         return $this->render('lastfm/stats.html.twig', [
             'data' => $data,
             'user' => $user,
-            'can_sync_loved' => $this->defaultApiKey !== '',
+            'can_sync_loved' => $this->canSyncLoved(),
         ]);
     }
 
-    #[Route('/lastfm/stats/refresh', name: 'app_lastfm_stats_refresh', methods: ['POST'])]
+    #[Route('/listens/stats/refresh', name: 'app_lastfm_stats_refresh', methods: ['POST'])]
     public function refresh(Request $request): Response
     {
         if (!$this->isCsrfTokenValid('lastfm_stats_refresh', (string) $request->request->get('_token'))) {
@@ -49,10 +49,10 @@ class LastFmStatsController extends AbstractController
             $this->recorder->record(
                 type: RunHistory::TYPE_STATS,
                 reference: 'lastfm',
-                label: 'Last.fm stats compute',
+                label: 'Listening history stats compute',
                 action: fn () => $this->statsService->compute($user),
             );
-            $this->addFlash('success', 'Statistiques Last.fm recalculées.');
+            $this->addFlash('success', 'Statistiques de l\'historique d\'écoutes recalculées.');
         } catch (\Throwable $e) {
             $this->addFlash('error', 'Erreur : ' . $e->getMessage());
         }
@@ -60,27 +60,31 @@ class LastFmStatsController extends AbstractController
         return $this->redirectToRoute('app_lastfm_stats');
     }
 
-    #[Route('/lastfm/stats/sync-loved', name: 'app_lastfm_stats_sync_loved', methods: ['POST'])]
+    #[Route('/listens/stats/sync-loved', name: 'app_lastfm_stats_sync_loved', methods: ['POST'])]
     public function syncLoved(Request $request, MessageBusInterface $bus): Response
     {
         if (!$this->isCsrfTokenValid('lastfm_stats_sync_loved', (string) $request->request->get('_token'))) {
             throw $this->createAccessDeniedException();
         }
 
-        $user = $this->defaultUser !== '' ? $this->defaultUser : null;
-        if ($user === null || $this->defaultApiKey === '') {
-            $this->addFlash('error', 'LASTFM_USER ou LASTFM_API_KEY non configuré.');
+        if (!$this->canSyncLoved()) {
+            $this->addFlash('error', 'Source des écoutes non configurée (SCROBBLE_SOURCE, utilisateur ou clé).');
             return $this->redirectToRoute('app_lastfm_stats');
         }
 
-        $bus->dispatch(new SyncLastFmLovedMessage(
-            user: $user,
-            apiKey: $this->defaultApiKey,
-            dryRun: false,
-        ));
+        $bus->dispatch(new SyncLovedFlagsMessage());
 
-        $this->addFlash('success', 'Sync des loved tracks Last.fm lancé en arrière-plan. Pensez à recalculer le snapshot ensuite.');
+        $this->addFlash('success', 'Sync des coups de cœur lancé en arrière-plan. Pensez à recalculer le snapshot ensuite.');
 
         return $this->redirectToRoute('app_lastfm_stats');
+    }
+
+    private function canSyncLoved(): bool
+    {
+        try {
+            return $this->lovesProviders->get()->isConfigured();
+        } catch (\InvalidArgumentException) {
+            return false;
+        }
     }
 }

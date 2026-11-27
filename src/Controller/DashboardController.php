@@ -7,29 +7,23 @@ use App\Entity\ScrobbleSync;
 use App\Repository\RunHistoryRepository;
 use App\Repository\ScrobbleRepository;
 use App\Repository\ScrobbleSyncRepository;
-use App\Repository\SettingRepository;
+use App\Scrobble\ScrobbleFetchRunner;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 
 class DashboardController extends AbstractController
 {
-    public function __construct(private readonly string $defaultUser)
-    {
-    }
-
     #[Route('/', name: 'app_dashboard')]
     public function index(
         RunHistoryRepository $runHistory,
         ScrobbleRepository $scrobbleRepo,
         ScrobbleSyncRepository $syncRepo,
         NavidromeContainerManager $container,
-        SettingRepository $settings,
+        ScrobbleFetchRunner $fetchRunner,
     ): Response {
         $recentRuns = $runHistory->findFilteredPaginated([], 1, 10)['items'];
 
-        $user = $this->defaultUser !== '' ? $this->defaultUser : null;
-        $lastFetch = $user !== null ? $settings->get('lastfm_last_fetch_' . $user) : '';
 
         $containerStatus = $container->getStatus();
 
@@ -40,7 +34,7 @@ class DashboardController extends AbstractController
         return $this->render('dashboard/index.html.twig', [
             'recent_runs' => $recentRuns,
             'total_scrobbles' => $scrobbleRepo->countAll(),
-            'last_fetch' => $lastFetch !== '' ? new \DateTimeImmutable($lastFetch) : null,
+            'last_fetch' => $fetchRunner->lastFetchAt(),
             'container_configured' => $container->isConfigured(),
             'container_status' => $containerStatus->value,
             'container_label' => $containerStatus->label(),

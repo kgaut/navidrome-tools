@@ -8,12 +8,12 @@
 {% endblock %}
 
 {% block body %}
-    {# Évolution du taux de couverture Last.fm → Navidrome (série chronologique) #}
+    {# Évolution du taux de couverture historique → Navidrome (série chronologique) #}
     {% set cov = disparity.coverage_series ?? [] %}
     {% if cov|length >= 2 %}
         <div class="card">
             <div class="row between wrap mb-12">
-                <div class="card__title mb-0">Évolution du taux de couverture Last.fm → Navidrome</div>
+                <div class="card__title mb-0">Évolution du taux de couverture historique → Navidrome</div>
                 <div class="mono fs-12 t-teal">actuel · {{ (cov|last).coverage_pct }} %</div>
             </div>
             {% set n = cov|length %}
@@ -105,10 +105,10 @@
         </div>
     </div>
 
-    {# Disparité Last.fm ↔ Navidrome — périodes les moins bien couvertes #}
+    {# Disparité historique ↔ Navidrome — périodes les moins bien couvertes #}
     <div class="col">
         <div class="row between wrap">
-            <div class="card__title mb-0">Disparité Last.fm ↔ Navidrome</div>
+            <div class="card__title mb-0">Disparité historique ↔ Navidrome</div>
             {% if disparity.anchor_month %}
                 <p class="muted mono fs-11 mb-0">
                     Comparaison depuis {{ disparity.anchor_month }} (premier scrobble Navidrome). Triés par écart de plays décroissant. Cliquez une période pour filtrer les non-matchés.
@@ -134,7 +134,7 @@
                                 <thead>
                                     <tr>
                                         <th>Période</th>
-                                        <th class="num">Last.fm</th>
+                                        <th class="num">Historique</th>
                                         <th class="num">Navidrome</th>
                                         <th class="num">Écart</th>
                                         <th class="num">Couverture</th>

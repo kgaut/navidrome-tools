@@ -26,7 +26,7 @@ class LastFmScrobblesController extends AbstractController
     ) {
     }
 
-    #[Route('/lastfm/scrobbles', name: 'app_lastfm_scrobbles', methods: ['GET'])]
+    #[Route('/listens', name: 'app_lastfm_scrobbles', methods: ['GET'])]
     public function index(Request $request, ScrobbleRepository $scrobbles): Response
     {
         $user = $this->historyUser !== '' ? $this->historyUser : null;

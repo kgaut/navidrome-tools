@@ -1,5 +1,5 @@
 {% extends 'base.html.twig' %}
-{% block title %}Stats Last.fm{% endblock %}
+{% block title %}Historique d'écoutes{% endblock %}
 
 {% block page_subtitle %}
     {% set displayed_user = data and data.user ? data.user : user %}
@@ -9,9 +9,9 @@
 {% block header_actions %}
     {% if can_sync_loved %}
     <form method="post" action="{{ path('app_lastfm_stats_sync_loved') }}"
-          onsubmit="return confirm('Récupérer la liste des loved tracks depuis Last.fm et marquer les scrobbles correspondants ?');">
+          onsubmit="return confirm('Récupérer les coups de cœur de la source des écoutes et marquer les écoutes correspondantes ?');">
         <input type="hidden" name="_token" value="{{ csrf_token('lastfm_stats_sync_loved') }}">
-        <button type="submit" class="btn btn--danger btn--sm" title="Récupère la liste des coups de cœur depuis Last.fm et flag les scrobbles correspondants">♥ Sync loved</button>
+        <button type="submit" class="btn btn--danger btn--sm" title="Récupère les coups de cœur de la source des écoutes (Last.fm ou ListenBrainz) et marque les écoutes correspondantes">♥ Sync loved</button>
     </form>
     {% endif %}
     <form method="post" action="{{ path('app_lastfm_stats_refresh') }}">
@@ -24,7 +24,7 @@
     {# Onglets stats #}
     <div class="tabs">
         <a href="{{ path('app_stats') }}" class="tab">Global</a>
-        <a href="{{ path('app_lastfm_stats') }}" class="tab tab--active">Last.fm</a>
+        <a href="{{ path('app_lastfm_stats') }}" class="tab tab--active">Historique</a>
         <a href="{{ path('app_navidrome_stats') }}" class="tab">Navidrome</a>
     </div>
 
@@ -200,7 +200,7 @@
             </div>
         </div>
         {% else %}
-        <div class="empty-state">Aucun scrobble en base. Lancez un import Last.fm pour démarrer.</div>
+        <div class="empty-state">Aucune écoute en base. Lancez un import des écoutes pour démarrer.</div>
         {% endif %}
 
         {% if data.recent_loved is not empty %}

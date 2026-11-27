@@ -27,6 +27,7 @@ class StatsTools
         private readonly LastFmStatsService $lastFmStats,
         private readonly DailyListeningStatsService $daily,
         private readonly NavidromeRepository $navidrome,
+        private readonly string $historyUser = '',
     ) {
     }
 
@@ -37,17 +38,18 @@ class StatsTools
         name: 'stats_overview',
         description: 'Vue d\'ensemble des statistiques d\'écoute, telles que calculées par la dernière exécution du calcul '
             . 'planifié (champ computed_at), pas en temps réel. source = "navidrome" (écoutes réelles du serveur, défaut) '
-            . 'ou "lastfm" (historique Last.fm importé). Renvoie snapshot = null si le calcul n\'a jamais tourné.',
+            . 'ou "history" (historique d\'écoutes importé de Last.fm puis de ListenBrainz ; "lastfm" en est un ancien '
+            . 'nom, encore accepté). Renvoie snapshot = null si le calcul n\'a jamais tourné.',
         annotations: new ToolAnnotations(readOnlyHint: true, openWorldHint: false),
     )]
     public function overview(
-        #[Schema(enum: ['navidrome', 'lastfm'])]
+        #[Schema(enum: ['navidrome', 'history', 'lastfm'])]
         string $source = 'navidrome',
     ): array {
         $snapshot = match ($source) {
             'navidrome' => $this->navidromeStats->get(),
-            'lastfm' => $this->lastFmStats->get(),
-            default => throw new ToolCallException('source invalide : "navidrome" ou "lastfm".'),
+            'history', 'lastfm' => $this->lastFmStats->get($this->lastFmStats->resolveUser($this->historyUser)),
+            default => throw new ToolCallException('source invalide : "navidrome" ou "history".'),
         };
 
         return [
@@ -67,11 +69,12 @@ class StatsTools
         description: 'Écoutes jour par jour, en heure locale du serveur : morceaux joués, morceaux distincts, artistes, albums, '
             . 'durée, coups de cœur ajoutés, artiste du jour. from et to au format AAAA-MM-JJ, bornes incluses ; '
             . 'absents = aujourd\'hui ; from absent = to. 366 jours au plus (refusé au-delà). Chaque jour de la période '
-            . 'est servi, avec des zéros s\'il n\'y a pas eu d\'écoute. source = "navidrome" (défaut) ou "lastfm".',
+            . 'est servi, avec des zéros s\'il n\'y a pas eu d\'écoute. source = "navidrome" (défaut) ou "history" '
+            . '(historique d\'écoutes ; "lastfm" en est un ancien nom, encore accepté).',
         annotations: new ToolAnnotations(readOnlyHint: true, openWorldHint: false),
     )]
     public function daily(
-        #[Schema(enum: ['navidrome', 'lastfm'])]
+        #[Schema(enum: ['navidrome', 'history', 'lastfm'])]
         string $source = 'navidrome',
         #[Schema(description: 'Premier jour, AAAA-MM-JJ.')]
         ?string $from = null,
@@ -79,7 +82,7 @@ class StatsTools
         ?string $to = null,
     ): array {
         if (!in_array($source, DailyListeningStatsService::SOURCES, true)) {
-            throw new ToolCallException('source invalide : "navidrome" ou "lastfm".');
+            throw new ToolCallException('source invalide : "navidrome" ou "history".');
         }
         $tz = new \DateTimeZone($this->daily->timezone());
         $toDay = self::parseDay($to, 'to', $tz) ?? new \DateTimeImmutable('today', $tz);

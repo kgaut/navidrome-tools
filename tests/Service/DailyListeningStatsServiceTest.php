@@ -105,6 +105,25 @@ class DailyListeningStatsServiceTest extends TestCase
         }
     }
 
+    public function testHistoryAndItsLastfmAliasReadTheSameTable(): void
+    {
+        $navidrome = $this->createMock(NavidromeRepository::class);
+        $navidrome->method('getStarredAddedByDay')->willReturn([]);
+        $navidrome->expects($this->never())->method('getDailyListening');
+        $scrobbles = $this->createMock(ScrobbleRepository::class);
+        $scrobbles->expects($this->exactly(2))->method('getDailyListening')->willReturn([
+            '2026-06-01' => ['tracks' => 2, 'distinct_tracks' => 2, 'artists' => 1, 'albums' => 1],
+        ]);
+
+        $service = new DailyListeningStatsService($navidrome, $scrobbles, $this->createMock(LastFmStatsService::class), 'UTC');
+        $day = new \DateTimeImmutable('2026-06-01');
+
+        $this->assertSame(
+            $service->daily(DailyListeningStatsService::SOURCE_HISTORY, $day, $day),
+            $service->daily(DailyListeningStatsService::SOURCE_LASTFM, $day, $day),
+        );
+    }
+
     public function testTimezoneIsExposed(): void
     {
         $service = new DailyListeningStatsService(
