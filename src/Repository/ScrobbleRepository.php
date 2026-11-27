@@ -51,6 +51,21 @@ class ScrobbleRepository extends ServiceEntityRepository
     }
 
     /**
+     * Most recent played_at across every user and source, or null on an empty
+     * table. Starting point of the first fetch from a new source (#310).
+     */
+    public function getLastPlayedAtOverall(): ?\DateTimeImmutable
+    {
+        $result = $this->getEntityManager()->getConnection()->fetchOne('SELECT MAX(played_at) FROM scrobbles');
+
+        if ($result === false || $result === null) {
+            return null;
+        }
+
+        return new \DateTimeImmutable((string) $result, new \DateTimeZone('UTC'));
+    }
+
+    /**
      * Insert a scrobble using raw DBAL INSERT OR IGNORE for performance and
      * idempotency. Returns true when the row was inserted, false when it was
      * rejected by the unique constraint (duplicate).

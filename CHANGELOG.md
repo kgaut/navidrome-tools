@@ -11,12 +11,16 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 ### Ajouté
 
-- **Source d'écoutes interchangeable** (issue #310, en cours). Le fetch passe
-  par une interface de source (`ScrobbleSourceInterface`), dont Last.fm est la
-  première implémentation ; chaque écoute enregistre le service dont elle vient
-  (nouvelle colonne `scrobbles.source`, `lastfm` pour l'existant). Prépare
-  ListenBrainz comme source (ADR
-  `0310-scrobbles-listenbrainz-source-unique-raccord-par-horodatage`).
+- **ListenBrainz comme source d'écoutes** (issue #310, en cours).
+  `SCROBBLE_SOURCE=lastfm|listenbrainz` (défaut `lastfm`) choisit la source de
+  la nouvelle commande `app:scrobbles:fetch`, appelée par `navidrome-sync.sh` à
+  la place de `app:lastfm:fetch`. Avec ListenBrainz (`LISTENBRAINZ_USER`, jeton
+  facultatif), le premier fetch part de la dernière écoute déjà en base
+  (raccord, sans réimport de l'historique), puis suit la date du dernier fetch ;
+  pagination par `max_ts` et respect de la limite de débit. Chaque écoute
+  enregistre sa source (nouvelle colonne `scrobbles.source`, `lastfm` pour
+  l'existant). ADR
+  `0310-scrobbles-listenbrainz-source-unique-raccord-par-horodatage`.
 
 ### Supprimé
 

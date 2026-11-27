@@ -2,11 +2,17 @@
 
 namespace App\Recommendation;
 
+use App\LastFm\LastFmScrobble;
 use Symfony\Contracts\HttpClient\Exception\ExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 /**
- * Thin ListenBrainz client for the recommendation source. Two endpoints:
+ * Thin ListenBrainz client. Listening history (issue #310):
+ *
+ *   - GET /1/user/{user}/listens → listens, newest first, paginated
+ *     backwards with `max_ts` (see {@see streamListens()}).
+ *
+ * Recommendation source, two endpoints:
  *
  *   - GET /1/cf/recommendation/user/{user}/recording  → personalized
  *     « recordings you might like » (collaborative filtering), each with a
@@ -24,13 +30,138 @@ class ListenBrainzClient
     /** Metadata lookups are chunked to keep URLs/requests reasonable. */
     private const METADATA_CHUNK = 50;
 
+    /** ListenBrainz caps `count` at 1000 listens per request. */
+    public const LISTENS_PAGE_SIZE = 1000;
+
+    /** Retries of one page after a HTTP 429 before giving up. */
+    private const MAX_RATE_LIMIT_RETRIES = 5;
+
+    /** @var \Closure(int): void */
+    private \Closure $sleeper;
+
     public function __construct(
         private readonly HttpClientInterface $httpClient,
         private readonly string $user = '',
         private readonly string $baseUrl = self::DEFAULT_BASE_URL,
         #[\SensitiveParameter]
         private readonly string $token = '',
+        ?\Closure $sleeper = null,
     ) {
+        $this->sleeper = $sleeper ?? static function (int $seconds): void {
+            sleep($seconds);
+        };
+    }
+
+    public function user(): string
+    {
+        return trim($this->user);
+    }
+
+    /**
+     * Listens of the configured user played in [$dateMin, $dateMax], newest
+     * first. Pages backwards with `max_ts` (exclusive): the next page starts
+     * one second after the oldest listen of the current one, so listens that
+     * share that second are read twice rather than skipped — they are yielded
+     * once (deduplicated on timestamp + msid). Honours the rate-limit headers.
+     *
+     * @return \Generator<int, LastFmScrobble>
+     */
+    public function streamListens(?\DateTimeInterface $dateMin = null, ?\DateTimeInterface $dateMax = null): \Generator
+    {
+        if (!$this->isConfigured()) {
+            return;
+        }
+
+        $url = sprintf('%s/1/user/%s/listens', rtrim($this->baseUrl, '/'), rawurlencode($this->user()));
+        $minTs = $dateMin?->getTimestamp();
+        $maxTs = $dateMax !== null ? $dateMax->getTimestamp() + 1 : null;
+        $seen = [];
+
+        while (true) {
+            $query = ['count' => self::LISTENS_PAGE_SIZE];
+            if ($maxTs !== null) {
+                $query['max_ts'] = $maxTs;
+            }
+            $listens = $this->get($url, $query)['payload']['listens'] ?? [];
+            if (!is_array($listens) || $listens === []) {
+                return;
+            }
+
+            $oldest = null;
+            $pageKeys = [];
+            foreach ($listens as $listen) {
+                if (!is_array($listen)) {
+                    continue;
+                }
+                $ts = (int) ($listen['listened_at'] ?? 0);
+                if ($ts <= 0) {
+                    continue;
+                }
+                $oldest = $oldest === null ? $ts : min($oldest, $ts);
+                if ($minTs !== null && $ts < $minTs) {
+                    continue;
+                }
+                $key = $ts . '|' . (string) ($listen['recording_msid'] ?? '') . '|' . (string) ($listen['track_metadata']['track_name'] ?? '');
+                $pageKeys[$key] = true;
+                if (isset($seen[$key])) {
+                    continue;
+                }
+                $scrobble = self::toScrobble($listen, $ts);
+                if ($scrobble !== null) {
+                    yield $scrobble;
+                }
+            }
+            // Only the boundary second can come back on the next page.
+            $seen = $pageKeys;
+
+            // A short page is the last one.
+            if ($oldest === null || count($listens) < self::LISTENS_PAGE_SIZE || ($minTs !== null && $oldest < $minTs)) {
+                return;
+            }
+            // `max_ts` is exclusive: oldest + 1 re-reads the boundary second.
+            // A page made of one single second would loop: step past it.
+            $next = $oldest + 1;
+            $maxTs = ($maxTs !== null && $next >= $maxTs) ? $oldest : $next;
+        }
+    }
+
+    /**
+     * @param array<mixed> $listen
+     */
+    private static function toScrobble(array $listen, int $ts): ?LastFmScrobble
+    {
+        $meta = is_array($listen['track_metadata'] ?? null) ? $listen['track_metadata'] : [];
+        $artist = trim((string) ($meta['artist_name'] ?? ''));
+        $title = trim((string) ($meta['track_name'] ?? ''));
+        if ($artist === '' || $title === '') {
+            return null;
+        }
+        $info = is_array($meta['additional_info'] ?? null) ? $meta['additional_info'] : [];
+        $mapping = is_array($meta['mbid_mapping'] ?? null) ? $meta['mbid_mapping'] : [];
+
+        // The MusicBrainz mapping (computed by ListenBrainz) wins over what
+        // the submitting client sent.
+        $recordingMbid = self::mbid($mapping['recording_mbid'] ?? null) ?? self::mbid($info['recording_mbid'] ?? null);
+        $artistMbids = $mapping['artist_mbids'] ?? $info['artist_mbids'] ?? [];
+        $artistMbid = is_array($artistMbids) ? self::mbid($artistMbids[0] ?? null) : null;
+        $releaseMbid = self::mbid($mapping['release_mbid'] ?? null) ?? self::mbid($info['release_mbid'] ?? null);
+
+        return new LastFmScrobble(
+            artist: $artist,
+            title: $title,
+            album: trim((string) ($meta['release_name'] ?? '')),
+            mbid: $recordingMbid,
+            playedAt: (new \DateTimeImmutable('@' . $ts))->setTimezone(new \DateTimeZone('UTC')),
+            mbidArtist: $artistMbid,
+            mbidAlbum: $releaseMbid,
+        );
+    }
+
+    private static function mbid(mixed $value): ?string
+    {
+        $value = is_string($value) ? trim($value) : '';
+
+        return $value !== '' ? $value : null;
     }
 
     public function isConfigured(): bool
@@ -136,12 +267,23 @@ class ListenBrainzClient
         }
 
         try {
-            $response = $this->httpClient->request('GET', $url, [
-                'query' => $query,
-                'headers' => $headers,
-                'timeout' => 20,
-            ]);
-            $status = $response->getStatusCode();
+            $attempt = 0;
+            while (true) {
+                $response = $this->httpClient->request('GET', $url, [
+                    'query' => $query,
+                    'headers' => $headers,
+                    'timeout' => 20,
+                ]);
+                $status = $response->getStatusCode();
+                $responseHeaders = $response->getHeaders(false);
+                $resetIn = max(1, (int) ($responseHeaders['x-ratelimit-reset-in'][0] ?? 1));
+                if ($status === 429 && $attempt < self::MAX_RATE_LIMIT_RETRIES) {
+                    $attempt++;
+                    ($this->sleeper)($resetIn);
+                    continue;
+                }
+                break;
+            }
             if ($status === 204) {
                 return [];
             }
@@ -151,6 +293,12 @@ class ListenBrainzClient
 
             /** @var array<mixed> $body */
             $body = $response->toArray(false);
+
+            // Last call of the window: wait for the reset instead of
+            // collecting a 429 on the next page.
+            if (($responseHeaders['x-ratelimit-remaining'][0] ?? null) === '0') {
+                ($this->sleeper)($resetIn);
+            }
         } catch (ListenBrainzException $e) {
             throw $e;
         } catch (ExceptionInterface $e) {

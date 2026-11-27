@@ -83,7 +83,7 @@ final class FetchWindowResolver
      * Inputs that already carry a time component are kept verbatim — power
      * users may want precise windows for backfills.
      */
-    private static function parseDateMax(string $value): \DateTimeImmutable
+    public static function parseDateMax(string $value): \DateTimeImmutable
     {
         if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) === 1) {
             return (new \DateTimeImmutable($value))->modify('+1 day');
