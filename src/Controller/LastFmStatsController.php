@@ -18,6 +18,7 @@ class LastFmStatsController extends AbstractController
         private readonly LastFmStatsService $statsService,
         private readonly RunHistoryRecorder $recorder,
         private readonly string $defaultUser,
+        private readonly string $historyUser,
         private readonly string $defaultApiKey,
     ) {
     }
@@ -25,7 +26,7 @@ class LastFmStatsController extends AbstractController
     #[Route('/lastfm/stats', name: 'app_lastfm_stats', methods: ['GET'])]
     public function index(): Response
     {
-        $user = $this->defaultUser !== '' ? $this->defaultUser : null;
+        $user = $this->historyUser !== '' ? $this->historyUser : null;
         $data = $this->statsService->get($user);
 
         return $this->render('lastfm/stats.html.twig', [
@@ -42,7 +43,7 @@ class LastFmStatsController extends AbstractController
             throw $this->createAccessDeniedException();
         }
 
-        $user = $this->defaultUser !== '' ? $this->defaultUser : null;
+        $user = $this->historyUser !== '' ? $this->historyUser : null;
 
         try {
             $this->recorder->record(

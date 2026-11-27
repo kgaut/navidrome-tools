@@ -9,6 +9,17 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+### Modifié
+
+- **Statistiques calculées sur tout l'historique d'écoutes** (issue #310).
+  Elles ne filtrent plus sur `LASTFM_USER` ni sur le compte le plus présent :
+  les écoutes venues de ListenBrainz sous un autre nom de compte sont
+  comptées. Nouvelle variable `HISTORY_USER` (vide par défaut = toute la
+  table) pour restreindre à un compte. Les snapshots changent de clé : ils
+  sont vides jusqu'au prochain calcul (`app:lastfm:stats:compute`,
+  `app:stats:compute`). ADR
+  `0310-stats-historique-d-ecoutes-independant-de-la-source`.
+
 ## [2.0.1] - 2026-11-27
 
 ### Corrigé

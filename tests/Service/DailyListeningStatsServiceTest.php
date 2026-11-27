@@ -79,16 +79,18 @@ class DailyListeningStatsServiceTest extends TestCase
         $this->assertSame(['name' => 'Y', 'plays' => 3], $days[0]['top_artist']);
     }
 
-    public function testLastfmSourceWithNoUserReturnsZeroFilledDays(): void
+    public function testHistorySourceWithoutUserQueriesTheWholeTableAndZeroFills(): void
     {
         $navidrome = $this->createMock(NavidromeRepository::class);
         $navidrome->method('getStarredAddedByDay')->willReturn([]);
         $lastfm = $this->createMock(LastFmStatsService::class);
-        $lastfm->method('resolveUser')->willReturn(null); // no scrobbles at all
+        $lastfm->method('resolveUser')->willReturn(null); // HISTORY_USER empty → whole table (#310)
+        $scrobbles = $this->createMock(ScrobbleRepository::class);
+        $scrobbles->expects($this->once())->method('getDailyListening')->with(null)->willReturn([]);
 
         $service = new DailyListeningStatsService(
             $navidrome,
-            $this->createMock(ScrobbleRepository::class),
+            $scrobbles,
             $lastfm,
             'UTC',
         );

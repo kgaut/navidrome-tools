@@ -17,7 +17,7 @@ class StatsController extends AbstractController
         private readonly LocalStatsService $statsService,
         private readonly ScrobbleRepository $scrobbleRepo,
         private readonly RunHistoryRecorder $recorder,
-        private readonly string $defaultUser,
+        private readonly string $historyUser,
     ) {
     }
 
@@ -29,7 +29,7 @@ class StatsController extends AbstractController
             $period = LocalStatsService::PERIOD_30D;
         }
 
-        $user = $this->defaultUser !== '' ? $this->defaultUser : null;
+        $user = $this->historyUser !== '' ? $this->historyUser : null;
         $data = $this->statsService->get($period, $user);
 
         return $this->render('stats/index.html.twig', [
@@ -53,7 +53,7 @@ class StatsController extends AbstractController
             $period = LocalStatsService::PERIOD_30D;
         }
 
-        $user = $this->defaultUser !== '' ? $this->defaultUser : null;
+        $user = $this->historyUser !== '' ? $this->historyUser : null;
 
         try {
             $this->recorder->record(

@@ -22,14 +22,14 @@ class LastFmScrobblesController extends AbstractController
     private const PER_PAGE = 100;
 
     public function __construct(
-        private readonly string $defaultUser,
+        private readonly string $historyUser,
     ) {
     }
 
     #[Route('/lastfm/scrobbles', name: 'app_lastfm_scrobbles', methods: ['GET'])]
     public function index(Request $request, ScrobbleRepository $scrobbles): Response
     {
-        $user = $this->defaultUser !== '' ? $this->defaultUser : null;
+        $user = $this->historyUser !== '' ? $this->historyUser : null;
         $page = max(1, (int) $request->query->get('page', 1));
 
         $filters = [

@@ -29,7 +29,7 @@ class DisparityStatsService
     public function __construct(
         private readonly NavidromeRepository $navidrome,
         private readonly LastFmStatsService $lastfm,
-        private readonly string $defaultUser = '',
+        private readonly string $historyUser = '',
     ) {
     }
 
@@ -48,7 +48,7 @@ class DisparityStatsService
             return ['anchor_month' => null, 'by_month' => [], 'by_year' => [], 'coverage_series' => []];
         }
 
-        $resolvedUser = $user !== null && $user !== '' ? $user : ($this->defaultUser !== '' ? $this->defaultUser : null);
+        $resolvedUser = $user !== null && $user !== '' ? $user : ($this->historyUser !== '' ? $this->historyUser : null);
 
         $lastfmRows = $this->lastfm->playsByMonthSince($anchor, $resolvedUser);
         $naviRows = $this->navidrome->getPlaysByMonthSince($anchor);

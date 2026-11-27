@@ -31,6 +31,7 @@ class DailyListeningStatsService
         private readonly ScrobbleRepository $scrobbles,
         private readonly LastFmStatsService $lastfmStats,
         private readonly string $timezone,
+        private readonly string $historyUser = '',
     ) {
     }
 
@@ -57,19 +58,12 @@ class DailyListeningStatsService
         $loved = $this->navidrome->getStarredAddedByDay($fromDay, $toExclusive);
 
         if ($source === self::SOURCE_LASTFM) {
-            $user = $this->lastfmStats->resolveUser(null);
-            if ($user === null) {
-                $agg = [];
-                $topByDay = [];
-                $durationByDay = [];
-                $coverageByDay = [];
-            } else {
-                $agg = $this->scrobbles->getDailyListening($user, $fromDay, $toExclusive);
-                $topByDay = NavidromeRepository::reduceTopArtistPerDay(
-                    $this->scrobbles->getTopArtistByDay($user, $fromDay, $toExclusive),
-                );
-                [$durationByDay, $coverageByDay] = $this->lastfmDurationCoverage($user, $fromDay, $toExclusive);
-            }
+            $user = $this->lastfmStats->resolveUser($this->historyUser);
+            $agg = $this->scrobbles->getDailyListening($user, $fromDay, $toExclusive);
+            $topByDay = NavidromeRepository::reduceTopArtistPerDay(
+                $this->scrobbles->getTopArtistByDay($user, $fromDay, $toExclusive),
+            );
+            [$durationByDay, $coverageByDay] = $this->lastfmDurationCoverage($user, $fromDay, $toExclusive);
             $navidromeSource = false;
         } else {
             $agg = $this->navidrome->getDailyListening($fromDay, $toExclusive);
@@ -115,7 +109,7 @@ class DailyListeningStatsService
      *
      * @return array{0: array<string, int>, 1: array<string, int>} [durationByDay, coverageByDay]
      */
-    private function lastfmDurationCoverage(string $user, \DateTimeImmutable $from, \DateTimeImmutable $to): array
+    private function lastfmDurationCoverage(?string $user, \DateTimeImmutable $from, \DateTimeImmutable $to): array
     {
         $rows = $this->scrobbles->getDailyMatchedTargets($user, $from, $to);
 

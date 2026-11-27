@@ -37,6 +37,9 @@ parameters:
     env(LISTENBRAINZ_USER): ''
     env(LISTENBRAINZ_BASE_URL): 'https://api.listenbrainz.org'
     env(LISTENBRAINZ_TOKEN): ''
+    # Historique d'écoutes (issue #310) : compte filtré par les stats, vide =
+    # toute la table (toutes sources et tous comptes confondus).
+    env(HISTORY_USER): ''
     # Source des écoutes (issue #310) : lastfm (défaut) ou listenbrainz.
     env(SCROBBLE_SOURCE): 'lastfm'
     # AudioMuse-AI (analyse sonique) — playlist « Mix de la semaine ».
@@ -91,6 +94,7 @@ parameters:
     navidrome.container_stop_wait_ceiling: '%env(int:NAVIDROME_STOP_WAIT_CEILING_SECONDS)%'
     navidrome.sync.backup_interval_seconds: '%env(int:NAVIDROME_SYNC_BACKUP_INTERVAL_SECONDS)%'
     lastfm.user: '%env(LASTFM_USER)%'
+    history.user: '%env(HISTORY_USER)%'
     lastfm.api_key: '%env(LASTFM_API_KEY)%'
     lastfm.api_secret: '%env(LASTFM_API_SECRET)%'
     lastfm.page_delay_seconds: '%env(int:LASTFM_PAGE_DELAY_SECONDS)%'
@@ -166,6 +170,7 @@ services:
         bind:
             $projectDir: '%kernel.project_dir%'
             $defaultUser: '%lastfm.user%'
+            $historyUser: '%history.user%'
 
     _instanceof:
         App\Notifier\NotifierDriverInterface:
