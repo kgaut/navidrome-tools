@@ -14,11 +14,11 @@ class LastFmTopTracksController extends AbstractTopListController
     public function __construct(
         private readonly LastFmStatsService $stats,
         private readonly ScrobbleRepository $scrobbles,
-        private readonly string $defaultUser,
+        private readonly string $historyUser,
     ) {
     }
 
-    #[Route('/lastfm/top-tracks', name: 'app_lastfm_top_tracks', methods: ['GET'])]
+    #[Route('/listens/top-tracks', name: 'app_lastfm_top_tracks', methods: ['GET'])]
     public function index(Request $request): Response
     {
         return $this->renderTopList($request);
@@ -26,7 +26,7 @@ class LastFmTopTracksController extends AbstractTopListController
 
     private function user(): ?string
     {
-        return $this->defaultUser !== '' ? $this->defaultUser : null;
+        return $this->historyUser !== '' ? $this->historyUser : null;
     }
 
     protected function fetchLive(?int $year, ?int $month, ?int $day, int $limit): array

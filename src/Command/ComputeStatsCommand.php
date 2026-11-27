@@ -21,7 +21,7 @@ class ComputeStatsCommand extends Command
     public function __construct(
         private readonly LocalStatsService $statsService,
         private readonly RunHistoryRecorder $recorder,
-        private readonly string $defaultUser,
+        private readonly string $historyUser,
     ) {
         parent::__construct();
     }
@@ -36,7 +36,7 @@ class ComputeStatsCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
-        $user = $input->getOption('user') ?? ($this->defaultUser !== '' ? $this->defaultUser : null);
+        $user = $input->getOption('user') ?? ($this->historyUser !== '' ? $this->historyUser : null);
         $periodOpt = $input->getOption('period');
         $periods = $periodOpt !== null ? [$periodOpt] : array_keys(LocalStatsService::PERIODS);
 

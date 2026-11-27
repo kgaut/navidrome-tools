@@ -20,20 +20,20 @@ class StatsCommand extends Command
     public function __construct(
         private readonly ScrobbleRepository $scrobbles,
         private readonly NavidromeRepository $navidrome,
-        private readonly string $defaultUser,
+        private readonly string $historyUser,
     ) {
         parent::__construct();
     }
 
     protected function configure(): void
     {
-        $this->addOption('user', 'u', InputOption::VALUE_REQUIRED, 'Last.fm username (defaults to LASTFM_USER env).', null);
+        $this->addOption('user', 'u', InputOption::VALUE_REQUIRED, 'Last.fm username (defaults to HISTORY_USER, empty = whole history).', null);
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
-        $user = $input->getOption('user') ?? ($this->defaultUser !== '' ? $this->defaultUser : null);
+        $user = $input->getOption('user') ?? ($this->historyUser !== '' ? $this->historyUser : null);
 
         $io->title('Statistiques d\'écoute');
 

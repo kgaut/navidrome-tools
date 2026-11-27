@@ -21,34 +21,30 @@ class ComputeLastFmStatsCommand extends Command
     public function __construct(
         private readonly LastFmStatsService $statsService,
         private readonly RunHistoryRecorder $recorder,
-        private readonly string $defaultUser,
+        private readonly string $historyUser,
     ) {
         parent::__construct();
     }
 
     protected function configure(): void
     {
-        $this->addOption('user', 'u', InputOption::VALUE_REQUIRED, 'Filter by Last.fm username (defaults to LASTFM_USER).', null);
+        $this->addOption('user', 'u', InputOption::VALUE_REQUIRED, 'Filter by Last.fm username (defaults to HISTORY_USER, empty = whole history).', null);
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
-        $user = $input->getOption('user') ?? ($this->defaultUser !== '' ? $this->defaultUser : null);
+        $user = $input->getOption('user') ?? ($this->historyUser !== '' ? $this->historyUser : null);
         $resolved = $this->statsService->resolveUser($user);
+        $scope = $resolved ?? 'tout l\'historique';
 
-        if ($resolved === null) {
-            $io->warning('Aucun utilisateur Last.fm trouvé en base et LASTFM_USER non renseigné. Lancez d\'abord un import.');
-            return Command::FAILURE;
-        }
-
-        $io->writeln(sprintf('Calcul du snapshot pour <info>%s</info>…', $resolved));
+        $io->writeln(sprintf('Calcul du snapshot pour <info>%s</info>…', $scope));
 
         try {
             $data = $this->recorder->record(
                 type: RunHistory::TYPE_STATS,
                 reference: 'lastfm',
-                label: sprintf('Last.fm stats compute (%s)', $resolved),
+                label: sprintf('Listening history stats compute (%s)', $scope),
                 action: fn () => $this->statsService->compute($resolved),
             );
         } catch (\Throwable $e) {
@@ -57,8 +53,8 @@ class ComputeLastFmStatsCommand extends Command
         }
 
         $io->success(sprintf(
-            'Snapshot Last.fm recalculé pour %s : %d scrobbles, %d morceaux, %d artistes, %d albums, %d loved.',
-            $resolved,
+            'Snapshot de l\'historique d\'écoutes recalculé (%s) : %d écoutes, %d morceaux, %d artistes, %d albums, %d loved.',
+            $scope,
             $data['library']['scrobbles'] ?? 0,
             $data['library']['tracks'] ?? 0,
             $data['library']['artists'] ?? 0,

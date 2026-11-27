@@ -9,6 +9,27 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+### Modifié
+
+- **Statistiques calculées sur tout l'historique d'écoutes** (issue #310).
+  Elles ne filtrent plus sur `LASTFM_USER` ni sur le compte le plus présent :
+  les écoutes venues de ListenBrainz sous un autre nom de compte sont
+  comptées. Nouvelle variable `HISTORY_USER` (vide par défaut = toute la
+  table) pour restreindre à un compte. Les snapshots changent de clé : ils
+  sont vides jusqu'au prochain calcul (`app:lastfm:stats:compute`,
+  `app:stats:compute`). ADR
+  `0310-stats-historique-d-ecoutes-independant-de-la-source`.
+- **Pages « Last.fm » renommées en « historique d'écoutes »** (issue #310).
+  Statistiques, tops, liste des écoutes et import passent de `/lastfm/…` à
+  `/listens/…` ; les anciennes adresses redirigent (301). La page d'import
+  lance un fetch de la source active (`SCROBBLE_SOURCE`), sans saisie
+  d'utilisateur ni de clé, et le bouton « ♥ Sync loved » utilise les coups de
+  cœur de cette source. Le tableau de bord affiche le dernier fetch de la
+  source active.
+- **API et MCP : `source=history`** (issue #310) pour l'historique d'écoutes
+  (`/api/stats/daily`, `stats_overview`, `stats_daily`). `source=lastfm` reste
+  accepté comme ancien nom jusqu'à la prochaine version majeure.
+
 ## [2.0.1] - 2026-11-27
 
 ### Corrigé

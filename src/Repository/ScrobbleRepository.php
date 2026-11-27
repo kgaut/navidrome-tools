@@ -379,7 +379,7 @@ class ScrobbleRepository extends ServiceEntityRepository
      * @return array<string, array{tracks: int, distinct_tracks: int, artists: int, albums: int}>
      *   keyed by 'Y-m-d' (local); only days with plays are present
      */
-    public function getDailyListening(string $user, \DateTimeInterface $from, \DateTimeInterface $to): array
+    public function getDailyListening(?string $user, \DateTimeInterface $from, \DateTimeInterface $to): array
     {
         $rows = $this->getEntityManager()->getConnection()->fetchAllAssociative(
             "SELECT date(played_at, 'localtime') AS day,
@@ -388,9 +388,9 @@ class ScrobbleRepository extends ServiceEntityRepository
                     COUNT(DISTINCT artist) AS artists,
                     COUNT(DISTINCT CASE WHEN album != '' THEN artist || char(31) || album END) AS albums
              FROM scrobbles
-             WHERE lastfm_user = :user AND played_at >= :from AND played_at < :to
+             WHERE played_at >= :from AND played_at < :to" . self::userFilter($user, 'lastfm_user') . "
              GROUP BY day",
-            ['user' => $user, 'from' => self::utc($from), 'to' => self::utc($to)],
+            self::params($user, $from, $to),
         );
 
         $out = [];
@@ -415,7 +415,7 @@ class ScrobbleRepository extends ServiceEntityRepository
      *
      * @return list<array{day: string, target_id: ?string, plays: int}>
      */
-    public function getDailyMatchedTargets(string $user, \DateTimeInterface $from, \DateTimeInterface $to): array
+    public function getDailyMatchedTargets(?string $user, \DateTimeInterface $from, \DateTimeInterface $to): array
     {
         /** @var list<array{day: string, target_id: ?string, plays: int}> $rows */
         $rows = $this->getEntityManager()->getConnection()->fetchAllAssociative(
@@ -424,9 +424,9 @@ class ScrobbleRepository extends ServiceEntityRepository
              LEFT JOIN scrobble_sync ss
                  ON ss.scrobble_id = s.id AND ss.target = 'navidrome'
                 AND ss.status IN ('matched', 'duplicate')
-             WHERE s.lastfm_user = :user AND s.played_at >= :from AND s.played_at < :to
+             WHERE s.played_at >= :from AND s.played_at < :to" . self::userFilter($user, 's.lastfm_user') . "
              GROUP BY day, ss.target_id",
-            ['user' => $user, 'from' => self::utc($from), 'to' => self::utc($to)],
+            self::params($user, $from, $to),
         );
 
         return $rows;
@@ -437,19 +437,38 @@ class ScrobbleRepository extends ServiceEntityRepository
      *
      * @return list<array{day: string, artist: string, plays: int}> ordered by day then plays desc
      */
-    public function getTopArtistByDay(string $user, \DateTimeInterface $from, \DateTimeInterface $to): array
+    public function getTopArtistByDay(?string $user, \DateTimeInterface $from, \DateTimeInterface $to): array
     {
         /** @var list<array{day: string, artist: string, plays: int}> $rows */
         $rows = $this->getEntityManager()->getConnection()->fetchAllAssociative(
             "SELECT date(played_at, 'localtime') AS day, artist, COUNT(*) AS plays
              FROM scrobbles
-             WHERE lastfm_user = :user AND artist != '' AND played_at >= :from AND played_at < :to
+             WHERE artist != '' AND played_at >= :from AND played_at < :to" . self::userFilter($user, 'lastfm_user') . "
              GROUP BY day, artist
              ORDER BY day ASC, plays DESC, artist ASC",
-            ['user' => $user, 'from' => self::utc($from), 'to' => self::utc($to)],
+            self::params($user, $from, $to),
         );
 
         return $rows;
+    }
+
+    /** ` AND <column> = :user`, or nothing for the whole table (null user, #310). */
+    private static function userFilter(?string $user, string $column): string
+    {
+        return $user !== null && $user !== '' ? ' AND ' . $column . ' = :user' : '';
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function params(?string $user, \DateTimeInterface $from, \DateTimeInterface $to): array
+    {
+        $params = ['from' => self::utc($from), 'to' => self::utc($to)];
+        if ($user !== null && $user !== '') {
+            $params['user'] = $user;
+        }
+
+        return $params;
     }
 
     /** Format a boundary as the UTC 'Y-m-d H:i:s' string used to store `played_at`. */

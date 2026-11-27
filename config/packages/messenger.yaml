@@ -13,6 +13,8 @@ framework:
 
         routing:
             'App\Message\FetchLastFmMessage': async
+            'App\Message\SyncLovedFlagsMessage': async
+            'App\Message\FetchScrobblesMessage': async
             'App\Message\SyncNavidromeMessage': async
             'App\Message\RematchMessage': async
             'App\Message\RelinkMatchedMessage': async

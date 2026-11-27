@@ -1,5 +1,5 @@
 {% extends 'base.html.twig' %}
-{% block title %}Top morceaux — Last.fm{% endblock %}
+{% block title %}Top morceaux — historique d'écoutes{% endblock %}
 
 {% block page_subtitle %}
     Top {{ top_n }} morceaux par scrobbles.
@@ -7,7 +7,7 @@
 {% endblock %}
 
 {% block header_actions %}
-    <a href="{{ path('app_lastfm_stats') }}" class="btn btn--outline btn--sm">← Stats Last.fm</a>
+    <a href="{{ path('app_lastfm_stats') }}" class="btn btn--outline btn--sm">← Historique d'écoutes</a>
     <a href="{{ path('app_navidrome_top_tracks') }}" class="btn btn--outline btn--sm">Voir côté Navidrome →</a>
 {% endblock %}
 
