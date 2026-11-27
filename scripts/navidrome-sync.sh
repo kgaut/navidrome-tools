@@ -3,7 +3,7 @@
 # navidrome-sync.sh — CYCLE DE MAINTENANCE complet.
 #
 # Enchaîne toutes les commandes utiles SAUF le rematch (scripts dédiés) et la
-# sync des scrobbles vers Navidrome / Strawberry (couverts par navidrome-rematch*).
+# sync des scrobbles vers Navidrome (couverte par navidrome-rematch*).
 #
 #   0. stop conteneur + BACKUP (au départ)
 #   1. écriture DIRECTE dans Navidrome (conteneur arrêté) : loves Last.fm → Navidrome
@@ -13,7 +13,7 @@
 #      alias, stats, playlists, recommandations, purge historique.
 #   4. purge des backups + notif récap si échec(s).
 #
-# Commente les lignes qui ne te concernent pas (Strawberry, reco, etc.).
+# Commente les lignes qui ne te concernent pas (reco, etc.).
 #
 # Codes de sortie : 0 OK · 1 config · 2 stop KO · 3 échec(s) non bloquant(s)
 #                   (DB intègre, conteneur relancé) · 4 corruption (rollback) ·

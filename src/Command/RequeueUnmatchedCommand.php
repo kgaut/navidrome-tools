@@ -40,7 +40,7 @@ class RequeueUnmatchedCommand extends Command
 
     protected function configure(): void
     {
-        $this->addOption('target', 't', InputOption::VALUE_REQUIRED, 'Target: navidrome or strawberry.', 'navidrome');
+        $this->addOption('target', 't', InputOption::VALUE_REQUIRED, 'Target: navidrome (the only one since #313).', 'navidrome');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -48,27 +48,20 @@ class RequeueUnmatchedCommand extends Command
         $io = new SymfonyStyle($input, $output);
         $target = (string) $input->getOption('target');
 
-        if (!in_array($target, [ScrobbleSync::TARGET_NAVIDROME, ScrobbleSync::TARGET_STRAWBERRY], true)) {
-            $io->error(sprintf('Invalid target "%s". Use "navidrome" or "strawberry".', $target));
+        if ($target !== ScrobbleSync::TARGET_NAVIDROME) {
+            $io->error(sprintf('Invalid target "%s". Use "navidrome".', $target));
             return Command::INVALID;
         }
 
-        $type = $target === ScrobbleSync::TARGET_NAVIDROME
-            ? RunHistory::TYPE_NAVIDROME_REQUEUE
-            : RunHistory::TYPE_STRAWBERRY_REQUEUE;
-
         try {
             $requeued = $this->recorder->record(
-                type: $type,
+                type: RunHistory::TYPE_NAVIDROME_REQUEUE,
                 reference: 'unmatched',
                 label: sprintf('%s re-queue non-matchés', $target),
                 action: function () use ($target): int {
-                    // Purge des négatifs du cache de matching (navidrome
-                    // uniquement — Strawberry n'a pas ce cache) pour que les
+                    // Purge des négatifs du cache de matching pour que les
                     // lignes soient réellement ré-évaluées au prochain traitement.
-                    if ($target === ScrobbleSync::TARGET_NAVIDROME) {
-                        $this->matchCache->purgeUnmatchedNegatives($target);
-                    }
+                    $this->matchCache->purgeUnmatchedNegatives($target);
 
                     return $this->syncRepo->resetUnmatchedToPending($target);
                 },

@@ -9,6 +9,16 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+### Supprimé
+
+- **Intégration Strawberry retirée** (issue #313, **rupture**). Plus de
+  commande `app:scrobbles:sync-strawberry`, de routes `/strawberry/*`, de
+  variable `STRAWBERRY_DB_PATH` ni de clé `strawberry` dans l'outil MCP
+  `matching_summary`. Les options `--target` n'acceptent plus que `navidrome`
+  (défaut inchangé). Une migration supprime l'état de synchro Strawberry et
+  les jobs Strawberry en file ; le fichier `var/strawberry_upload/strawberry.db`
+  éventuel est à effacer à la main. ADR `0313-integrations-retrait-de-strawberry`.
+
 ## [1.13.1] - 2026-11-18
 
 ### Corrigé

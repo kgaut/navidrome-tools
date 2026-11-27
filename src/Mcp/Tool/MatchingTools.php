@@ -49,7 +49,7 @@ class MatchingTools
      */
     #[McpTool(
         name: 'matching_summary',
-        description: 'État du matching des scrobbles Last.fm vers Navidrome et Strawberry : nombre de scrobbles par statut '
+        description: 'État du matching des scrobbles Last.fm vers Navidrome : nombre de scrobbles par statut '
             . '(pending = pas encore traité, matched = rattaché à un morceau, duplicate = déjà présent, unmatched = aucun '
             . 'morceau trouvé, skipped = ignoré par un alias), répartition des matchés par stratégie, et les 10 artistes '
             . 'qui concentrent le plus de non-matchés côté Navidrome.',
@@ -57,17 +57,16 @@ class MatchingTools
     )]
     public function summary(): array
     {
-        $out = [];
-        foreach ([ScrobbleSync::TARGET_NAVIDROME, ScrobbleSync::TARGET_STRAWBERRY] as $target) {
-            $out[$target] = [
+        $target = ScrobbleSync::TARGET_NAVIDROME;
+
+        return [
+            $target => [
                 // Maps: an empty one must stay a JSON object.
                 'by_status' => (object) $this->syncRepo->countByStatus($target),
                 'matched_by_strategy' => (object) $this->syncRepo->countMatchedByStrategy($target),
-            ];
-        }
-        $out[ScrobbleSync::TARGET_NAVIDROME]['top_unmatched_artists'] = $this->syncRepo->topUnmatchedArtists(ScrobbleSync::TARGET_NAVIDROME, 10);
-
-        return $out;
+                'top_unmatched_artists' => $this->syncRepo->topUnmatchedArtists($target, 10),
+            ],
+        ];
     }
 
     /**

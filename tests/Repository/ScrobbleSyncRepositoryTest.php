@@ -76,10 +76,10 @@ class ScrobbleSyncRepositoryTest extends TestCase
 
     public function testPendingCountIsTargetScoped(): void
     {
-        // A scrobble already synced to strawberry must still count as
-        // pending for navidrome (each target has its own sync state).
+        // A scrobble synced to another target must still count as pending
+        // for navidrome (each target has its own sync state).
         $this->insertScrobble(1, '2024-01-01 12:00:00');
-        $this->insertSync(1, ScrobbleSync::TARGET_STRAWBERRY, ScrobbleSync::STATUS_MATCHED);
+        $this->insertSync(1, 'other-target', ScrobbleSync::STATUS_MATCHED);
 
         $count = ScrobbleSyncRepository::queryPendingCount($this->conn, ScrobbleSync::TARGET_NAVIDROME);
 

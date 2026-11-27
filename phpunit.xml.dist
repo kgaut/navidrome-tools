@@ -32,7 +32,6 @@
         <env name="LASTFM_PAGE_DELAY_SECONDS" value="0"/>
         <env name="LASTFM_FUZZY_MAX_DISTANCE" value="0"/>
         <env name="LASTFM_MATCH_CACHE_TTL_DAYS" value="30"/>
-        <env name="STRAWBERRY_DB_PATH" value=""/>
         <env name="LIDARR_API_KEY" value=""/>
         <env name="LIDARR_ROOT_FOLDER" value=""/>
         <env name="LIDARR_QUALITY_PROFILE_ID" value="0"/>

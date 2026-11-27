@@ -10,7 +10,7 @@ use App\Repository\ScrobbleRepository;
  * already stored is a no-op thanks to the UNIQUE constraint on
  * (lastfm_user, played_at, artist, title).
  *
- * No Navidrome or Strawberry writes happen here — safe to run while any
+ * No Navidrome writes happen here — safe to run while any
  * other service is up.
  */
 class LastFmFetcher

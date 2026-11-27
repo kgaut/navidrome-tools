@@ -57,21 +57,6 @@
         </div>
     </div>
 
-    {% if strawberry_active %}
-    <div class="grid grid--4">
-        <div class="kpi">
-            <div class="kpi__label">Strawberry · en attente</div>
-            <div class="kpi__value kpi__value--sm">{{ (strawberry_pending ?? 0)|number_format(0, '.', ' ') }}</div>
-            {% if strawberry_pending > 0 %}<div class="kpi__delta"><a href="{{ path('app_strawberry_sync') }}" class="link">⇄ synchroniser</a></div>{% endif %}
-        </div>
-        <div class="kpi kpi--orange">
-            <div class="kpi__label">Strawberry · non-matchés</div>
-            <div class="kpi__value kpi__value--sm">{{ (strawberry_unmatched ?? 0)|number_format(0, '.', ' ') }}</div>
-            {% if strawberry_unmatched > 0 %}<div class="kpi__delta"><a href="{{ path('app_strawberry_unmatched') }}" class="link">voir →</a></div>{% endif %}
-        </div>
-    </div>
-    {% endif %}
-
     {# Actions rapides + derniers runs #}
     <div class="grid grid--dash-runs">
         <div class="card">
