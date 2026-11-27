@@ -9,9 +9,11 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+## [2.0.0] - 2026-11-27
+
 ### Ajouté
 
-- **ListenBrainz comme source d'écoutes** (issue #310, en cours).
+- **ListenBrainz comme source d'écoutes** (issue #310).
   `SCROBBLE_SOURCE=lastfm|listenbrainz` (défaut `lastfm`) choisit la source de
   la nouvelle commande `app:scrobbles:fetch`, appelée par `navidrome-sync.sh` à
   la place de `app:lastfm:fetch`. Avec ListenBrainz (`LISTENBRAINZ_USER`, jeton
@@ -580,7 +582,8 @@ L'ancienne POC reste accessible via le tag `poc-v0`.
   `BackupService`, sessions persistantes ; CI (phpcs, PHPStan, PHPUnit, lint
   Twig, build Docker).
 
-[Non publié]: https://github.com/kgaut/navidrome-tools/compare/1.13.1...HEAD
+[Non publié]: https://github.com/kgaut/navidrome-tools/compare/2.0.0...HEAD
+[2.0.0]: https://github.com/kgaut/navidrome-tools/compare/1.13.1...2.0.0
 [1.13.1]: https://github.com/kgaut/navidrome-tools/compare/1.13.0...1.13.1
 [1.13.0]: https://github.com/kgaut/navidrome-tools/compare/1.12.0...1.13.0
 [1.12.0]: https://github.com/kgaut/navidrome-tools/compare/1.11.1...1.12.0
