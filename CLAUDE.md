@@ -66,6 +66,8 @@ sémantique (`MAJOR.MINOR.PATCH`) sur `main`. `main` suit l'état publié de
    en bas de fichier.
 3. **Merger sur `main`** (`main` = état de `develop`).
 4. **Créer le tag** `X.Y.Z` sur `main` et le pousser (sans préfixe `v`).
+5. **Créer la release GitHub** `X.Y.Z` (`gh release create X.Y.Z --title X.Y.Z
+   --notes-file …`), notes = la section `[X.Y.Z]` du CHANGELOG, marquée *Latest*.
 
 Images publiées par la CI (`ghcr.io/kgaut/navidrome-tools`) :
 
