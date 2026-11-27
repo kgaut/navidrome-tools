@@ -2,6 +2,8 @@
 
 namespace App\LastFm;
 
+use App\Loves\LastFmLovesProvider;
+use App\Loves\LovedFlagsSync;
 use App\Repository\ScrobbleRepository;
 use App\Scrobble\LastFmScrobbleSource;
 use App\Scrobble\ScrobbleFetcher;
@@ -53,38 +55,9 @@ class LastFmFetcher
      */
     public function syncLoved(string $apiKey, string $lastFmUser, bool $dryRun = false): LovedSyncReport
     {
-        $report = new LovedSyncReport();
-
-        foreach ($this->client->iterateLovedTracks($apiKey, $lastFmUser) as $loved) {
-            $report->fetched++;
-
-            if ($dryRun) {
-                if ($this->scrobbles->hasScrobble($lastFmUser, $loved->artist, $loved->title, $loved->mbid)) {
-                    $report->matched++;
-                } else {
-                    $report->unmatched++;
-                }
-                continue;
-            }
-
-            $affected = $this->scrobbles->markLoved(
-                $lastFmUser,
-                $loved->artist,
-                $loved->title,
-                $loved->mbid,
-            );
-            $report->updatedRows += $affected;
-
-            if ($affected > 0) {
-                $report->matched++;
-            } elseif ($this->scrobbles->hasScrobble($lastFmUser, $loved->artist, $loved->title, $loved->mbid)) {
-                // Track is known but every scrobble was already flagged loved.
-                $report->matched++;
-            } else {
-                $report->unmatched++;
-            }
-        }
-
-        return $report;
+        return (new LovedFlagsSync($this->scrobbles))->sync(
+            new LastFmLovesProvider($this->client, $apiKey, '', null, $lastFmUser),
+            $dryRun,
+        );
     }
 }

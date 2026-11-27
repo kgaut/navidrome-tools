@@ -461,6 +461,13 @@ services:
             $lastFmApiKey: '%lastfm.api_key%'
             $lastFmUser: '%lastfm.user%'
 
+    App\Loves\ActiveLovesProvider:
+        arguments:
+            $sourceName: '%env(SCROBBLE_SOURCE)%'
+            $lastFmApiKey: '%lastfm.api_key%'
+            $lastFmApiSecret: '%lastfm.api_secret%'
+            $lastFmUser: '%lastfm.user%'
+
     App\AudioMuse\AudioMuseClient:
         arguments:
             $baseUrl: '%audiomuse.base_url%'

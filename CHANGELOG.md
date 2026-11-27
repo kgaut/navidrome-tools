@@ -19,8 +19,16 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
   (raccord, sans réimport de l'historique), puis suit la date du dernier fetch ;
   pagination par `max_ts` et respect de la limite de débit. Chaque écoute
   enregistre sa source (nouvelle colonne `scrobbles.source`, `lastfm` pour
-  l'existant). ADR
+  l'existant). Le dry-run prévoit les doublons. ADR
   `0310-scrobbles-listenbrainz-source-unique-raccord-par-horodatage`.
+- **Coups de cœur sur la source active** (issue #310). Nouvelles commandes qui
+  suivent `SCROBBLE_SOURCE` : `app:loves:pull` (source → étoiles Navidrome),
+  `app:loves:push` (étoiles Navidrome → source) et `app:loves:flag-scrobbles`
+  (drapeau `loved` des écoutes). Avec ListenBrainz, les coups de cœur sont le
+  feedback « aimé » ; l'écriture exige `LISTENBRAINZ_TOKEN` et un MBID de
+  recording (tag Navidrome, sinon recherche ListenBrainz stricte).
+  `navidrome-sync.sh` les appelle à la place des commandes Last.fm, qui restent
+  disponibles.
 
 ### Supprimé
 

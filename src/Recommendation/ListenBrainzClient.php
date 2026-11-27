@@ -2,6 +2,7 @@
 
 namespace App\Recommendation;
 
+use App\LastFm\LastFmLovedTrack;
 use App\LastFm\LastFmScrobble;
 use Symfony\Contracts\HttpClient\Exception\ExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
@@ -123,6 +124,87 @@ class ListenBrainzClient
             $next = $oldest + 1;
             $maxTs = ($maxTs !== null && $next >= $maxTs) ? $oldest : $next;
         }
+    }
+
+    /** True when a user token is set — required to write feedback. */
+    public function hasToken(): bool
+    {
+        return trim($this->token) !== '';
+    }
+
+    /**
+     * Recordings the user loved (feedback score 1), newest first, with their
+     * metadata. Paginated by offset.
+     *
+     * @return \Generator<int, LastFmLovedTrack>
+     */
+    public function iterateLovedRecordings(): \Generator
+    {
+        if (!$this->isConfigured()) {
+            return;
+        }
+
+        $url = sprintf('%s/1/feedback/user/%s/get-feedback', rtrim($this->baseUrl, '/'), rawurlencode($this->user()));
+        $offset = 0;
+        while (true) {
+            $payload = $this->get($url, ['score' => 1, 'count' => self::LISTENS_PAGE_SIZE, 'offset' => $offset, 'metadata' => 'true']);
+            $feedback = $payload['feedback'] ?? [];
+            if (!is_array($feedback) || $feedback === []) {
+                return;
+            }
+            foreach ($feedback as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+                $meta = is_array($row['track_metadata'] ?? null) ? $row['track_metadata'] : [];
+                $mapping = is_array($meta['mbid_mapping'] ?? null) ? $meta['mbid_mapping'] : [];
+                $created = (int) ($row['created'] ?? 0);
+                yield new LastFmLovedTrack(
+                    artist: trim((string) ($meta['artist_name'] ?? '')),
+                    title: trim((string) ($meta['track_name'] ?? '')),
+                    mbid: self::mbid($row['recording_mbid'] ?? null) ?? self::mbid($mapping['recording_mbid'] ?? null),
+                    lovedAt: $created > 0 ? (new \DateTimeImmutable('@' . $created))->setTimezone(new \DateTimeZone('UTC')) : null,
+                );
+            }
+            $offset += count($feedback);
+            if (count($feedback) < self::LISTENS_PAGE_SIZE) {
+                return;
+            }
+        }
+    }
+
+    /**
+     * Love a recording (feedback score 1). Requires the user token.
+     */
+    public function loveRecording(string $recordingMbid): void
+    {
+        if (!$this->hasToken()) {
+            throw new ListenBrainzException('LISTENBRAINZ_TOKEN requis pour écrire un coup de cœur.');
+        }
+        $this->request('POST', rtrim($this->baseUrl, '/') . '/1/feedback/recording-feedback', [
+            'json' => ['recording_mbid' => $recordingMbid, 'score' => 1],
+        ]);
+    }
+
+    /**
+     * MusicBrainz recording MBID for an (artist, title), through the
+     * ListenBrainz metadata lookup. The lookup is fuzzy: the answer is kept
+     * only when its artist credit and title equal the query, case-insensitive.
+     */
+    public function lookupRecordingMbid(string $artist, string $title): ?string
+    {
+        $payload = $this->get(rtrim($this->baseUrl, '/') . '/1/metadata/lookup/', [
+            'artist_name' => $artist,
+            'recording_name' => $title,
+        ]);
+        $mbid = self::mbid($payload['recording_mbid'] ?? null);
+        if ($mbid === null) {
+            return null;
+        }
+        $sameArtist = mb_strtolower(trim((string) ($payload['artist_credit_name'] ?? ''))) === mb_strtolower(trim($artist));
+        $sameTitle = mb_strtolower(trim((string) ($payload['recording_name'] ?? ''))) === mb_strtolower(trim($title));
+
+        return $sameArtist && $sameTitle ? $mbid : null;
     }
 
     /**
@@ -261,6 +343,16 @@ class ListenBrainzClient
      */
     private function get(string $url, array $query): array
     {
+        return $this->request('GET', $url, ['query' => $query]);
+    }
+
+    /**
+     * @param array<string, mixed> $options extra HttpClient options (query, json)
+     *
+     * @return array<mixed>
+     */
+    private function request(string $method, string $url, array $options): array
+    {
         $headers = ['Accept' => 'application/json'];
         if (trim($this->token) !== '') {
             $headers['Authorization'] = 'Token ' . $this->token;
@@ -269,8 +361,7 @@ class ListenBrainzClient
         try {
             $attempt = 0;
             while (true) {
-                $response = $this->httpClient->request('GET', $url, [
-                    'query' => $query,
+                $response = $this->httpClient->request($method, $url, $options + [
                     'headers' => $headers,
                     'timeout' => 20,
                 ]);
@@ -288,7 +379,7 @@ class ListenBrainzClient
                 return [];
             }
             if ($status >= 400) {
-                throw new ListenBrainzException(sprintf('ListenBrainz HTTP %d on %s', $status, $url));
+                throw new ListenBrainzException(sprintf('ListenBrainz HTTP %d on %s %s', $status, $method, $url));
             }
 
             /** @var array<mixed> $body */
