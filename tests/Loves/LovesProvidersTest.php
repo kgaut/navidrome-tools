@@ -91,6 +91,42 @@ class LovesProvidersTest extends TestCase
         $this->assertSame([['B', 'New', 'rec-2'], ['C', 'Unknown', null]], $loved);
     }
 
+    public function testPushTreatsATrackResolvingToALovedMediaFileAsInSync(): void
+    {
+        $navidrome = $this->createMock(NavidromeRepository::class);
+        $navidrome->method('iterateStarredMediaFiles')->willReturnCallback(static function (): \Generator {
+            // Starred by a pull from a loved track spelled differently.
+            yield ['id' => 'mf-7', 'artist' => 'The Artist', 'title' => 'Song (Remastered)', 'album' => '', 'mbid' => null, 'starred_at' => null];
+        });
+        $navidrome->method('findMediaFileByMbid')->willReturn(null);
+        $navidrome->method('findMediaFileByArtistTitle')->willReturnMap([['Artist', 'Song', 'mf-7']]);
+        $loved = [];
+        $provider = $this->provider([new LastFmLovedTrack('Artist', 'Song', null, null)], $loved);
+
+        $report = (new LovesSyncService($navidrome, $this->createMock(LastFmClient::class)))->pushFromNavidrome($provider);
+
+        $this->assertSame(1, $report->alreadyInSync);
+        $this->assertSame([], $loved);
+    }
+
+    public function testPushDryRunForecastsUnidentifiableTracks(): void
+    {
+        $navidrome = $this->createMock(NavidromeRepository::class);
+        $navidrome->method('iterateStarredMediaFiles')->willReturnCallback(static function (): \Generator {
+            yield ['id' => '1', 'artist' => 'A', 'title' => 'Tagged', 'album' => '', 'mbid' => 'rec-1', 'starred_at' => null];
+            yield ['id' => '2', 'artist' => 'B', 'title' => 'Untagged', 'album' => '', 'mbid' => null, 'starred_at' => null];
+        });
+        $provider = $this->createMock(LovesProviderInterface::class);
+        $provider->method('iterateLoved')->willReturn([]);
+        $provider->method('identify')->willReturnCallback(static fn (string $a, string $t, ?string $m): ?string => $m);
+        $provider->expects($this->never())->method('love');
+
+        $report = (new LovesSyncService($navidrome, $this->createMock(LastFmClient::class)))->pushFromNavidrome($provider, dryRun: true);
+
+        $this->assertSame(1, $report->applied);
+        $this->assertSame(1, $report->unmatched);
+    }
+
     /**
      * @param list<LastFmLovedTrack>    $existing
      * @param list<array{0: string, 1: string, 2: ?string}> $loved collects love() calls

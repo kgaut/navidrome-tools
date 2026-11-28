@@ -582,12 +582,16 @@ titre). Écrit dans la base Navidrome : `--auto-stop`.
 Aime sur la source les morceaux étoilés dans Navidrome. Last.fm : session key
 (`app:lastfm:auth`). ListenBrainz : `LISTENBRAINZ_TOKEN` et un MBID de
 recording, pris dans les tags Navidrome ou trouvé par une recherche
-ListenBrainz retenue seulement si artiste et titre sont identiques ; sinon le
-morceau est compté `unmatched`.
+ListenBrainz retenue seulement si artiste et titre sont identiques (casse,
+apostrophes, espaces et artistes « feat. » ignorés) ; sinon le morceau est
+compté `unmatched`. Le résultat de la recherche, trouvé ou non, est gardé
+30 jours en cache. Un morceau étoilé qui correspond déjà à un coup de cœur
+(même artiste et titre, même MBID, ou même fichier Navidrome) n'est pas aimé
+une seconde fois.
 
 | Option | Description |
 |---|---|
-| `--dry-run` | n'écrit rien (les morceaux non identifiables ne sont détectés qu'en réel) |
+| `--dry-run` | n'écrit rien ; identifie les morceaux (recherche en lecture seule, cache rempli) |
 
 #### `app:loves:flag-scrobbles`
 Marque comme « loved » les écoutes locales des morceaux aimés sur la source.

@@ -28,6 +28,13 @@ interface LovesProviderInterface
     public function iterateLoved(): iterable;
 
     /**
+     * Identifier of the track on the provider, or null when it cannot be
+     * identified there. Read-only (may fill a local lookup cache): a dry-run
+     * uses it to forecast what love() would do (#319).
+     */
+    public function identify(string $artist, string $title, ?string $recordingMbid): ?string;
+
+    /**
      * Love a track. Returns false when the track cannot be identified on the
      * provider (nothing written); throws on a transport/API error.
      */

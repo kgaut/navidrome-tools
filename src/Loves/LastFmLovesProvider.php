@@ -43,6 +43,12 @@ final class LastFmLovesProvider implements LovesProviderInterface
         return $this->client->iterateLovedTracks($this->apiKey, $this->user);
     }
 
+    /** Last.fm loves by (artist, title): always identifiable. */
+    public function identify(string $artist, string $title, ?string $recordingMbid): string
+    {
+        return $artist . "\0" . $title;
+    }
+
     public function love(string $artist, string $title, ?string $recordingMbid): bool
     {
         $this->client->trackLove($this->apiKey, $this->apiSecret, (string) $this->sessionKey, $artist, $title);
