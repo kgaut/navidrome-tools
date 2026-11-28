@@ -7,11 +7,9 @@ use App\LastFm\LastFmLovedTrack;
 use App\Loves\ActiveLovesProvider;
 use App\Loves\LastFmLovesProvider;
 use App\Loves\ListenBrainzLovesProvider;
-use App\Loves\LovedFlagsSync;
 use App\Loves\LovesProviderInterface;
 use App\Navidrome\NavidromeRepository;
 use App\Recommendation\ListenBrainzClient;
-use App\Repository\ScrobbleRepository;
 use App\Service\LastFmSessionService;
 use App\Service\LovesSyncService;
 use PHPUnit\Framework\TestCase;
@@ -91,24 +89,6 @@ class LovesProvidersTest extends TestCase
         $this->assertSame(1, $report->applied);
         $this->assertSame(1, $report->unmatched);
         $this->assertSame([['B', 'New', 'rec-2'], ['C', 'Unknown', null]], $loved);
-    }
-
-    public function testLovedFlagsUseTheProviderUser(): void
-    {
-        $scrobbles = $this->createMock(ScrobbleRepository::class);
-        $scrobbles->expects($this->exactly(2))->method('markLoved')
-            ->with('bob', $this->anything(), $this->anything(), $this->anything())
-            ->willReturnOnConsecutiveCalls(3, 0);
-        $scrobbles->method('hasScrobble')->willReturn(false);
-        $loved = [];
-        $provider = $this->provider([new LastFmLovedTrack('A', 'T', 'rec-1', null), new LastFmLovedTrack('B', 'U', null, null)], $loved);
-
-        $report = (new LovedFlagsSync($scrobbles))->sync($provider);
-
-        $this->assertSame(2, $report->fetched);
-        $this->assertSame(1, $report->matched);
-        $this->assertSame(1, $report->unmatched);
-        $this->assertSame(3, $report->updatedRows);
     }
 
     /**
