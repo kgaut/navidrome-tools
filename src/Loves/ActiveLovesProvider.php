@@ -4,6 +4,7 @@ namespace App\Loves;
 
 use App\LastFm\LastFmClient;
 use App\Recommendation\ListenBrainzClient;
+use App\Repository\ListenBrainzLookupCacheRepository;
 use App\Scrobble\LastFmScrobbleSource;
 use App\Scrobble\ListenBrainzScrobbleSource;
 use App\Service\LastFmSessionService;
@@ -23,6 +24,7 @@ class ActiveLovesProvider
         #[\SensitiveParameter]
         private readonly string $lastFmApiSecret,
         private readonly string $lastFmUser,
+        private readonly ?ListenBrainzLookupCacheRepository $lookupCache = null,
     ) {
     }
 
@@ -39,7 +41,7 @@ class ActiveLovesProvider
                 $this->lastFmUser !== '' ? $this->sessions->get($this->lastFmUser) : null,
                 $this->lastFmUser,
             ),
-            ListenBrainzScrobbleSource::NAME => new ListenBrainzLovesProvider($this->listenBrainzClient),
+            ListenBrainzScrobbleSource::NAME => new ListenBrainzLovesProvider($this->listenBrainzClient, $this->lookupCache),
             default => throw new \InvalidArgumentException(sprintf(
                 'SCROBBLE_SOURCE inconnue : « %s » (valeurs : lastfm, listenbrainz).',
                 $this->sourceName,

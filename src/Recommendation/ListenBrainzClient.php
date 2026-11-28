@@ -189,7 +189,8 @@ class ListenBrainzClient
     /**
      * MusicBrainz recording MBID for an (artist, title), through the
      * ListenBrainz metadata lookup. The lookup is fuzzy: the answer is kept
-     * only when its artist credit and title equal the query, case-insensitive.
+     * only when its artist credit and title equal the query once normalized
+     * ({@see normalizeForLookup()}: case, apostrophes, spaces, « feat. » part).
      */
     public function lookupRecordingMbid(string $artist, string $title): ?string
     {
@@ -201,10 +202,28 @@ class ListenBrainzClient
         if ($mbid === null) {
             return null;
         }
-        $sameArtist = mb_strtolower(trim((string) ($payload['artist_credit_name'] ?? ''))) === mb_strtolower(trim($artist));
-        $sameTitle = mb_strtolower(trim((string) ($payload['recording_name'] ?? ''))) === mb_strtolower(trim($title));
+        $sameArtist = self::normalizeForLookup((string) ($payload['artist_credit_name'] ?? '')) === self::normalizeForLookup($artist);
+        $sameTitle = self::normalizeForLookup((string) ($payload['recording_name'] ?? '')) === self::normalizeForLookup($title);
 
         return $sameArtist && $sameTitle ? $mbid : null;
+    }
+
+    /**
+     * Normalization of the strict lookup comparison (#319): lower case,
+     * typographic apostrophes and quotes, collapsed spaces, and the featured
+     * artists dropped (« (feat. X) », « feat. X », « ft. X », « featuring X »).
+     * Accents, versions (« live », « remix ») and other words are kept: a
+     * different recording must not match.
+     */
+    public static function normalizeForLookup(string $value): string
+    {
+        $value = mb_strtolower($value);
+        $value = str_replace(['’', '‘', '`', '´', '“', '”'], ["'", "'", "'", "'", '"', '"'], $value);
+        $value = (string) preg_replace('/\s*[\(\[]\s*(?:feat\.?|ft\.?|featuring)\s[^\)\]]*[\)\]]/u', '', $value);
+        $value = (string) preg_replace('/\s+(?:feat\.?|ft\.?|featuring)\s.*$/u', '', $value);
+        $value = (string) preg_replace('/\s+/u', ' ', $value);
+
+        return trim($value);
     }
 
     /**

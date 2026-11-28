@@ -9,8 +9,26 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+### Ajouté
+
+- **Coups de cœur : cache des recherches ListenBrainz** (issue #319). Pour un
+  morceau étoilé sans MBID, le résultat de la recherche de `app:loves:push`
+  (trouvé ou non) est gardé 30 jours (table `listenbrainz_lookup_cache`,
+  migration `Version20261128100000`) : les morceaux introuvables ne sont plus
+  recherchés à chaque nuit.
+
 ### Corrigé
 
+- **Coups de cœur : le dry-run de `app:loves:push` surestimait** (issue
+  #319). Il identifie désormais chaque morceau (recherche en lecture seule)
+  et compte en `unmatched` ceux que la source ne reconnaît pas, comme le run
+  réel.
+- **Coups de cœur : `app:loves:push` pouvait aimer une seconde fois un
+  morceau** étoilé par `app:loves:pull` sous une autre graphie (issue #319).
+  Un morceau qui correspond au même fichier Navidrome qu'un coup de cœur
+  existant est désormais reconnu comme déjà aimé. La comparaison stricte de la
+  recherche ListenBrainz ignore aussi la casse, les apostrophes, les espaces
+  et les artistes « feat. ».
 - **`navidrome-sync.sh` : `app:loves:push` passe avant
   `app:loves:flag-scrobbles`** (issue #318). Les coups de cœur que `push`
   écrit sur la source étaient marqués sur les écoutes avec une nuit de retard.

@@ -35,7 +35,7 @@ class LovesPushCommand extends Command
 
     protected function configure(): void
     {
-        $this->addOption('dry-run', null, InputOption::VALUE_NONE, 'Count what would be loved without writing. Tracks the source cannot identify are only detected on a real run.');
+        $this->addOption('dry-run', null, InputOption::VALUE_NONE, 'Count what would be loved without writing (tracks are identified, read-only).');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int

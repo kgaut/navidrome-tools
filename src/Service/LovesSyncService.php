@@ -143,9 +143,12 @@ class LovesSyncService
     }
 
     /**
-     * Navidrome → provider: love every starred media_file not loved yet,
-     * known by (artist, title) or by recording MBID. A track the provider
-     * cannot identify counts as unmatched.
+     * Navidrome → provider: love every starred media_file not loved yet. A
+     * track counts as already loved when a loved track has its (artist, title)
+     * or recording MBID, or resolves to the same media_file through the
+     * cascade `pullToNavidrome()` uses (#319) — so a track starred by a pull
+     * under another spelling is not loved twice. A track the provider cannot
+     * identify counts as unmatched; the dry-run identifies too (read-only).
      *
      * @param callable(int, int, int): void|null $progress  fn(considered, applied, unmatched)
      */
@@ -155,10 +158,17 @@ class LovesSyncService
 
         $alreadyLoved = [];
         $alreadyLovedMbids = [];
+        $alreadyLovedIds = [];
         foreach ($provider->iterateLoved() as $loved) {
             $alreadyLoved[self::normKey($loved->artist, $loved->title)] = true;
             if ($loved->mbid !== null) {
                 $alreadyLovedMbids[$loved->mbid] = true;
+            }
+            if ($loved->artist !== '' || $loved->mbid !== null) {
+                $mediaFileId = $this->resolveMediaFileId($loved->artist, $loved->title, $loved->mbid);
+                if ($mediaFileId !== null) {
+                    $alreadyLovedIds[$mediaFileId] = true;
+                }
             }
         }
 
@@ -173,7 +183,11 @@ class LovesSyncService
 
             $key = self::normKey($artist, $title);
             $mbid = $row['mbid'];
-            if (isset($alreadyLoved[$key]) || ($mbid !== null && isset($alreadyLovedMbids[$mbid]))) {
+            if (
+                isset($alreadyLoved[$key])
+                || ($mbid !== null && isset($alreadyLovedMbids[$mbid]))
+                || isset($alreadyLovedIds[$row['id']])
+            ) {
                 $report->alreadyInSync++;
                 if ($progress !== null && $report->considered % 25 === 0) {
                     $progress($report->considered, $report->applied, $report->unmatched);
@@ -181,17 +195,9 @@ class LovesSyncService
                 continue;
             }
 
-            if ($dryRun) {
-                $report->applied++;
-                $alreadyLoved[$key] = true;
-                if ($progress !== null && $report->considered % 25 === 0) {
-                    $progress($report->considered, $report->applied, $report->unmatched);
-                }
-                continue;
-            }
-
             try {
-                if ($provider->love($artist, $title, $mbid)) {
+                $done = $dryRun ? $provider->identify($artist, $title, $mbid) !== null : $provider->love($artist, $title, $mbid);
+                if ($done) {
                     $report->applied++;
                     $alreadyLoved[$key] = true;
                 } else {
