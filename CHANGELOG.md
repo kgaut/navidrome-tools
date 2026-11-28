@@ -9,6 +9,8 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+## [2.1.1] - 2026-11-28
+
 ### Modifié
 
 - **Coups de cœur : `app:loves:flag-scrobbles` en une seule lecture de la
@@ -625,7 +627,8 @@ L'ancienne POC reste accessible via le tag `poc-v0`.
   `BackupService`, sessions persistantes ; CI (phpcs, PHPStan, PHPUnit, lint
   Twig, build Docker).
 
-[Non publié]: https://github.com/kgaut/navidrome-tools/compare/2.1.0...HEAD
+[Non publié]: https://github.com/kgaut/navidrome-tools/compare/2.1.1...HEAD
+[2.1.1]: https://github.com/kgaut/navidrome-tools/compare/2.1.0...2.1.1
 [2.1.0]: https://github.com/kgaut/navidrome-tools/compare/2.0.1...2.1.0
 [2.0.1]: https://github.com/kgaut/navidrome-tools/compare/2.0.0...2.0.1
 [2.0.0]: https://github.com/kgaut/navidrome-tools/compare/1.13.1...2.0.0
