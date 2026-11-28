@@ -117,37 +117,6 @@ class ScrobbleRepository extends ServiceEntityRepository
     }
 
     /**
-     * Flip `loved=1` on every scrobble of (user, track). MBID match wins
-     * when present (Last.fm and Navidrome agree on MusicBrainz ids when
-     * tagged), case-insensitive (artist, title) otherwise. Returns the
-     * number of rows actually flipped — 0 when the track has no matching
-     * scrobble (loved-but-never-scrobbled), or when every matching row
-     * was already loved.
-     */
-    public function markLoved(string $user, string $artist, string $title, ?string $mbidTrack): int
-    {
-        $conn = $this->getEntityManager()->getConnection();
-
-        if ($mbidTrack !== null && $mbidTrack !== '') {
-            $affected = (int) $conn->executeStatement(
-                'UPDATE scrobbles SET loved = 1
-                 WHERE lastfm_user = :u AND loved = 0 AND mbid_track = :mbid',
-                ['u' => $user, 'mbid' => $mbidTrack],
-            );
-            if ($affected > 0) {
-                return $affected;
-            }
-        }
-
-        return (int) $conn->executeStatement(
-            'UPDATE scrobbles SET loved = 1
-             WHERE lastfm_user = :u AND loved = 0
-               AND LOWER(artist) = LOWER(:a) AND LOWER(title) = LOWER(:t)',
-            ['u' => $user, 'a' => $artist, 't' => $title],
-        );
-    }
-
-    /**
      * Returns MIN/MAX played_at for the given user (or all users when null).
      *
      * @return array{first: ?\DateTimeImmutable, last: ?\DateTimeImmutable}
@@ -244,27 +213,69 @@ class ScrobbleRepository extends ServiceEntityRepository
         ) !== false;
     }
 
-    public function hasScrobble(string $user, string $artist, string $title, ?string $mbidTrack): bool
+    /**
+     * Key used to compare (artist, title) the way `LOWER(x) = LOWER(y)` does in
+     * SQLite: ASCII-only case folding, no trimming (#318).
+     */
+    public static function lovedKey(string $artist, string $title): string
     {
-        $conn = $this->getEntityManager()->getConnection();
+        return strtolower($artist) . "\0" . strtolower($title);
+    }
 
-        if ($mbidTrack !== null && $mbidTrack !== '') {
-            $found = $conn->fetchOne(
-                'SELECT 1 FROM scrobbles WHERE lastfm_user = :u AND mbid_track = :mbid LIMIT 1',
-                ['u' => $user, 'mbid' => $mbidTrack],
-            );
-            if ($found !== false) {
-                return true;
+    /**
+     * Scrobbles of the user whose MBID or (artist, title) key is in the given
+     * sets, read in ONE pass over the table instead of one scan per loved
+     * track (#318). Only the matching rows are kept in memory.
+     *
+     * @param array<string, true> $mbids recording MBIDs
+     * @param array<string, true> $keys  lovedKey() values
+     *
+     * @return list<array{id: int, key: string, mbid: ?string, loved: bool}>
+     */
+    public function findLovedCandidates(string $user, array $mbids, array $keys): array
+    {
+        $rows = $this->getEntityManager()->getConnection()->iterateAssociative(
+            'SELECT id, artist, title, mbid_track, loved FROM scrobbles WHERE lastfm_user = :u',
+            ['u' => $user],
+        );
+
+        $out = [];
+        foreach ($rows as $r) {
+            $mbid = isset($r['mbid_track']) && $r['mbid_track'] !== '' ? (string) $r['mbid_track'] : null;
+            $key = self::lovedKey((string) $r['artist'], (string) $r['title']);
+            if (($mbid !== null && isset($mbids[$mbid])) || isset($keys[$key])) {
+                $out[] = ['id' => (int) $r['id'], 'key' => $key, 'mbid' => $mbid, 'loved' => (bool) $r['loved']];
             }
         }
 
-        $found = $conn->fetchOne(
-            'SELECT 1 FROM scrobbles WHERE lastfm_user = :u
-              AND LOWER(artist) = LOWER(:a) AND LOWER(title) = LOWER(:t) LIMIT 1',
-            ['u' => $user, 'a' => $artist, 't' => $title],
-        );
+        return $out;
+    }
 
-        return $found !== false;
+    /**
+     * Flag the given scrobble ids as loved, by chunks, in one transaction.
+     * Returns the number of rows changed (already-loved rows are skipped).
+     *
+     * @param list<int> $ids
+     */
+    public function flagLovedIds(array $ids): int
+    {
+        if ($ids === []) {
+            return 0;
+        }
+        $conn = $this->getEntityManager()->getConnection();
+
+        return (int) $conn->transactional(static function ($conn) use ($ids): int {
+            $affected = 0;
+            foreach (array_chunk($ids, 500) as $chunk) {
+                $affected += (int) $conn->executeStatement(
+                    'UPDATE scrobbles SET loved = 1 WHERE loved = 0 AND id IN (?)',
+                    [$chunk],
+                    [\Doctrine\DBAL\ArrayParameterType::INTEGER],
+                );
+            }
+
+            return $affected;
+        });
     }
 
     /**

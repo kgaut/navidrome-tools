@@ -9,6 +9,17 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+### Modifié
+
+- **Coups de cœur : `app:loves:flag-scrobbles` en une seule lecture de la
+  table** (issue #318). Les écoutes sont lues une fois pour toute la liste des
+  coups de cœur, puis mises à jour par lots, au lieu de deux à quatre parcours
+  complets de `scrobbles` par coup de cœur (plusieurs minutes à quelques
+  dizaines de minutes ; moins d'une seconde sur un banc d'essai de même
+  taille). Règle de rapprochement inchangée. En dry-run, `updated_rows`
+  annonce désormais le nombre de lignes qui seraient marquées. Même gain pour
+  `app:lastfm:loved:sync`.
+
 ## [2.1.0] - 2026-11-27
 
 ### Modifié
