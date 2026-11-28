@@ -9,6 +9,12 @@ et le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 
 <!-- Ajouter ici les changements de la prochaine version, sous Ajouté / Modifié / Corrigé / Supprimé. -->
 
+### Corrigé
+
+- **`navidrome-sync.sh` : `app:loves:push` passe avant
+  `app:loves:flag-scrobbles`** (issue #318). Les coups de cœur que `push`
+  écrit sur la source étaient marqués sur les écoutes avec une nuit de retard.
+
 ## [2.1.1] - 2026-11-28
 
 ### Modifié
