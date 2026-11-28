@@ -74,8 +74,10 @@ fi
 
 # === 3. Reste du cycle (conteneur relancé, best-effort) ======================
 run_aux "fetch écoutes"             "${PHP_BIN[@]}" bin/console app:scrobbles:fetch --no-interaction
-run_aux "loved → scrobbles"          "${PHP_BIN[@]}" bin/console app:loves:flag-scrobbles --no-interaction
+# push avant flag : les coups de cœur que push vient d'écrire sur la source
+# sont ainsi marqués sur les écoutes dès cette nuit (#318).
 run_aux "loves Navidrome → source"   "${PHP_BIN[@]}" bin/console app:loves:push --no-interaction
+run_aux "loved → scrobbles"          "${PHP_BIN[@]}" bin/console app:loves:flag-scrobbles --no-interaction
 run_aux "alias resolubles"           "${PHP_BIN[@]}" bin/console app:aliases:generate --no-interaction
 run_aux "alias MusicBrainz"          "${PHP_BIN[@]}" bin/console app:aliases:musicbrainz --no-interaction
 run_aux "stats Navidrome"            "${PHP_BIN[@]}" bin/console app:navidrome:stats:compute --no-interaction
